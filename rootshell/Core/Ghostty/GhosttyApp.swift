@@ -716,6 +716,31 @@ extension Ghostty {
             return delivery
         }
 
+        /// Build the initial tmux child config/scheme as one owned delivery and
+        /// keep it alive through Ghostty's synchronous constructor. The Zig
+        /// entry point clones the config and seeds the surface appearance before
+        /// starting renderer/IO threads, closing the pre-registration response
+        /// window for restored panes.
+        func createTmuxPaneSurface(
+            tabId: UUID?,
+            windowId: String?,
+            _ create: (ghostty_config_t, ghostty_color_scheme_e) -> ghostty_surface_t?
+        ) -> ghostty_surface_t? {
+            guard let delivery = resolveSurfaceThemeDelivery(
+                tabId: tabId,
+                windowId: windowId
+            ) else {
+                logger.error("Could not build initial tmux pane theme delivery")
+                return nil
+            }
+            defer {
+                if delivery.artifacts.ownsConfig {
+                    ghostty_config_free(delivery.artifacts.config)
+                }
+            }
+            return create(delivery.artifacts.config, delivery.artifacts.scheme)
+        }
+
         /// Push one complete config/scheme pair to a live surface. Owned
         /// override configs transfer to the serial queue and are freed there.
         private func pushThemeDelivery(
@@ -733,9 +758,9 @@ extension Ghostty {
             }
         }
 
-        /// A brand-new surface has no concurrent IO or queued teardown yet, so
-        /// its first config/scheme pair can be installed synchronously before
-        /// session output starts.
+        /// Install a complete config/scheme pair synchronously during surface
+        /// registration. Tmux panes are additionally seeded inside their Zig
+        /// constructor via createTmuxPaneSurface, before their threads start.
         private func prepareNewSurface(
             _ surface: ghostty_surface_t,
             with delivery: SurfaceThemeDelivery

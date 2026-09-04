@@ -186,14 +186,25 @@ final class TerminalSurfaceController: NSObject {
         cfg: inout ghostty_surface_config_s,
         binding: Ghostty.TerminalView.TmuxPaneBinding
     ) {
-        let surface = ghostty_surface_new_tmux_pane(
-            app,
-            binding.parentSurface,
-            UInt(binding.windowId),
-            UInt(binding.paneId),
-            binding.viewerTerminal,
-            binding.viewerPane,
-            &cfg)
+        guard let ghosttyApp = host.surfaceGhosttyApp else {
+            Ghostty.logger.error("Cannot create tmux pane surface without Ghostty app")
+            return
+        }
+        let surface = ghosttyApp.createTmuxPaneSurface(
+            tabId: host.surfaceContainingTabID,
+            windowId: host.surfaceWindowID
+        ) { initialConfig, initialScheme in
+            ghostty_surface_new_tmux_pane_with_theme(
+                app,
+                binding.parentSurface,
+                UInt(binding.windowId),
+                UInt(binding.paneId),
+                binding.viewerTerminal,
+                binding.viewerPane,
+                &cfg,
+                initialConfig,
+                initialScheme)
+        }
 
         guard let surface else {
             Ghostty.logger.error("Failed to create tmux pane surface (window=\(binding.windowId) pane=\(binding.paneId))")

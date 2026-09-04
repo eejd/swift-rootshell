@@ -305,9 +305,17 @@ final class ThemeManager {
         guard builtInThemes != nil else {
             // Still parsing; that load will merge the new custom themes when it lands.
             Task { await ensureThemesLoaded() }
+            // Single-theme resolution is already available from
+            // CustomThemeManager, so live surfaces need not wait for the full
+            // bundled catalog before applying the mutation.
+            themeDidChange.send(currentTheme)
             return
         }
         rebuildCatalog()
+        // Catalog mutations can change colors without changing the selected
+        // name. Emit after the cache rebuild so current, window, and tab themes
+        // all resolve the new/deleted/renamed data atomically on refresh.
+        themeDidChange.send(currentTheme)
     }
 
     // MARK: - Theme Loading

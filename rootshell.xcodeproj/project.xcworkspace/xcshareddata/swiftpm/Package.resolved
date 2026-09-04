@@ -1,5 +1,5 @@
 {
-  "originHash" : "718351ee53cf0ad6d6b52b40377a5986832722d7adfd75b2064881de3df84be2",
+  "originHash" : "f129a6f1a050592269b61bc512b1a0fcc76885c00beb594300198ff08a718217",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -53,15 +53,6 @@
       "state" : {
         "revision" : "2c864074bf7daa53dd920e99ecbf647279884a90",
         "version" : "0.2.0"
-      }
-    },
-    {
-      "identity" : "ghosttykit-rootshell",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kitknox/ghosttykit-rootshell.git",
-      "state" : {
-        "revision" : "a3fdd67a82ee3b18e63154ac0c9cd893abded36a",
-        "version" : "0.2.5"
       }
     },
     {

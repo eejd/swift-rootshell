@@ -1573,7 +1573,7 @@
 				47IOS0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "ios_system-rootshell" */,
 				47JOE0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "joe-rootshell" */,
 				47JQPKG02FB00000AABB0000 /* XCRemoteSwiftPackageReference "jq-rootshell" */,
-				9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */,
+				9CE133DDBCF3D8D79F649B5F /* XCLocalSwiftPackageReference ".local-packages/ghosttykit-rootshell" */,
 				47TSSH0002FC00000AABB0000 /* XCRemoteSwiftPackageReference "trzsz-ssh-rootshell" */,
 				47HLX0002FD00000AABB0000 /* XCRemoteSwiftPackageReference "helix-rootshell" */,
 				47CURL0002FE0000AABB0000 /* XCRemoteSwiftPackageReference "curl_ios-rootshell" */,
@@ -6367,6 +6367,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/RootshellPushKit;
 		};
+		9CE133DDBCF3D8D79F649B5F /* XCLocalSwiftPackageReference ".local-packages/ghosttykit-rootshell" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ".local-packages/ghosttykit-rootshell";
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -6538,25 +6542,17 @@
 				version = 0.1.0;
 			};
 		};
-		9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/ghosttykit-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.2.5;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		1F83B189B33FFF1BDDA28F6B /* GhosttyKitAppStore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */;
+			package = 9CE133DDBCF3D8D79F649B5F /* XCLocalSwiftPackageReference ".local-packages/ghosttykit-rootshell" */;
 			productName = GhosttyKitAppStore;
 		};
 		417549D6E2D63FC56F6548A4 /* GhosttyKitStandalone */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */;
+			package = 9CE133DDBCF3D8D79F649B5F /* XCLocalSwiftPackageReference ".local-packages/ghosttykit-rootshell" */;
 			productName = GhosttyKitStandalone;
 		};
 		472253702F2BB891000B8D2E /* CryptoSwift */ = {
