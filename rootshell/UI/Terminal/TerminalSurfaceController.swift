@@ -186,14 +186,25 @@ final class TerminalSurfaceController: NSObject {
         cfg: inout ghostty_surface_config_s,
         binding: Ghostty.TerminalView.TmuxPaneBinding
     ) {
-        let surface = ghostty_surface_new_tmux_pane(
-            app,
-            binding.parentSurface,
-            UInt(binding.windowId),
-            UInt(binding.paneId),
-            binding.viewerTerminal,
-            binding.viewerPane,
-            &cfg)
+        guard let ghosttyApp = host.surfaceGhosttyApp else {
+            Ghostty.logger.error("Cannot create tmux pane surface without Ghostty app")
+            return
+        }
+        let surface = ghosttyApp.createTmuxPaneSurface(
+            tabId: host.surfaceContainingTabID,
+            windowId: host.surfaceWindowID
+        ) { initialConfig, initialScheme in
+            ghostty_surface_new_tmux_pane_with_theme(
+                app,
+                binding.parentSurface,
+                UInt(binding.windowId),
+                UInt(binding.paneId),
+                binding.viewerTerminal,
+                binding.viewerPane,
+                &cfg,
+                initialConfig,
+                initialScheme)
+        }
 
         guard let surface else {
             Ghostty.logger.error("Failed to create tmux pane surface (window=\(binding.windowId) pane=\(binding.paneId))")
@@ -201,7 +212,7 @@ final class TerminalSurfaceController: NSObject {
             return
         }
 
-        installSurface(surface)
+        installSurface(surface, themeAlreadySeeded: true)
 
         if let controller = TmuxController.controller(forOwnerSurface: binding.parentSurface),
            let target = controller.overrideFontSize(forWindowId: binding.windowId) {
@@ -278,14 +289,17 @@ final class TerminalSurfaceController: NSObject {
         startFirstFramePolling()
     }
 
-    private func installSurface(_ surface: ghostty_surface_t) {
+    private func installSurface(
+        _ surface: ghostty_surface_t,
+        themeAlreadySeeded: Bool = false
+    ) {
         Ghostty.logger.info("Surface created successfully, ptr=\(String(describing: surface))")
         self.surface = surface
         host.surfaceControllerDidSetSurface(surface)
 
-        host.surfaceGhosttyApp?.registerSurface(surface)
-        Ghostty.logger.info("Surface registered for config updates")
-
+        // Establish ownership before registerSurface seeds Ghostty's effective
+        // color scheme. This makes the first terminal response honor tab >
+        // window > global precedence, including for restored/tmux panes.
         host.surfaceGhosttyApp?.registerSurfaceWindow(surface, windowId: host.surfaceWindowID)
         let windowID = host.surfaceWindowID
         Ghostty.logger.info("Surface registered to window \(windowID)")
@@ -295,12 +309,13 @@ final class TerminalSurfaceController: NSObject {
             Ghostty.logger.info("Surface registered to tab \(tabId)")
         }
 
-        host.surfaceSetupThemeOverrideSubscription()
-        host.surfaceGhosttyApp?.refreshSurfaceTheme(
+        host.surfaceGhosttyApp?.registerSurface(
             surface,
-            tabId: host.surfaceContainingTabID,
-            windowId: host.surfaceWindowID
+            themeAlreadySeeded: themeAlreadySeeded
         )
+        Ghostty.logger.info("Surface registered for config updates")
+
+        host.surfaceSetupThemeOverrideSubscription()
 
         if let delegate = host.surfaceUserdata as? GhosttyActionDelegate {
             host.surfaceGhosttyApp?.registerSurfaceDelegate(surface, delegate: delegate)

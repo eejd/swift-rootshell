@@ -269,6 +269,41 @@ xcodebuild -project rootshell.xcodeproj \
   -sdk iphonesimulator -arch arm64 build
 ```
 
+### Local GhosttyKit Development
+
+This fork resolves `GhosttyKitAppStore` and `GhosttyKitStandalone` from the
+git-ignored `.local-packages/ghosttykit-rootshell` directory. Build both local
+artifacts from a Ghostty source checkout before opening the Xcode project:
+
+```bash
+git clone https://github.com/eejd/ghostty-rootshell.git
+cd ghostty-rootshell
+git checkout 2c6aa361e
+cd /path/to/swift-rootshell
+./scripts/build-framework.sh all \
+  --ghostty-source /path/to/ghostty-rootshell \
+  --zig /opt/local/bin/zig \
+  --clean
+```
+
+The script builds both xcframework variants, audits their private-symbol split,
+and writes a local Swift package whose binary targets point at the new build
+IDs. Nothing is uploaded or published. Re-run it after changing Ghostty source;
+the generated package and frameworks remain outside Git.
+
+The reviewed source commit for this integration is `2c6aa361e` on
+`eejd/ghostty-rootshell` (`fix/runtime-color-scheme`). Track live validation
+before any upstream submission in `eejd/ghostty-rootshell#3` and
+`eejd/swift-rootshell#2`.
+
+Appearance propagation follows the visible client: rootshell supplies each
+surface's effective light/dark state and theme colors, and native tmux panes
+relay that state through tmux's `CSI ?996n` / mode-2031 protocol to subscribed
+shells and TUIs. A tmux pane is still one shared process with one server-side
+theme state. Separate panes or sessions can follow separate clients, but two
+clients viewing the same pane with conflicting appearances cannot give that one
+TUI two simultaneous themes; the most recent per-pane report wins.
+
 ### macOS Local Shells
 
 Local shells on macOS use the `rootshell-helper` source included in this repository. The Standalone target builds the native background app and embeds it at `Contents/Helpers/rootshell-helper.app` with Code Sign on Copy; no prebuilt helper binary is stored in Git. Organizer distribution signs and notarizes the helper as nested code with the containing app. A sandboxed macOS build can connect to the same helper when it is launched separately because both products use the provisioned `group.com.kk2.ghostty` App Group container.

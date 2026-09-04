@@ -238,7 +238,7 @@ enum BackupImporter {
         let existingNames = Set(themeManager.customThemes.map { $0.name.lowercased() })
         var restored = 0
         var skipped = 0
-        let errors: [String] = []
+        var errors: [String] = []
 
         for entry in backup.themes {
             if existingNames.contains(entry.theme.name.lowercased()) {
@@ -246,8 +246,11 @@ enum BackupImporter {
                 continue
             }
 
-            themeManager.saveTheme(entry.theme)
-            restored += 1
+            if themeManager.saveTheme(entry.theme) {
+                restored += 1
+            } else {
+                errors.append("Theme \(entry.theme.name): backing files could not be saved")
+            }
         }
 
         return RestoreSummary.CategoryResult(restored: restored, skipped: skipped, errors: errors)

@@ -178,7 +178,7 @@ extension MainView {
         suppressesTabBarAnimation: Bool = false
     ) {
         let newTab = TerminalTab(paneView: pane, title: title, windowId: windowId)
-        pane.containingTabID = newTab.id
+        pane.retargetTab(to: newTab.id)
 
         // Insert tab after current tab (not at end)
         let insertionIndex = min(selectedTabIndex + 1, terminals.count)
@@ -285,7 +285,7 @@ extension MainView {
         direction: SplitTree<SplitPaneView>.NewDirection,
         logLabel: String
     ) {
-        pane.containingTabID = terminals[tabIndex].id
+        pane.retargetTab(to: terminals[tabIndex].id)
 
         // Insert the new split and set focus
         do {
@@ -1007,7 +1007,7 @@ extension MainView {
 
         // Create a new tab with updated config and window ID
         let updatedTab = TerminalTab(terminalView: terminalView, title: config.displayName, windowId: windowId)
-        terminalView.containingTabID = updatedTab.id
+        terminalView.retargetTab(to: updatedTab.id)
 
         // Replace the old tab
         terminals[index] = updatedTab

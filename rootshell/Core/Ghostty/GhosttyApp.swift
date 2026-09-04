@@ -264,11 +264,8 @@ extension Ghostty {
         /// Publisher that emits when the number of active surfaces changes
         let surfaceCountDidChange = PassthroughSubject<Void, Never>()
 
-        /// Mapping of surface pointers to window IDs
-        private var surfaceWindowMap: [Int: String] = [:]
-
-        /// Mapping of surface pointers to tab UUIDs
-        private var surfaceTabMap: [Int: UUID] = [:]
+        /// Window/tab ownership used to resolve each surface's effective theme.
+        private var surfaceThemeAssociations = SurfaceThemeAssociations()
 
         /// Subscription to theme changes
         private var themeSubscription: AnyCancellable?
@@ -425,6 +422,13 @@ extension Ghostty {
                 return
             }
             self.app = app
+
+            // Seed libghostty's default before any surface exists. Every live
+            // surface is updated independently below so tab/window overrides
+            // can report their own effective appearance.
+            if let scheme = colorScheme(forTheme: ThemeManager.shared.currentTheme) {
+                ghostty_app_set_color_scheme(app, scheme)
+            }
 
             // Register this instance for callback access
             // Use raw pointer address as key (not ObjectIdentifier which creates new wrapper each time)
@@ -596,29 +600,40 @@ extension Ghostty {
             completion: (@MainActor @Sendable () -> Void)? = nil
         ) -> (updated: Int, overridden: Int) {
             var overrideSurfaces: [(UnsafeMutableRawPointer, UnsafeMutableRawPointer)] = []
+            var surfaceSchemes: [(UnsafeMutableRawPointer, ghostty_color_scheme_e)] = []
             var overridden = 0
 
             for surface in activeSurfaces {
                 let surfaceId = Int(bitPattern: surface)
-                let (themeName, source) = ThemeOverrideManager.shared.resolveTheme(
-                    tabId: surfaceTabMap[surfaceId],
-                    windowId: surfaceWindowMap[surfaceId])
-                guard source != .global else { continue }
+                let context = surfaceThemeAssociations.context(for: surfaceId)
+                guard let delivery = resolveSurfaceThemeDelivery(
+                    tabId: context.tabID,
+                    windowId: context.windowID,
+                    globalConfig: globalConfig
+                ) else {
+                    logger.error("Could not build a complete theme delivery for active surface")
+                    continue
+                }
 
-                overridden += 1
-                if let surfaceConfig = Ghostty.Config.createConfigForTheme(themeName) {
-                    overrideSurfaces.append((surface, surfaceConfig))
+                surfaceSchemes.append((surface, delivery.artifacts.scheme))
+                if delivery.artifacts.ownsConfig {
+                    overridden += 1
+                    overrideSurfaces.append((surface, delivery.artifacts.config))
                 }
             }
 
             nonisolated(unsafe) let appPtr = app
             nonisolated(unsafe) let cfg = globalConfig
             nonisolated(unsafe) let overrides = overrideSurfaces
+            nonisolated(unsafe) let schemes = surfaceSchemes
             Ghostty.TerminalView.ghosttyAPIQueue.async {
                 ghostty_app_update_config(appPtr, cfg)
                 for (surface, surfaceConfig) in overrides {
                     ghostty_surface_update_config(surface, surfaceConfig)
                     ghostty_config_free(surfaceConfig)
+                }
+                for (surface, scheme) in schemes {
+                    ghostty_surface_set_color_scheme(surface, scheme)
                 }
                 if let completion {
                     Task { @MainActor in completion() }
@@ -637,21 +652,123 @@ extension Ghostty {
             pushConfig(app: app, globalConfig: cfg)
         }
 
-        /// Push a config to a single surface on `ghosttyAPIQueue`, for the same
-        /// reason as `pushConfig(app:globalConfig:completion:)`.
-        ///
-        /// - Parameter owned: when true the config was built for this call and is
-        ///   freed on the queue once the push completes.
-        private func pushConfig(
-            toSurface surface: ghostty_surface_t,
-            config surfaceConfig: ghostty_config_t,
-            owned: Bool
+        private struct SurfaceThemeArtifacts {
+            let config: ghostty_config_t
+            let scheme: ghostty_color_scheme_e
+            let ownsConfig: Bool
+        }
+
+        private typealias SurfaceThemeDelivery = ThemeDeliveryPlanner.Delivery<SurfaceThemeArtifacts>
+
+        /// Resolve config and semantic appearance as one artifact set. Invalid
+        /// tab/window overrides fall back to the current global theme as a pair;
+        /// no caller can apply only one half of a theme.
+        private func resolveSurfaceThemeDelivery(
+            tabId: UUID?,
+            windowId: String?,
+            globalConfig: ghostty_config_t? = nil
+        ) -> SurfaceThemeDelivery? {
+            let (themeName, source) = ThemeOverrideManager.shared.resolveTheme(
+                tabId: tabId,
+                windowId: windowId
+            )
+            let plannerSource: ThemeDeliveryPlanner.Source = switch source {
+            case .global: .global
+            case .window: .window
+            case .tab: .tab
+            }
+            let effective = ThemeDeliveryPlanner.Resolution(
+                themeName: themeName,
+                source: plannerSource
+            )
+            let currentGlobalConfig = globalConfig ?? config.config
+            let delivery = ThemeDeliveryPlanner.delivery(
+                effective: effective,
+                globalTheme: ThemeManager.shared.currentTheme
+            ) { [self] resolution -> SurfaceThemeArtifacts? in
+                guard let scheme = colorScheme(forTheme: resolution.themeName) else {
+                    return nil
+                }
+
+                switch resolution.source {
+                case .global:
+                    guard let currentGlobalConfig else { return nil }
+                    return SurfaceThemeArtifacts(
+                        config: currentGlobalConfig,
+                        scheme: scheme,
+                        ownsConfig: false
+                    )
+                case .window, .tab:
+                    guard let overrideConfig = Ghostty.Config.createConfigForTheme(resolution.themeName) else {
+                        return nil
+                    }
+                    return SurfaceThemeArtifacts(
+                        config: overrideConfig,
+                        scheme: scheme,
+                        ownsConfig: true
+                    )
+                }
+            }
+
+            if effective.source != .global, delivery?.resolution.source == .global {
+                logger.error("Theme override \(themeName) is incomplete; using the global theme")
+            }
+            return delivery
+        }
+
+        /// Build the initial tmux child config/scheme as one owned delivery and
+        /// keep it alive through Ghostty's synchronous constructor. The Zig
+        /// entry point clones the config and seeds the surface appearance before
+        /// starting renderer/IO threads, closing the pre-registration response
+        /// window for restored panes.
+        func createTmuxPaneSurface(
+            tabId: UUID?,
+            windowId: String?,
+            _ create: (ghostty_config_t, ghostty_color_scheme_e) -> ghostty_surface_t?
+        ) -> ghostty_surface_t? {
+            guard let delivery = resolveSurfaceThemeDelivery(
+                tabId: tabId,
+                windowId: windowId
+            ) else {
+                logger.error("Could not build initial tmux pane theme delivery")
+                return nil
+            }
+            defer {
+                if delivery.artifacts.ownsConfig {
+                    ghostty_config_free(delivery.artifacts.config)
+                }
+            }
+            return create(delivery.artifacts.config, delivery.artifacts.scheme)
+        }
+
+        /// Push one complete config/scheme pair to a live surface. Owned
+        /// override configs transfer to the serial queue and are freed there.
+        private func pushThemeDelivery(
+            _ delivery: SurfaceThemeDelivery,
+            to surface: ghostty_surface_t
         ) {
             nonisolated(unsafe) let surface = surface
-            nonisolated(unsafe) let surfaceConfig = surfaceConfig
+            nonisolated(unsafe) let surfaceConfig = delivery.artifacts.config
+            let scheme = delivery.artifacts.scheme
+            let ownsConfig = delivery.artifacts.ownsConfig
             Ghostty.TerminalView.ghosttyAPIQueue.async {
                 ghostty_surface_update_config(surface, surfaceConfig)
-                if owned { ghostty_config_free(surfaceConfig) }
+                ghostty_surface_set_color_scheme(surface, scheme)
+                if ownsConfig { ghostty_config_free(surfaceConfig) }
+            }
+        }
+
+        /// Install a complete config/scheme pair synchronously during surface
+        /// registration. Tmux panes are additionally seeded inside their Zig
+        /// constructor via createTmuxPaneSurface, before their threads start.
+        private func prepareNewSurface(
+            _ surface: ghostty_surface_t,
+            with delivery: SurfaceThemeDelivery
+        ) {
+            ghostty_surface_update_config(surface, delivery.artifacts.config)
+            ghostty_surface_set_color_scheme(surface, delivery.artifacts.scheme)
+            if delivery.artifacts.ownsConfig {
+                ghostty_config_free(delivery.artifacts.config)
             }
         }
 
@@ -686,6 +803,14 @@ extension Ghostty {
         }
 
         // MARK: - Theme Management
+
+        private func colorScheme(forTheme themeName: String) -> ghostty_color_scheme_e? {
+            guard let theme = ThemeManager.shared.themeInfo(for: themeName) else {
+                logger.warning("Cannot resolve appearance for theme: \(themeName)")
+                return nil
+            }
+            return theme.isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+        }
 
         /// Set up subscription to theme changes
         private func setupThemeSubscription() {
@@ -724,24 +849,6 @@ extension Ghostty {
 
         // MARK: - Per-Surface Theme Overrides
 
-        /// Apply a specific theme to a single surface (for per-tab/per-window overrides)
-        /// This does not affect the global config or other surfaces.
-        /// - Parameters:
-        ///   - surface: The ghostty surface to apply the theme to
-        ///   - themeName: The theme name to apply
-        func applyThemeToSurface(_ surface: ghostty_surface_t, themeName: String) {
-            logger.info("Applying theme override to surface: \(themeName)")
-
-            guard let surfaceConfig = Ghostty.Config.createConfigForTheme(themeName) else {
-                logger.error("Failed to create config for surface theme: \(themeName)")
-                return
-            }
-
-            pushConfig(toSurface: surface, config: surfaceConfig, owned: true)
-
-            logger.info("Applied theme override to surface: \(themeName)")
-        }
-
         /// Refresh a surface's theme based on the current override state
         /// Resolves the effective theme from ThemeOverrideManager and applies it
         /// - Parameters:
@@ -749,21 +856,12 @@ extension Ghostty {
         ///   - tabId: The tab UUID (for tab-level override lookup)
         ///   - windowId: The window ID (for window-level override lookup)
         func refreshSurfaceTheme(_ surface: ghostty_surface_t, tabId: UUID?, windowId: String?) {
-            let (themeName, source) = ThemeOverrideManager.shared.resolveTheme(tabId: tabId, windowId: windowId)
-
-            switch source {
-            case .global:
-                // No override - use the shared global config
-                if let globalConfig = config.config {
-                    pushConfig(toSurface: surface, config: globalConfig, owned: false)
-                    logger.info("Surface theme refreshed to global: \(themeName)")
-                }
-            case .window, .tab:
-                // Has override - create and apply per-surface config
-                applyThemeToSurface(surface, themeName: themeName)
-                let sourceStr = source == .tab ? "tab" : "window"
-                logger.info("Surface theme refreshed to \(sourceStr) override: \(themeName)")
+            guard let delivery = resolveSurfaceThemeDelivery(tabId: tabId, windowId: windowId) else {
+                logger.error("Could not build a complete theme delivery for surface refresh")
+                return
             }
+            pushThemeDelivery(delivery, to: surface)
+            logger.info("Surface theme refreshed: \(delivery.resolution.themeName)")
         }
 
         // MARK: - Font Size Management
@@ -1725,10 +1823,33 @@ extension Ghostty {
 
         /// Register a surface to receive config updates
         /// - Parameter surface: The ghostty_surface_t pointer
-        func registerSurface(_ surface: ghostty_surface_t) {
+        func registerSurface(
+            _ surface: ghostty_surface_t,
+            themeAlreadySeeded: Bool = false
+        ) {
             let ptr = UnsafeMutableRawPointer(mutating: surface)
-            activeSurfaces.insert(ptr)
-            logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")
+            SurfaceThemeInitializationCoordinator.register(
+                themeAlreadySeeded: themeAlreadySeeded,
+                recordLifetime: {
+                    self.activeSurfaces.insert(ptr)
+                    Ghostty.logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")
+                },
+                deliverInitialTheme: {
+                    // The app-level default deliberately remains independent
+                    // of live global changes because setting it would broadcast
+                    // over surfaces with tab/window overrides.
+                    let surfaceId = Int(bitPattern: surface)
+                    let context = self.surfaceThemeAssociations.context(for: surfaceId)
+                    if let delivery = self.resolveSurfaceThemeDelivery(
+                        tabId: context.tabID,
+                        windowId: context.windowID
+                    ) {
+                        self.prepareNewSurface(ptr, with: delivery)
+                    } else {
+                        Ghostty.logger.error("Could not prepare new surface with a complete theme")
+                    }
+                }
+            )
 
             // Sync the global HDR brightness gain to this newly registered
             // (or restored) surface so it matches every other surface.
@@ -1758,9 +1879,8 @@ extension Ghostty {
             let ptr = UnsafeMutableRawPointer(mutating: surface)
             activeSurfaces.remove(ptr)
 
-            // Also remove from window map
             let surfaceId = Int(bitPattern: surface)
-            surfaceWindowMap.removeValue(forKey: surfaceId)
+            surfaceThemeAssociations.removeSurface(surfaceId)
 
             // Notify that surface count changed (triggers window configuration update)
             surfaceCountDidChange.send()
@@ -1776,7 +1896,7 @@ extension Ghostty {
         ///   - windowId: The window identifier
         func registerSurfaceWindow(_ surface: ghostty_surface_t, windowId: String) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceWindowMap[surfaceId] = windowId
+            surfaceThemeAssociations.setWindow(windowId, for: surfaceId)
             logger.debug("Registered surface \(String(format: "0x%lx", surfaceId)) to window \(windowId)")
         }
 
@@ -1784,7 +1904,7 @@ extension Ghostty {
         /// - Parameter surface: The ghostty_surface_t pointer
         func unregisterSurfaceWindow(_ surface: ghostty_surface_t) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceWindowMap.removeValue(forKey: surfaceId)
+            surfaceThemeAssociations.setWindow(nil, for: surfaceId)
             logger.debug("Unregistered surface \(String(format: "0x%lx", surfaceId)) from window")
         }
 
@@ -1793,7 +1913,7 @@ extension Ghostty {
         /// - Returns: The window ID if registered, nil otherwise
         func getWindowId(for surface: ghostty_surface_t) -> String? {
             let surfaceId = Int(bitPattern: surface)
-            return surfaceWindowMap[surfaceId]
+            return surfaceThemeAssociations.context(for: surfaceId).windowID
         }
 
         // MARK: - Tab Association Management
@@ -1804,7 +1924,7 @@ extension Ghostty {
         ///   - tabId: The tab UUID
         func registerSurfaceTab(_ surface: ghostty_surface_t, tabId: UUID) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceTabMap[surfaceId] = tabId
+            surfaceThemeAssociations.setTab(tabId, for: surfaceId)
             logger.debug("Registered surface \(String(format: "0x%lx", surfaceId)) to tab \(tabId)")
         }
 
@@ -1812,7 +1932,7 @@ extension Ghostty {
         /// - Parameter surface: The ghostty_surface_t pointer
         func unregisterSurfaceTab(_ surface: ghostty_surface_t) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceTabMap.removeValue(forKey: surfaceId)
+            surfaceThemeAssociations.setTab(nil, for: surfaceId)
             logger.debug("Unregistered surface \(String(format: "0x%lx", surfaceId)) from tab")
         }
 
@@ -1821,7 +1941,7 @@ extension Ghostty {
         /// - Returns: The tab UUID if registered, nil otherwise
         func getTabId(for surface: ghostty_surface_t) -> UUID? {
             let surfaceId = Int(bitPattern: surface)
-            return surfaceTabMap[surfaceId]
+            return surfaceThemeAssociations.context(for: surfaceId).tabID
         }
 
         // MARK: - Surface Delegate Management
