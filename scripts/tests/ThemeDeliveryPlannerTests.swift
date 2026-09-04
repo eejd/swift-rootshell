@@ -7,6 +7,8 @@ enum ThemeDeliveryPlannerTests {
         testAtomicDeliveryFallback()
         testSurfaceReassociation()
         testProductionRetargetCoordinator()
+        testExactlyOnceSurfaceInitialization()
+        testThemePersistenceTransaction()
         print("ThemeDeliveryPlannerTests: PASS")
     }
 
@@ -117,6 +119,94 @@ enum ThemeDeliveryPlannerTests {
             surface.contexts == [.init(tabID: destinationTab, windowID: "window-b")],
             "a live move must deliver destination window and tab in one call"
         )
+    }
+
+    private static func testExactlyOnceSurfaceInitialization() {
+        var ordinaryEvents: [String] = []
+        SurfaceThemeInitializationCoordinator.register(
+            themeAlreadySeeded: false,
+            recordLifetime: { ordinaryEvents.append("record") },
+            deliverInitialTheme: { ordinaryEvents.append("deliver") }
+        )
+        expect(
+            ordinaryEvents == ["record", "deliver"],
+            "an ordinary surface must receive exactly one initial delivery after registration"
+        )
+
+        var seededEvents: [String] = []
+        SurfaceThemeInitializationCoordinator.register(
+            themeAlreadySeeded: true,
+            recordLifetime: { seededEvents.append("record") },
+            deliverInitialTheme: { seededEvents.append("deliver") }
+        )
+        expect(
+            seededEvents == ["record"],
+            "a constructor-seeded tmux surface must not receive a second initial delivery"
+        )
+    }
+
+    private enum InjectedFailure: Error {
+        case backing
+        case metadata
+    }
+
+    private static func testThemePersistenceTransaction() {
+        var successEvents: [String] = []
+        try! ThemePersistenceCoordinator.commit(
+            writeBackingFile: { successEvents.append("backing") },
+            writeMetadata: { successEvents.append("metadata") },
+            rollbackBackingFile: { successEvents.append("rollback") },
+            publish: { successEvents.append("publish") },
+            retirePreviousFile: { successEvents.append("retire") }
+        )
+        expect(
+            successEvents == ["backing", "metadata", "publish", "retire"],
+            "successful rename must become durable before references publish and the old file retires"
+        )
+
+        var sameNameFailureEvents: [String] = []
+        do {
+            try ThemePersistenceCoordinator.commit(
+                writeBackingFile: {
+                    sameNameFailureEvents.append("backing")
+                    throw InjectedFailure.backing
+                },
+                writeMetadata: { sameNameFailureEvents.append("metadata") },
+                rollbackBackingFile: { sameNameFailureEvents.append("rollback") },
+                publish: { sameNameFailureEvents.append("publish") },
+                retirePreviousFile: {}
+            )
+            fatalError("expected injected same-name backing failure")
+        } catch InjectedFailure.backing {
+            expect(
+                sameNameFailureEvents == ["backing", "rollback"],
+                "same-name write failure must restore backing data and publish nothing"
+            )
+        } catch {
+            fatalError("unexpected error: \(error)")
+        }
+
+        var renameFailureEvents: [String] = []
+        do {
+            try ThemePersistenceCoordinator.commit(
+                writeBackingFile: { renameFailureEvents.append("backing") },
+                writeMetadata: {
+                    renameFailureEvents.append("metadata")
+                    throw InjectedFailure.metadata
+                },
+                rollbackBackingFile: { renameFailureEvents.append("rollback") },
+                publish: { renameFailureEvents.append("publish") },
+                retirePreviousFile: { renameFailureEvents.append("retire") }
+            )
+            fatalError("expected injected rename metadata failure")
+        } catch InjectedFailure.metadata {
+            expect(
+                renameFailureEvents == ["backing", "metadata", "rollback"],
+                "rename failure must roll back the new file without publishing or retiring the old file"
+            )
+        } catch {
+            fatalError("unexpected error: \(error)")
+        }
     }
 
     private static func expect(

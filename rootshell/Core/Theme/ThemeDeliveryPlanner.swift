@@ -59,6 +59,46 @@ struct ThemeDeliveryPlanner {
     }
 }
 
+enum SurfaceThemeInitializationCoordinator {
+    /// Register surface lifetime before any initial delivery. Tmux child
+    /// surfaces created by the themed constructor already own their complete
+    /// config/scheme pair, so registration must not emit it again.
+    static func register(
+        themeAlreadySeeded: Bool,
+        recordLifetime: () -> Void,
+        deliverInitialTheme: () -> Void
+    ) {
+        recordLifetime()
+        if !themeAlreadySeeded {
+            deliverInitialTheme()
+        }
+    }
+}
+
+enum ThemePersistenceCoordinator {
+    /// Publish a mutation only after both durable representations exist.
+    /// Failure restores the previous backing file and leaves references,
+    /// metadata in memory, and the retired file untouched.
+    static func commit(
+        writeBackingFile: () throws -> Void,
+        writeMetadata: () throws -> Void,
+        rollbackBackingFile: () -> Void,
+        publish: () -> Void,
+        retirePreviousFile: () -> Void
+    ) throws {
+        do {
+            try writeBackingFile()
+            try writeMetadata()
+        } catch {
+            rollbackBackingFile()
+            throw error
+        }
+
+        publish()
+        retirePreviousFile()
+    }
+}
+
 protocol SurfaceThemeContextRetargeting {
     func retargetThemeContext(toWindowID windowID: String, tabID: UUID?)
 }

@@ -21,6 +21,23 @@ class CustomThemeManager: ObservableObject {
 
     private let fileManager = FileManager.default
 
+    enum PersistenceError: LocalizedError {
+        case themesDirectoryUnavailable
+        case backingFileVerificationFailed(String)
+        case saveFailed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .themesDirectoryUnavailable:
+                return "The custom theme directory is unavailable."
+            case .backingFileVerificationFailed(let name):
+                return "The saved Ghostty theme file could not be verified: \(name)."
+            case .saveFailed(let name):
+                return "The custom theme could not be saved: \(name)."
+            }
+        }
+    }
+
     private init() {
         loadThemes()
     }
@@ -54,84 +71,111 @@ class CustomThemeManager: ObservableObject {
 
     // MARK: - CRUD Operations
 
-    /// Save (create or update) a custom theme
-    func saveTheme(_ theme: CustomTheme) {
+    /// Save (create or update) a custom theme. Nothing becomes visible to
+    /// subscribers until the Ghostty backing file and metadata are both durable.
+    @discardableResult
+    func saveTheme(_ theme: CustomTheme) -> Bool {
         var updated = theme
         updated.modifiedDate = Date()
-        var renamedFrom: String?
-
-        if let index = customThemes.firstIndex(where: { $0.id == theme.id }) {
-            // Update existing — handle rename
-            let oldName = customThemes[index].name
-            if oldName != updated.name {
-                renamedFrom = oldName
-
-                // Publish the new theme data before changing name-based
-                // references. Subscribers resolve synchronously, so they must
-                // never observe a reference to a theme that has not been
-                // installed yet.
-                customThemes[index] = updated
-                writeGhosttyFile(for: updated)
-
-                // Update all name-based references to this theme
-
-                // Active theme
-                if ThemeManager.shared.currentTheme == oldName {
-                    ThemeManager.shared.currentTheme = updated.name
-                }
-
-                // Favorites
-                let favorites = FavoriteThemesManager.shared
-                if favorites.isFavorite(oldName) {
-                    favorites.removeFavorite(oldName)
-                    favorites.addFavorite(updated.name)
-                }
-
-                // Day/night themes
-                let dayNight = DayNightThemeManager.shared
-                if dayNight.dayTheme == oldName {
-                    dayNight.dayTheme = updated.name
-                }
-                if dayNight.nightTheme == oldName {
-                    dayNight.nightTheme = updated.name
-                }
-
-                // Tab/window overrides
-                let overrides = ThemeOverrideManager.shared
-                for (tabId, name) in overrides.tabOverrides where name == oldName {
-                    overrides.setTabTheme(tabId: tabId, themeName: updated.name)
-                }
-                for (windowId, name) in overrides.windowOverrides where name == oldName {
-                    overrides.setWindowTheme(windowId: windowId, themeName: updated.name)
-                }
-
-                // Per-theme UI color overrides (keyed by theme name)
-                ThemeUIOverridesManager.shared.renameOverrides(from: oldName, to: updated.name)
-            }
-            if renamedFrom == nil {
-                customThemes[index] = updated
-            }
+        let existingIndex = customThemes.firstIndex(where: { $0.id == theme.id })
+        let oldName = existingIndex.map { customThemes[$0].name }
+        let renamedFrom = oldName != nil && oldName != updated.name ? oldName : nil
+        var proposedThemes = customThemes
+        if let existingIndex {
+            proposedThemes[existingIndex] = updated
         } else {
-            // Create new
-            customThemes.append(updated)
+            proposedThemes.append(updated)
         }
 
-        if renamedFrom == nil {
-            writeGhosttyFile(for: updated)
-        } else if let oldName = renamedFrom {
-            deleteGhosttyFile(named: oldName)
+        guard let newFileURL = ghosttyThemeFileURL(named: updated.name) else {
+            Self.logger.error("Failed to resolve Ghostty theme file: \(updated.name)")
+            return false
         }
-        persistMetadata()
+        let previousBackingData = try? Data(contentsOf: newFileURL)
+
+        do {
+            try ThemePersistenceCoordinator.commit(
+                writeBackingFile: { try self.writeGhosttyFile(for: updated) },
+                writeMetadata: { try self.writeMetadata(proposedThemes) },
+                rollbackBackingFile: {
+                    self.restoreGhosttyFile(
+                        at: newFileURL,
+                        previousData: previousBackingData
+                    )
+                },
+                publish: {
+                    self.customThemes = proposedThemes
+                    if let renamedFrom {
+                        self.publishRename(from: renamedFrom, to: updated.name)
+                    }
+                },
+                retirePreviousFile: {
+                    if let renamedFrom {
+                        self.deleteGhosttyFile(named: renamedFrom)
+                    }
+                }
+            )
+        } catch {
+            Self.logger.error("Failed to save custom theme \(updated.name): \(error)")
+            return false
+        }
+
         // reloadThemes emits one post-catalog refresh. This is required for a
         // same-name edit (no selection/override setter fires) and also repairs
         // every live surface after a rename's scoped reference updates.
         ThemeManager.shared.reloadThemes()
+        return true
+    }
+
+    private func publishRename(from oldName: String, to newName: String) {
+        if ThemeManager.shared.currentTheme == oldName {
+            ThemeManager.shared.currentTheme = newName
+        }
+
+        let favorites = FavoriteThemesManager.shared
+        if favorites.isFavorite(oldName) {
+            favorites.removeFavorite(oldName)
+            favorites.addFavorite(newName)
+        }
+
+        let dayNight = DayNightThemeManager.shared
+        if dayNight.dayTheme == oldName {
+            dayNight.dayTheme = newName
+        }
+        if dayNight.nightTheme == oldName {
+            dayNight.nightTheme = newName
+        }
+
+        let overrides = ThemeOverrideManager.shared
+        for (tabId, name) in overrides.tabOverrides where name == oldName {
+            overrides.setTabTheme(tabId: tabId, themeName: newName)
+        }
+        for (windowId, name) in overrides.windowOverrides where name == oldName {
+            overrides.setWindowTheme(windowId: windowId, themeName: newName)
+        }
+
+        ThemeUIOverridesManager.shared.renameOverrides(from: oldName, to: newName)
     }
 
     /// Delete a custom theme by ID
-    func deleteTheme(id: UUID) {
-        guard let index = customThemes.firstIndex(where: { $0.id == id }) else { return }
+    @discardableResult
+    func deleteTheme(id: UUID) -> Bool {
+        guard let index = customThemes.firstIndex(where: { $0.id == id }) else { return false }
         let theme = customThemes[index]
+        var proposedThemes = customThemes
+        proposedThemes.remove(at: index)
+
+        do {
+            try writeMetadata(proposedThemes)
+        } catch {
+            Self.logger.error("Failed to persist deletion of custom theme \(theme.name): \(error)")
+            return false
+        }
+
+        // Metadata is durable before any synchronous subscriber can observe
+        // the deletion. A failed file removal leaves only an unused orphan,
+        // never a persisted reference to a missing renderer artifact.
+        customThemes = proposedThemes
 
         // If this is the active theme, revert to default
         let themeManager = ThemeManager.shared
@@ -156,9 +200,8 @@ class CustomThemeManager: ObservableObject {
         ThemeUIOverridesManager.shared.clear(for: theme.name)
 
         deleteGhosttyFile(named: theme.name)
-        customThemes.remove(at: index)
-        persistMetadata()
         ThemeManager.shared.reloadThemes()
+        return true
     }
 
     /// Import a Ghostty theme file and create a custom theme from it
@@ -172,7 +215,9 @@ class CustomThemeManager: ObservableObject {
         // fromGhosttyFileContent already creates a fresh UUID via defaultTheme()
         let theme = CustomTheme.fromGhosttyFileContent(content, name: name)
 
-        saveTheme(theme)
+        guard saveTheme(theme) else {
+            throw PersistenceError.saveFailed(theme.name)
+        }
         return theme
     }
 
@@ -240,23 +285,60 @@ class CustomThemeManager: ObservableObject {
         }
     }
 
+    private func writeMetadata(_ themes: [CustomTheme]) throws {
+        guard let url = metadataFileURL else {
+            throw PersistenceError.themesDirectoryUnavailable
+        }
+        let data = try JSONEncoder().encode(themes)
+        try data.write(to: url, options: .atomic)
+    }
+
     private func persistMetadata() {
-        guard let url = metadataFileURL else { return }
         do {
-            let data = try JSONEncoder().encode(customThemes)
-            try data.write(to: url, options: .atomic)
+            try writeMetadata(customThemes)
         } catch {
             Self.logger.error("Failed to save custom themes metadata: \(error)")
         }
     }
 
-    private func writeGhosttyFile(for theme: CustomTheme) {
-        guard let dir = ghosttyThemesDirectory else { return }
-        let fileURL = dir.appendingPathComponent(theme.name)
+    private func ghosttyThemeFileURL(named name: String) -> URL? {
+        guard let dir = ghosttyThemesDirectory else { return nil }
+        return dir.appendingPathComponent(name)
+    }
+
+    /// Return a custom theme's file only when it exactly matches the metadata
+    /// used to derive its semantic light/dark scheme.
+    func validatedBackingFileURL(for theme: CustomTheme) -> URL? {
+        guard let fileURL = ghosttyThemeFileURL(named: theme.name),
+              let content = try? String(contentsOf: fileURL, encoding: .utf8),
+              content == theme.toGhosttyFileContent() else {
+            Self.logger.error("Custom theme backing file is missing or stale: \(theme.name)")
+            return nil
+        }
+        return fileURL
+    }
+
+    private func writeGhosttyFile(for theme: CustomTheme) throws {
+        guard let fileURL = ghosttyThemeFileURL(named: theme.name) else {
+            throw PersistenceError.themesDirectoryUnavailable
+        }
+        let content = theme.toGhosttyFileContent()
+        try content.write(to: fileURL, atomically: true, encoding: .utf8)
+        guard let persisted = try? String(contentsOf: fileURL, encoding: .utf8),
+              persisted == content else {
+            throw PersistenceError.backingFileVerificationFailed(theme.name)
+        }
+    }
+
+    private func restoreGhosttyFile(at fileURL: URL, previousData: Data?) {
         do {
-            try theme.toGhosttyFileContent().write(to: fileURL, atomically: true, encoding: .utf8)
+            if let previousData {
+                try previousData.write(to: fileURL, options: .atomic)
+            } else if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
+            }
         } catch {
-            Self.logger.error("Failed to write Ghostty theme file: \(error)")
+            Self.logger.error("Failed to roll back Ghostty theme file: \(error)")
         }
     }
 

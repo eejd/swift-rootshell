@@ -400,15 +400,19 @@ extension Ghostty {
             // Finalize the config
             ghostty_config_finalize(cfg)
 
-            // Log any configuration errors
+            // A config with diagnostics is not a complete renderer artifact.
+            // Returning it would let callers pair fallback/default colors with
+            // the requested theme's independently derived semantic scheme.
             let diagsCount = ghostty_config_diagnostics_count(cfg)
             if diagsCount > 0 {
-                logger.warning("config error: \(diagsCount) configuration errors")
+                logger.error("config error: \(diagsCount) configuration errors")
                 for i in 0..<diagsCount {
                     let diag = ghostty_config_get_diagnostic(cfg, UInt32(i))
                     let message = String(cString: diag.message)
-                    logger.warning("config error: \(message)")
+                    logger.error("config error: \(message)")
                 }
+                ghostty_config_free(cfg)
+                return nil
             }
 
             return cfg
@@ -423,6 +427,15 @@ extension Ghostty {
         /// - Returns: A ghostty_config_t configured with the specified theme, or nil on failure
         static func createConfigForTheme(_ themeName: String) -> ghostty_config_t? {
             logger.info("Creating per-surface config for theme: \(themeName)")
+
+            // The semantic scheme and Ghostty renderer config must come from
+            // the same readable backing file. Custom themes are additionally
+            // verified against their in-memory metadata by themeInfo(for:).
+            guard let themeInfo = ThemeManager.shared.themeInfo(for: themeName),
+                  FileManager.default.isReadableFile(atPath: themeInfo.filePath.path) else {
+                logger.error("Theme backing file is unavailable: \(themeName)")
+                return nil
+            }
 
             // Write config file with the override theme
             guard writeConfigFileForTheme(themeName: themeName) else {
