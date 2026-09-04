@@ -14,7 +14,7 @@ import UIKit
 /// This is a base class rather than a protocol because `SplitTree` requires
 /// `ViewType: UIView & Identifiable`, which an existential cannot satisfy.
 @MainActor
-class SplitPaneView: UIView, Identifiable {
+class SplitPaneView: UIView, Identifiable, SurfaceThemeContextRetargeting {
 
     /// Unique, stable identity for this pane (survives restore).
     nonisolated let uuid: UUID
@@ -90,6 +90,13 @@ class SplitPaneView: UIView, Identifiable {
     /// to keep their renderer-side theme ownership in sync.
     func retargetTab(to tabID: UUID?) {
         containingTabID = tabID
+    }
+
+    /// Re-home both pieces of theme ownership as one logical operation. Views
+    /// without renderer-side theme state retain the existing hooks.
+    func retargetThemeContext(toWindowID windowID: String, tabID: UUID?) {
+        retargetWindow(to: windowID)
+        retargetTab(to: tabID)
     }
 
     /// Prepare a live pane for insertion beneath a view controller. Panes that

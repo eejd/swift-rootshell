@@ -3101,23 +3101,33 @@ extension Ghostty {
         }
 
         override func retargetWindow(to newWindowId: String) {
-            guard windowId != newWindowId else { return }
-            windowId = newWindowId
-            guard let surface else { return }
-            ghosttyAppRef?.registerSurfaceWindow(surface, windowId: newWindowId)
-            ghosttyAppRef?.refreshSurfaceTheme(surface, tabId: containingTabID, windowId: newWindowId)
+            retargetThemeContext(toWindowID: newWindowId, tabID: containingTabID)
         }
 
         override func retargetTab(to newTabID: UUID?) {
-            guard containingTabID != newTabID else { return }
+            retargetThemeContext(toWindowID: windowId, tabID: newTabID)
+        }
+
+        override func retargetThemeContext(toWindowID newWindowID: String, tabID newTabID: UUID?) {
+            let windowChanged = windowId != newWindowID
+            let tabChanged = containingTabID != newTabID
+            guard windowChanged || tabChanged else { return }
+
+            windowId = newWindowID
             containingTabID = newTabID
             guard let surface else { return }
-            if let newTabID {
-                ghosttyAppRef?.registerSurfaceTab(surface, tabId: newTabID)
-            } else {
-                ghosttyAppRef?.unregisterSurfaceTab(surface)
+
+            if windowChanged {
+                ghosttyAppRef?.registerSurfaceWindow(surface, windowId: newWindowID)
             }
-            ghosttyAppRef?.refreshSurfaceTheme(surface, tabId: newTabID, windowId: windowId)
+            if tabChanged {
+                if let newTabID {
+                    ghosttyAppRef?.registerSurfaceTab(surface, tabId: newTabID)
+                } else {
+                    ghosttyAppRef?.unregisterSurfaceTab(surface)
+                }
+            }
+            ghosttyAppRef?.refreshSurfaceTheme(surface, tabId: newTabID, windowId: newWindowID)
         }
 
         // MARK: - Input Mode Indicator

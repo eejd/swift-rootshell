@@ -1195,7 +1195,11 @@ final class TmuxController {
                     viewerTerminal: viewerTerminal,
                     viewerPane: viewerPane)
                 let newTab = windowTabs[windowId]
-                existing.retargetTab(to: newTab?.id)
+                SurfaceThemeRetargetCoordinator.retarget(
+                    existing,
+                    toWindowID: hostWindowId(forWindowId: windowId),
+                    tabID: newTab?.id
+                )
                 TmuxDebugLogger.shared.event("PANE", "re-bound pane=\(paneId) -> win=\(windowId)")
                 // The pane left its old window's tab, so prune it there NOW rather
                 // than waiting for that window's own %layout-change (which may fail

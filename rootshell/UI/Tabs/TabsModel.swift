@@ -826,9 +826,12 @@ final class TabModel: Identifiable {
         guard windowId != newWindowId else { return }
         windowId = newWindowId
         for terminal in splitTree {
-            terminal.retargetWindow(to: newWindowId)
+            SurfaceThemeRetargetCoordinator.retarget(
+                terminal,
+                toWindowID: newWindowId,
+                tabID: id
+            )
             terminal.setWindowActive(isWindowFocused)
-            terminal.retargetTab(to: id)
         }
         markGroupingInputsChanged()
     }
