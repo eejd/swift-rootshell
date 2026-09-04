@@ -1195,7 +1195,7 @@ final class TmuxController {
                     viewerTerminal: viewerTerminal,
                     viewerPane: viewerPane)
                 let newTab = windowTabs[windowId]
-                if let newTab { existing.containingTabID = newTab.id }
+                existing.retargetTab(to: newTab?.id)
                 TmuxDebugLogger.shared.event("PANE", "re-bound pane=\(paneId) -> win=\(windowId)")
                 // The pane left its old window's tab, so prune it there NOW rather
                 // than waiting for that window's own %layout-change (which may fail
@@ -1285,7 +1285,7 @@ final class TmuxController {
             viewerTerminal: viewerTerminal,
             viewerPane: viewerPane)
         if let tab = windowTabs[windowId] {
-            view.containingTabID = tab.id
+            view.retargetTab(to: tab.id)
             view.setOcclusion(hostModel.selectedTabID == tab.id)
         } else {
             // A malformed/out-of-order batch must not leave an unattached pane

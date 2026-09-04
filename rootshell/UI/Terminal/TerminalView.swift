@@ -3108,6 +3108,18 @@ extension Ghostty {
             ghosttyAppRef?.refreshSurfaceTheme(surface, tabId: containingTabID, windowId: newWindowId)
         }
 
+        override func retargetTab(to newTabID: UUID?) {
+            guard containingTabID != newTabID else { return }
+            containingTabID = newTabID
+            guard let surface else { return }
+            if let newTabID {
+                ghosttyAppRef?.registerSurfaceTab(surface, tabId: newTabID)
+            } else {
+                ghosttyAppRef?.unregisterSurfaceTab(surface)
+            }
+            ghosttyAppRef?.refreshSurfaceTheme(surface, tabId: newTabID, windowId: windowId)
+        }
+
         // MARK: - Input Mode Indicator
 
         #if !targetEnvironment(macCatalyst)

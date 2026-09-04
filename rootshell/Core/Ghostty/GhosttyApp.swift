@@ -264,11 +264,8 @@ extension Ghostty {
         /// Publisher that emits when the number of active surfaces changes
         let surfaceCountDidChange = PassthroughSubject<Void, Never>()
 
-        /// Mapping of surface pointers to window IDs
-        private var surfaceWindowMap: [Int: String] = [:]
-
-        /// Mapping of surface pointers to tab UUIDs
-        private var surfaceTabMap: [Int: UUID] = [:]
+        /// Window/tab ownership used to resolve each surface's effective theme.
+        private var surfaceThemeAssociations = SurfaceThemeAssociations()
 
         /// Subscription to theme changes
         private var themeSubscription: AnyCancellable?
@@ -605,21 +602,36 @@ extension Ghostty {
             var overrideSurfaces: [(UnsafeMutableRawPointer, UnsafeMutableRawPointer)] = []
             var surfaceSchemes: [(UnsafeMutableRawPointer, ghostty_color_scheme_e)] = []
             var overridden = 0
+            let globalThemeName = ThemeManager.shared.currentTheme
 
             for surface in activeSurfaces {
                 let surfaceId = Int(bitPattern: surface)
+                let context = surfaceThemeAssociations.context(for: surfaceId)
                 let (themeName, source) = ThemeOverrideManager.shared.resolveTheme(
-                    tabId: surfaceTabMap[surfaceId],
-                    windowId: surfaceWindowMap[surfaceId])
+                    tabId: context.tabID,
+                    windowId: context.windowID)
 
-                if let scheme = colorScheme(forTheme: themeName) {
-                    surfaceSchemes.append((surface, scheme))
+                guard source != .global else {
+                    if let scheme = colorScheme(forTheme: themeName) {
+                        surfaceSchemes.append((surface, scheme))
+                    }
+                    continue
                 }
-                guard source != .global else { continue }
 
-                overridden += 1
                 if let surfaceConfig = Ghostty.Config.createConfigForTheme(themeName) {
+                    overridden += 1
                     overrideSurfaces.append((surface, surfaceConfig))
+                    if let scheme = colorScheme(forTheme: themeName) {
+                        surfaceSchemes.append((surface, scheme))
+                    }
+                } else {
+                    // The app-level update below has already restored the global
+                    // config. Keep the reported scheme paired with that config
+                    // rather than claiming an override we failed to construct.
+                    logger.error("Failed to create override config for theme: \(themeName); using global theme")
+                    if let scheme = colorScheme(forTheme: globalThemeName) {
+                        surfaceSchemes.append((surface, scheme))
+                    }
                 }
             }
 
@@ -1769,6 +1781,21 @@ extension Ghostty {
             activeSurfaces.insert(ptr)
             logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")
 
+            // The app-level default deliberately remains independent of live
+            // global changes because setting it would broadcast over surfaces
+            // with tab/window overrides. Seed every new surface from its
+            // already-registered ownership context instead, before its PTY can
+            // emit output or answer an appearance query.
+            let surfaceId = Int(bitPattern: surface)
+            let context = surfaceThemeAssociations.context(for: surfaceId)
+            let (themeName, _) = ThemeOverrideManager.shared.resolveTheme(
+                tabId: context.tabID,
+                windowId: context.windowID
+            )
+            if let scheme = colorScheme(forTheme: themeName) {
+                ghostty_surface_set_color_scheme(ptr, scheme)
+            }
+
             // Sync the global HDR brightness gain to this newly registered
             // (or restored) surface so it matches every other surface.
             ghostty_surface_set_brightness(ptr, Float(BrightnessManager.shared.effectiveGain))
@@ -1797,9 +1824,8 @@ extension Ghostty {
             let ptr = UnsafeMutableRawPointer(mutating: surface)
             activeSurfaces.remove(ptr)
 
-            // Also remove from window map
             let surfaceId = Int(bitPattern: surface)
-            surfaceWindowMap.removeValue(forKey: surfaceId)
+            surfaceThemeAssociations.removeSurface(surfaceId)
 
             // Notify that surface count changed (triggers window configuration update)
             surfaceCountDidChange.send()
@@ -1815,7 +1841,7 @@ extension Ghostty {
         ///   - windowId: The window identifier
         func registerSurfaceWindow(_ surface: ghostty_surface_t, windowId: String) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceWindowMap[surfaceId] = windowId
+            surfaceThemeAssociations.setWindow(windowId, for: surfaceId)
             logger.debug("Registered surface \(String(format: "0x%lx", surfaceId)) to window \(windowId)")
         }
 
@@ -1823,7 +1849,7 @@ extension Ghostty {
         /// - Parameter surface: The ghostty_surface_t pointer
         func unregisterSurfaceWindow(_ surface: ghostty_surface_t) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceWindowMap.removeValue(forKey: surfaceId)
+            surfaceThemeAssociations.setWindow(nil, for: surfaceId)
             logger.debug("Unregistered surface \(String(format: "0x%lx", surfaceId)) from window")
         }
 
@@ -1832,7 +1858,7 @@ extension Ghostty {
         /// - Returns: The window ID if registered, nil otherwise
         func getWindowId(for surface: ghostty_surface_t) -> String? {
             let surfaceId = Int(bitPattern: surface)
-            return surfaceWindowMap[surfaceId]
+            return surfaceThemeAssociations.context(for: surfaceId).windowID
         }
 
         // MARK: - Tab Association Management
@@ -1843,7 +1869,7 @@ extension Ghostty {
         ///   - tabId: The tab UUID
         func registerSurfaceTab(_ surface: ghostty_surface_t, tabId: UUID) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceTabMap[surfaceId] = tabId
+            surfaceThemeAssociations.setTab(tabId, for: surfaceId)
             logger.debug("Registered surface \(String(format: "0x%lx", surfaceId)) to tab \(tabId)")
         }
 
@@ -1851,7 +1877,7 @@ extension Ghostty {
         /// - Parameter surface: The ghostty_surface_t pointer
         func unregisterSurfaceTab(_ surface: ghostty_surface_t) {
             let surfaceId = Int(bitPattern: surface)
-            surfaceTabMap.removeValue(forKey: surfaceId)
+            surfaceThemeAssociations.setTab(nil, for: surfaceId)
             logger.debug("Unregistered surface \(String(format: "0x%lx", surfaceId)) from tab")
         }
 
@@ -1860,7 +1886,7 @@ extension Ghostty {
         /// - Returns: The tab UUID if registered, nil otherwise
         func getTabId(for surface: ghostty_surface_t) -> UUID? {
             let surfaceId = Int(bitPattern: surface)
-            return surfaceTabMap[surfaceId]
+            return surfaceThemeAssociations.context(for: surfaceId).tabID
         }
 
         // MARK: - Surface Delegate Management

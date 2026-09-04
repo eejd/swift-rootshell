@@ -128,18 +128,17 @@ final class ThemeOverrideManager {
     /// 2. Window override
     /// 3. Global default
     func resolveTheme(tabId: UUID?, windowId: String?) -> (themeName: String, source: ThemeSource) {
-        // Check tab override first (highest priority)
-        if let tabId = tabId, let tabTheme = tabOverrides[tabId] {
-            return (tabTheme, .tab)
+        let resolution = ThemeDeliveryPlanner.resolve(
+            globalTheme: ThemeManager.shared.currentTheme,
+            windowTheme: windowId.flatMap { windowOverrides[$0] },
+            tabTheme: tabId.flatMap { tabOverrides[$0] }
+        )
+        let source: ThemeSource = switch resolution.source {
+        case .global: .global
+        case .window: .window
+        case .tab: .tab
         }
-
-        // Check window override
-        if let windowId = windowId, let windowTheme = windowOverrides[windowId] {
-            return (windowTheme, .window)
-        }
-
-        // Fall back to global theme
-        return (ThemeManager.shared.currentTheme, .global)
+        return (resolution.themeName, source)
     }
 
     // MARK: - Cleanup

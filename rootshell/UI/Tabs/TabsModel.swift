@@ -828,7 +828,7 @@ final class TabModel: Identifiable {
         for terminal in splitTree {
             terminal.retargetWindow(to: newWindowId)
             terminal.setWindowActive(isWindowFocused)
-            terminal.containingTabID = id
+            terminal.retargetTab(to: id)
         }
         markGroupingInputsChanged()
     }

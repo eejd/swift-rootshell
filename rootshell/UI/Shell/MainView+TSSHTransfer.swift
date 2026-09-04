@@ -106,7 +106,7 @@ extension MainView {
             windowId: windowId,
             isMosh: true  // trzsz is roaming, same UI affordances apply
         )
-        terminalView.containingTabID = newTab.id
+        terminalView.retargetTab(to: newTab.id)
         newTab.focusedTerminal = terminalView
 
         let insertionIndex = min(selectedTabIndex + 1, terminals.count)

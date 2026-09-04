@@ -87,7 +87,7 @@ extension MainView {
         }
 
         // Set containing tab ID before inserting
-        newTerminalView.containingTabID = terminals[selectedTabIndex].id
+        newTerminalView.retargetTab(to: terminals[selectedTabIndex].id)
 
         // Insert the new split
         do {
