@@ -515,6 +515,13 @@ extension Ghostty {
             self.app = app
             LaunchSignposts.end("launch.ghostty.appNew", appSP)
 
+            // Seed libghostty's default before any surface exists. Every live
+            // surface is updated independently below so tab/window overrides
+            // can report their own effective appearance.
+            if let scheme = colorScheme(forTheme: ThemeManager.shared.currentTheme) {
+                ghostty_app_set_color_scheme(app, scheme)
+            }
+
             // Register this instance for callback access
             // Use raw pointer address as key (not ObjectIdentifier which creates new wrapper each time)
             let appId = Int(bitPattern: app)
@@ -684,6 +691,7 @@ extension Ghostty {
             completion: (@MainActor @Sendable () -> Void)? = nil
         ) -> (updated: Int, overridden: Int) {
             var overrideSurfaces: [(UnsafeMutableRawPointer, UnsafeMutableRawPointer)] = []
+            var surfaceSchemes: [(UnsafeMutableRawPointer, ghostty_color_scheme_e)] = []
             var overridden = 0
 
             for surface in activeSurfaces {
@@ -691,6 +699,9 @@ extension Ghostty {
                 let (themeName, source) = ThemeOverrideManager.shared.resolveTheme(
                     tabId: surfaceTabMap[surfaceId],
                     windowId: surfaceWindowMap[surfaceId])
+                if let scheme = colorScheme(forTheme: themeName) {
+                    surfaceSchemes.append((surface, scheme))
+                }
                 #if os(iOS) && !targetEnvironment(macCatalyst)
                 if surfaceWindowMap[surfaceId]?.hasPrefix("ipad-visor-") == true,
                    let visorConfig = Self.makeVisorOverlayConfig(globalConfig) {
@@ -710,11 +721,15 @@ extension Ghostty {
             nonisolated(unsafe) let appPtr = app
             nonisolated(unsafe) let cfg = globalConfig
             nonisolated(unsafe) let overrides = overrideSurfaces
+            nonisolated(unsafe) let schemes = surfaceSchemes
             Ghostty.TerminalView.ghosttyAPIQueue.async {
                 ghostty_app_update_config(appPtr, cfg)
                 for (surface, surfaceConfig) in overrides {
                     ghostty_surface_update_config(surface, surfaceConfig)
                     ghostty_config_free(surfaceConfig)
+                }
+                for (surface, scheme) in schemes {
+                    ghostty_surface_set_color_scheme(surface, scheme)
                 }
                 if let completion {
                     Task { @MainActor in completion() }
@@ -741,12 +756,17 @@ extension Ghostty {
         private func pushConfig(
             toSurface surface: ghostty_surface_t,
             config surfaceConfig: ghostty_config_t,
+            themeName: String,
             owned: Bool
         ) {
+            let scheme = colorScheme(forTheme: themeName)
             nonisolated(unsafe) let surface = surface
             nonisolated(unsafe) let surfaceConfig = surfaceConfig
             Ghostty.TerminalView.ghosttyAPIQueue.async {
                 ghostty_surface_update_config(surface, surfaceConfig)
+                if let scheme {
+                    ghostty_surface_set_color_scheme(surface, scheme)
+                }
                 if owned { ghostty_config_free(surfaceConfig) }
             }
         }
@@ -782,6 +802,14 @@ extension Ghostty {
         }
 
         // MARK: - Theme Management
+
+        private func colorScheme(forTheme themeName: String) -> ghostty_color_scheme_e? {
+            guard let theme = ThemeManager.shared.themeInfo(for: themeName) else {
+                logger.warning("Cannot resolve appearance for theme: \(themeName)")
+                return nil
+            }
+            return theme.isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+        }
 
         /// Set up subscription to theme changes
         private func setupThemeSubscription() {
@@ -833,7 +861,12 @@ extension Ghostty {
                 return
             }
 
-            pushConfig(toSurface: surface, config: surfaceConfig, owned: true)
+            pushConfig(
+                toSurface: surface,
+                config: surfaceConfig,
+                themeName: themeName,
+                owned: true
+            )
 
             logger.info("Applied theme override to surface: \(themeName)")
         }
@@ -858,7 +891,12 @@ extension Ghostty {
             case .global:
                 // No override - use the shared global config
                 if let globalConfig = config.config {
-                    pushConfig(toSurface: surface, config: globalConfig, owned: false)
+                    pushConfig(
+                        toSurface: surface,
+                        config: globalConfig,
+                        themeName: themeName,
+                        owned: false
+                    )
                     logger.info("Surface theme refreshed to global: \(themeName)")
                 }
             case .window, .tab:
