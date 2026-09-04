@@ -86,6 +86,12 @@ class SplitPaneView: UIView, Identifiable {
     /// Re-home the pane to another window (tab transfer).
     func retargetWindow(to windowId: String) {}
 
+    /// Re-home the pane to another tab. Concrete terminal panes use this hook
+    /// to keep their renderer-side theme ownership in sync.
+    func retargetTab(to tabID: UUID?) {
+        containingTabID = tabID
+    }
+
     /// Prepare a live pane for insertion beneath a view controller. Panes that
     /// own child view controllers can re-home them here before UIKit validates
     /// the destination hierarchy during `insertSubview`. Return `false` to
