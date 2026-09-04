@@ -4,8 +4,38 @@ import Foundation
 enum ThemeDeliveryPlannerTests {
     static func main() {
         testThemePrecedenceAndLiveChanges()
+        testAtomicDeliveryFallback()
         testSurfaceReassociation()
+        testProductionRetargetCoordinator()
         print("ThemeDeliveryPlannerTests: PASS")
+    }
+
+    private static func testAtomicDeliveryFallback() {
+        let effective = ThemeDeliveryPlanner.Resolution(
+            themeName: "deleted-tab-theme",
+            source: .tab
+        )
+        var attempts: [String] = []
+        let delivery = ThemeDeliveryPlanner.delivery(
+            effective: effective,
+            globalTheme: "global-light"
+        ) { resolution -> String? in
+            attempts.append(resolution.themeName)
+            return resolution.themeName == "global-light" ? "complete-artifacts" : nil
+        }
+
+        expect(
+            delivery?.resolution == .init(themeName: "global-light", source: .global),
+            "an invalid override must fall back to the complete global theme"
+        )
+        expect(
+            delivery?.artifacts == "complete-artifacts",
+            "fallback must return one complete config/scheme artifact set"
+        )
+        expect(
+            attempts == ["deleted-tab-theme", "global-light"],
+            "delivery must try the effective override before global fallback"
+        )
     }
 
     private static func testThemePrecedenceAndLiveChanges() {
@@ -63,6 +93,29 @@ enum ThemeDeliveryPlannerTests {
         expect(
             associations.context(for: 7) == .init(tabID: nil, windowID: nil),
             "surface teardown must clear all theme ownership"
+        )
+    }
+
+
+    private static func testProductionRetargetCoordinator() {
+        final class FakeSurface: SurfaceThemeContextRetargeting {
+            var contexts: [SurfaceThemeAssociations.Context] = []
+
+            func retargetThemeContext(toWindowID windowID: String, tabID: UUID?) {
+                contexts.append(.init(tabID: tabID, windowID: windowID))
+            }
+        }
+
+        let destinationTab = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+        let surface = FakeSurface()
+        SurfaceThemeRetargetCoordinator.retarget(
+            surface,
+            toWindowID: "window-b",
+            tabID: destinationTab
+        )
+        expect(
+            surface.contexts == [.init(tabID: destinationTab, windowID: "window-b")],
+            "a live move must deliver destination window and tab in one call"
         )
     }
 
