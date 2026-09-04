@@ -58,12 +58,20 @@ class CustomThemeManager: ObservableObject {
     func saveTheme(_ theme: CustomTheme) {
         var updated = theme
         updated.modifiedDate = Date()
+        var renamedFrom: String?
 
         if let index = customThemes.firstIndex(where: { $0.id == theme.id }) {
             // Update existing — handle rename
             let oldName = customThemes[index].name
             if oldName != updated.name {
-                deleteGhosttyFile(named: oldName)
+                renamedFrom = oldName
+
+                // Publish the new theme data before changing name-based
+                // references. Subscribers resolve synchronously, so they must
+                // never observe a reference to a theme that has not been
+                // installed yet.
+                customThemes[index] = updated
+                writeGhosttyFile(for: updated)
 
                 // Update all name-based references to this theme
 
@@ -100,14 +108,23 @@ class CustomThemeManager: ObservableObject {
                 // Per-theme UI color overrides (keyed by theme name)
                 ThemeUIOverridesManager.shared.renameOverrides(from: oldName, to: updated.name)
             }
-            customThemes[index] = updated
+            if renamedFrom == nil {
+                customThemes[index] = updated
+            }
         } else {
             // Create new
             customThemes.append(updated)
         }
 
-        writeGhosttyFile(for: updated)
+        if renamedFrom == nil {
+            writeGhosttyFile(for: updated)
+        } else if let oldName = renamedFrom {
+            deleteGhosttyFile(named: oldName)
+        }
         persistMetadata()
+        // reloadThemes emits one post-catalog refresh. This is required for a
+        // same-name edit (no selection/override setter fires) and also repairs
+        // every live surface after a rename's scoped reference updates.
         ThemeManager.shared.reloadThemes()
     }
 
@@ -128,6 +145,11 @@ class CustomThemeManager: ObservableObject {
         if dayNight.nightTheme == theme.name {
             dayNight.nightTheme = "Catppuccin Mocha"
         }
+
+        // Persisted overrides must not retain an unresolvable name. The normal
+        // setters publish scoped events, then reloadThemes below emits a final
+        // post-catalog refresh for every surface.
+        ThemeOverrideManager.shared.clearOverrides(named: theme.name)
 
         // Drop UI color overrides — keying is by name, so a future theme
         // with the same name would otherwise inherit this one's overrides.

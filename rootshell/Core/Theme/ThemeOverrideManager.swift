@@ -118,6 +118,25 @@ final class ThemeOverrideManager {
         tabOverrides[tabId] != nil
     }
 
+    /// Clear every persisted reference to a theme that is being deleted.
+    /// Use the normal setters so each affected live surface receives the
+    /// same scoped change event as an explicit user clear.
+    func clearOverrides(named themeName: String) {
+        let tabIDs = tabOverrides.compactMap { tabID, name in
+            name == themeName ? tabID : nil
+        }
+        let windowIDs = windowOverrides.compactMap { windowID, name in
+            name == themeName ? windowID : nil
+        }
+
+        for tabID in tabIDs {
+            setTabTheme(tabId: tabID, themeName: nil)
+        }
+        for windowID in windowIDs {
+            setWindowTheme(windowId: windowID, themeName: nil)
+        }
+    }
+
     // MARK: - Theme Resolution
 
     /// Resolve the effective theme for a given tab/window context
