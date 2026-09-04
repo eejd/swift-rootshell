@@ -219,7 +219,11 @@ struct ThemeEditorView: View {
         guard validation != .empty, validation != .containsPathSeparator, validation != .conflictsWithCustom else {
             return
         }
-        CustomThemeManager.shared.saveTheme(theme)
+        guard CustomThemeManager.shared.saveTheme(theme) else {
+            showingNameWarning = true
+            nameWarningMessage = String(localized: "The theme could not be saved. Your existing theme was not changed.")
+            return
+        }
         onSave?(theme)
         dismiss()
     }

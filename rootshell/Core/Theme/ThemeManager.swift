@@ -131,13 +131,14 @@ final class ThemeManager {
             self.isLight = Color(hex: colors.background)?.luminance ?? 0 > 0.5
         }
 
-        /// Create ThemeInfo from a CustomTheme
-        init(customTheme: CustomTheme) {
+        /// Create ThemeInfo from a CustomTheme whose on-disk Ghostty file was
+        /// verified against the same metadata.
+        init(customTheme: CustomTheme, filePath: URL) {
             self.id = customTheme.name
             self.name = customTheme.name
             self.displayName = customTheme.name
             self.family = ThemeInfo.extractFamily(from: customTheme.name)
-            self.filePath = URL(fileURLWithPath: "/dev/null") // Custom themes use in-memory colors
+            self.filePath = filePath
             self.colors = customTheme.themeColors
             self.isCustom = true
             self.isLight = Color(hex: customTheme.background)?.luminance ?? 0 > 0.5
@@ -257,7 +258,11 @@ final class ThemeManager {
 
         // Custom themes shadow built-ins of the same name.
         if let custom = CustomThemeManager.shared.customThemes.first(where: { $0.name == name }) {
-            let info = ThemeInfo(customTheme: custom)
+            guard let filePath = CustomThemeManager.shared.validatedBackingFileURL(for: custom) else {
+                unresolvableThemeNames.insert(name)
+                return nil
+            }
+            let info = ThemeInfo(customTheme: custom, filePath: filePath)
             themesByName[name] = info
             return info
         }
@@ -406,8 +411,19 @@ final class ThemeManager {
     private func rebuildCatalog() {
         guard let builtIn = builtInThemes else { return }
 
-        let customThemes = CustomThemeManager.shared.customThemes.map { ThemeInfo(customTheme: $0) }
-        let customNames = Set(customThemes.map(\.name))
+        let customRecords = CustomThemeManager.shared.customThemes
+        var invalidCustomNames: Set<String> = []
+        let customThemes = customRecords.compactMap { custom -> ThemeInfo? in
+            guard let filePath = CustomThemeManager.shared.validatedBackingFileURL(for: custom) else {
+                invalidCustomNames.insert(custom.name)
+                return nil
+            }
+            return ThemeInfo(customTheme: custom, filePath: filePath)
+        }
+        // Even an invalid custom record continues to shadow the built-in with
+        // the same name. Falling through would silently render one theme while
+        // deriving the requested state from another persistence record.
+        let customNames = Set(customRecords.map(\.name))
         var themes = builtIn.filter { !customNames.contains($0.name) }
         themes.append(contentsOf: customThemes)
         themes.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -423,7 +439,7 @@ final class ThemeManager {
             index[theme.name] = theme
         }
         themesByName = index
-        unresolvableThemeNames.removeAll()
+        unresolvableThemeNames = invalidCustomNames
 
         if currentThemeInfo !== index[currentTheme] {
             currentThemeInfo = index[currentTheme]

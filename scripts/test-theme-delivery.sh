@@ -18,6 +18,9 @@ xcrun swiftc -parse-as-library \
 # pane-move call sites continue to use those tested funnels.
 custom_theme_manager="$repo_root/rootshell/Core/Theme/CustomThemeManager.swift"
 theme_manager="$repo_root/rootshell/Core/Theme/ThemeManager.swift"
+ghostty_config="$repo_root/rootshell/Core/Ghostty/GhosttyConfig.swift"
+ghostty_app="$repo_root/rootshell/Core/Ghostty/GhosttyApp.swift"
+surface_controller="$repo_root/rootshell/UI/Terminal/TerminalSurfaceController.swift"
 
 assert_before() {
     first_line=$(grep -nF "$2" "$1" | sed -n '1s/:.*//p')
@@ -41,14 +44,28 @@ grep -Fq 'override func retargetThemeContext(toWindowID newWindowID: String, tab
 grep -Fq 'refreshSurfaceTheme(surface, tabId: newTabID, windowId: newWindowID)' \
     "$repo_root/rootshell/UI/Terminal/TerminalView.swift"
 grep -Fq 'ghostty_surface_new_tmux_pane_with_theme(' \
-    "$repo_root/rootshell/UI/Terminal/TerminalSurfaceController.swift"
+    "$surface_controller"
+grep -Fq 'installSurface(surface, themeAlreadySeeded: true)' \
+    "$surface_controller"
+grep -Fq 'SurfaceThemeInitializationCoordinator.register(' \
+    "$ghostty_app"
+if grep -Fq 'refreshSurfaceTheme(' "$surface_controller"; then
+    echo "surface installation must not redeliver the initial theme" >&2
+    exit 1
+fi
+grep -Fq 'ThemePersistenceCoordinator.commit(' \
+    "$custom_theme_manager"
+grep -Fq 'validatedBackingFileURL(for: custom)' \
+    "$theme_manager"
+grep -Fq 'ghostty_config_diagnostics_count(cfg)' \
+    "$ghostty_config"
 
 # Rename publication is ordered: install the new resolvable theme before any
 # synchronous name-based subscriber runs. Deletion clears scoped references
 # before removing the theme file. Catalog refresh must precede its live event.
 assert_before "$custom_theme_manager" \
     'writeGhosttyFile(for: updated)' \
-    'ThemeManager.shared.currentTheme = updated.name'
+    'self.publishRename(from: renamedFrom, to: updated.name)'
 assert_before "$custom_theme_manager" \
     'ThemeOverrideManager.shared.clearOverrides(named: theme.name)' \
     'deleteGhosttyFile(named: theme.name)'

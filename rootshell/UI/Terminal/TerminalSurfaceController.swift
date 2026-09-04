@@ -212,7 +212,7 @@ final class TerminalSurfaceController: NSObject {
             return
         }
 
-        installSurface(surface)
+        installSurface(surface, themeAlreadySeeded: true)
 
         if let controller = TmuxController.controller(forOwnerSurface: binding.parentSurface),
            let target = controller.overrideFontSize(forWindowId: binding.windowId) {
@@ -289,7 +289,10 @@ final class TerminalSurfaceController: NSObject {
         startFirstFramePolling()
     }
 
-    private func installSurface(_ surface: ghostty_surface_t) {
+    private func installSurface(
+        _ surface: ghostty_surface_t,
+        themeAlreadySeeded: Bool = false
+    ) {
         Ghostty.logger.info("Surface created successfully, ptr=\(String(describing: surface))")
         self.surface = surface
         host.surfaceControllerDidSetSurface(surface)
@@ -306,15 +309,13 @@ final class TerminalSurfaceController: NSObject {
             Ghostty.logger.info("Surface registered to tab \(tabId)")
         }
 
-        host.surfaceGhosttyApp?.registerSurface(surface)
+        host.surfaceGhosttyApp?.registerSurface(
+            surface,
+            themeAlreadySeeded: themeAlreadySeeded
+        )
         Ghostty.logger.info("Surface registered for config updates")
 
         host.surfaceSetupThemeOverrideSubscription()
-        host.surfaceGhosttyApp?.refreshSurfaceTheme(
-            surface,
-            tabId: host.surfaceContainingTabID,
-            windowId: host.surfaceWindowID
-        )
 
         if let delegate = host.surfaceUserdata as? GhosttyActionDelegate {
             host.surfaceGhosttyApp?.registerSurfaceDelegate(surface, delegate: delegate)

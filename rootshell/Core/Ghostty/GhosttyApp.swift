@@ -1823,25 +1823,33 @@ extension Ghostty {
 
         /// Register a surface to receive config updates
         /// - Parameter surface: The ghostty_surface_t pointer
-        func registerSurface(_ surface: ghostty_surface_t) {
+        func registerSurface(
+            _ surface: ghostty_surface_t,
+            themeAlreadySeeded: Bool = false
+        ) {
             let ptr = UnsafeMutableRawPointer(mutating: surface)
-            activeSurfaces.insert(ptr)
-            logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")
-
-            // The app-level default deliberately remains independent of live
-            // global changes because setting it would broadcast over surfaces
-            // with tab/window overrides. Install one complete, effective pair
-            // before the new surface's PTY can emit output or answer a query.
-            let surfaceId = Int(bitPattern: surface)
-            let context = surfaceThemeAssociations.context(for: surfaceId)
-            if let delivery = resolveSurfaceThemeDelivery(
-                tabId: context.tabID,
-                windowId: context.windowID
-            ) {
-                prepareNewSurface(ptr, with: delivery)
-            } else {
-                logger.error("Could not prepare new surface with a complete theme")
-            }
+            SurfaceThemeInitializationCoordinator.register(
+                themeAlreadySeeded: themeAlreadySeeded,
+                recordLifetime: {
+                    self.activeSurfaces.insert(ptr)
+                    Ghostty.logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")
+                },
+                deliverInitialTheme: {
+                    // The app-level default deliberately remains independent
+                    // of live global changes because setting it would broadcast
+                    // over surfaces with tab/window overrides.
+                    let surfaceId = Int(bitPattern: surface)
+                    let context = self.surfaceThemeAssociations.context(for: surfaceId)
+                    if let delivery = self.resolveSurfaceThemeDelivery(
+                        tabId: context.tabID,
+                        windowId: context.windowID
+                    ) {
+                        self.prepareNewSurface(ptr, with: delivery)
+                    } else {
+                        Ghostty.logger.error("Could not prepare new surface with a complete theme")
+                    }
+                }
+            )
 
             // Sync the global HDR brightness gain to this newly registered
             // (or restored) surface so it matches every other surface.
