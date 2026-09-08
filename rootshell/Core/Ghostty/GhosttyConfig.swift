@@ -387,22 +387,30 @@ extension Ghostty {
             }
         }
 
-        /// Load a new config with theme from the config file
-        private static func loadConfigWithTheme() -> ghostty_config_t? {
+        /// Load a new config with theme from the config file.
+        ///
+        /// - Parameter file: load exactly this file instead of Ghostty's default
+        ///   search (the shared global config). Per-surface overrides use it so
+        ///   they never rewrite the global file.
+        private static func loadConfigWithTheme(file: URL? = nil) -> ghostty_config_t? {
             guard let cfg = ghostty_config_new() else {
                 logger.critical("ghostty_config_new failed")
                 return nil
             }
 
-            // Load from default files (will read our config file)
-            ghostty_config_load_default_files(cfg)
+            if let file {
+                file.path.withCString { ghostty_config_load_file(cfg, $0) }
+            } else {
+                // Load from default files (will read our config file)
+                ghostty_config_load_default_files(cfg)
+            }
 
             // Finalize the config
             ghostty_config_finalize(cfg)
 
-            // A config with diagnostics is not a complete renderer artifact.
-            // Returning it would let callers pair fallback/default colors with
-            // the requested theme's independently derived semantic scheme.
+            // Diagnostics are logged, not fatal: an unrelated warning (font,
+            // unknown key) must not demote a valid theme to the global one.
+            // Theme resolvability is checked by the caller before we get here.
             let diagsCount = ghostty_config_diagnostics_count(cfg)
             if diagsCount > 0 {
                 logger.error("config error: \(diagsCount) configuration errors")
@@ -411,11 +419,16 @@ extension Ghostty {
                     let message = String(cString: diag.message)
                     logger.error("config error: \(message)")
                 }
-                ghostty_config_free(cfg)
-                return nil
             }
 
             return cfg
+        }
+
+        /// The per-surface override config. Kept separate from the shared
+        /// `config` file so building an override can never leave the global
+        /// file holding an override theme.
+        private static var overrideConfigFile: URL? {
+            configDirectory?.appendingPathComponent("config.override")
         }
 
         // MARK: - Per-Surface Theme Configuration
@@ -437,14 +450,15 @@ extension Ghostty {
                 return nil
             }
 
-            // Write config file with the override theme
-            guard writeConfigFileForTheme(themeName: themeName) else {
+            // Write the override config file with the override theme
+            guard let overrideFile = overrideConfigFile,
+                  writeConfigFileForTheme(themeName: themeName) else {
                 logger.error("Failed to write config file for per-surface theme: \(themeName)")
                 return nil
             }
 
-            // Load the config
-            guard let cfg = loadConfigWithTheme() else {
+            // Load exactly that file
+            guard let cfg = loadConfigWithTheme(file: overrideFile) else {
                 logger.error("Failed to load config for per-surface theme: \(themeName)")
                 return nil
             }
@@ -456,12 +470,10 @@ extension Ghostty {
         /// Write a config file with the specified theme (static version for per-surface configs)
         /// Uses current font settings from FontManager
         private static func writeConfigFileForTheme(themeName: String) -> Bool {
-            guard let configDir = configDirectory else {
+            guard let configFile = overrideConfigFile else {
                 logger.error("Failed to get config directory")
                 return false
             }
-
-            let configFile = configDir.appendingPathComponent("config")
 
             // Build config content
             var configLines: [String] = []
