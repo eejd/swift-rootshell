@@ -71,6 +71,17 @@ final class UpdateManager: ObservableObject {
 
     #if STANDALONE && targetEnvironment(macCatalyst)
     private func setupSparkle() {
+        // MacPorts enablement: a build with an empty SUFeedURL (the Portfile
+        // clears ROOTSHELL_SPARKLE_FEED_URL) is upgraded by its package
+        // manager, never by Sparkle. Starting the updater without a feed would
+        // throw, and pulling the upstream signed build over an ad-hoc one
+        // would break the install.
+        let feed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String
+        guard let feed, !feed.isEmpty else {
+            Self.logger.info("Sparkle disabled: no SUFeedURL in this build")
+            return
+        }
+
         // SPUStandardUpdaterController handles the standard Sparkle UI
         // startingUpdater: true means it will auto-check on launch per SUScheduledCheckInterval
         updaterController = SPUStandardUpdaterController(

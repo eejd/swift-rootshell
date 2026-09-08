@@ -47,6 +47,12 @@ ROOTSHELL_ICLOUD_CONTAINER = iCloud.rootshell
 // discovery and nothing else; clearing the override restores it.
 ROOTSHELL_APP_ENTITLEMENTS_SUFFIX =
 
+// Sparkle appcast for the Standalone build. A package-manager build (MacPorts)
+// sets this empty: UpdateManager then never starts Sparkle, so the package
+// manager owns upgrades and an ad-hoc signed bundle is never replaced by the
+// upstream signed one.
+ROOTSHELL_SPARKLE_FEED_URL = https://beta.rootshell.com/downloads/appcast.xml
+
 // Helper peer trust for builds with no Developer Team (ad-hoc signed). Empty
 // (default) keeps the full team-anchored code requirement. A package-manager
 // build sets YES so the helper accepts the app by bundle identifier alone.

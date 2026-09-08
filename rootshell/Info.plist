@@ -112,7 +112,7 @@
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUFeedURL</key>
-	<string>https://beta.rootshell.com/downloads/appcast.xml</string>
+	<string>$(ROOTSHELL_SPARKLE_FEED_URL)</string>
 	<key>SUPublicEDKey</key>
 	<string>5y4NHLHb4vlOmDFBRJzu3wT5EeAgcH+odS1HVIaRf2g=</string>
 	<key>SUScheduledCheckInterval</key>
