@@ -806,31 +806,6 @@ extension Ghostty {
             return delivery
         }
 
-        /// Build the initial tmux child config/scheme as one owned delivery and
-        /// keep it alive through Ghostty's synchronous constructor. The Zig
-        /// entry point clones the config and seeds the surface appearance before
-        /// starting renderer/IO threads, closing the pre-registration response
-        /// window for restored panes.
-        func createTmuxPaneSurface(
-            tabId: UUID?,
-            windowId: String?,
-            _ create: (ghostty_config_t, ghostty_color_scheme_e) -> ghostty_surface_t?
-        ) -> ghostty_surface_t? {
-            guard let delivery = resolveSurfaceThemeDelivery(
-                tabId: tabId,
-                windowId: windowId
-            ) else {
-                logger.error("Could not build initial tmux pane theme delivery")
-                return nil
-            }
-            defer {
-                if delivery.artifacts.ownsConfig {
-                    ghostty_config_free(delivery.artifacts.config)
-                }
-            }
-            return create(delivery.artifacts.config, delivery.artifacts.scheme)
-        }
-
         /// Push one complete config/scheme pair to a live surface. Owned
         /// override configs transfer to the serial queue and are freed there.
         private func pushThemeDelivery(
@@ -845,20 +820,6 @@ extension Ghostty {
                 ghostty_surface_update_config(surface, surfaceConfig)
                 ghostty_surface_set_color_scheme(surface, scheme)
                 if ownsConfig { ghostty_config_free(surfaceConfig) }
-            }
-        }
-
-        /// Install a complete config/scheme pair synchronously during surface
-        /// registration. Tmux panes are additionally seeded inside their Zig
-        /// constructor via createTmuxPaneSurface, before their threads start.
-        private func prepareNewSurface(
-            _ surface: ghostty_surface_t,
-            with delivery: SurfaceThemeDelivery
-        ) {
-            ghostty_surface_update_config(surface, delivery.artifacts.config)
-            ghostty_surface_set_color_scheme(surface, delivery.artifacts.scheme)
-            if delivery.artifacts.ownsConfig {
-                ghostty_config_free(delivery.artifacts.config)
             }
         }
 
@@ -1954,28 +1915,28 @@ extension Ghostty {
 
         /// Register a surface to receive config updates
         /// - Parameter surface: The ghostty_surface_t pointer
-        func registerSurface(
-            _ surface: ghostty_surface_t,
-            themeAlreadySeeded: Bool = false
-        ) {
+        func registerSurface(_ surface: ghostty_surface_t) {
             let ptr = UnsafeMutableRawPointer(mutating: surface)
             SurfaceThemeInitializationCoordinator.register(
-                themeAlreadySeeded: themeAlreadySeeded,
+                themeAlreadySeeded: false,
                 recordLifetime: {
                     self.activeSurfaces.insert(ptr)
                     Ghostty.logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")
                 },
                 deliverInitialTheme: {
-                    // The app-level default deliberately remains independent
-                    // of live global changes because setting it would broadcast
-                    // over surfaces with tab/window overrides.
+                    // Deliver the initial config/scheme pair on the serial Ghostty
+                    // queue like every other surface mutation, so registration
+                    // can never race a queued teardown. The app-level default
+                    // deliberately remains independent of live global changes
+                    // because setting it would broadcast over surfaces with
+                    // tab/window overrides.
                     let surfaceId = Int(bitPattern: surface)
                     let context = self.surfaceThemeAssociations.context(for: surfaceId)
                     if let delivery = self.resolveSurfaceThemeDelivery(
                         tabId: context.tabID,
                         windowId: context.windowID
                     ) {
-                        self.prepareNewSurface(ptr, with: delivery)
+                        self.pushThemeDelivery(delivery, to: ptr)
                     } else {
                         Ghostty.logger.error("Could not prepare new surface with a complete theme")
                     }
