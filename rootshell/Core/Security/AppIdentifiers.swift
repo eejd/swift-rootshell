@@ -22,9 +22,26 @@ nonisolated enum AppIdentifiers {
     /// `.cn`-suffixed `RootshellAppGroup` instead.
     static let defaultAppGroupID: String = plist("RootshellDefaultAppGroup") ?? "group.com.kk2.ghostty"
 
-    static let keychainAccessGroup: String = plist("RootshellKeychainAccessGroup") ?? "D97ZME3ET2.com.kk2.ghostty-ios"
+    /// The keychain access group, or the empty string when the build declared
+    /// it has none (`RootshellKeychainAccessGroup` = `-`, the MacPorts
+    /// enablement sentinel for an ad-hoc signed bundle with no
+    /// keychain-access-groups entitlement). Callers that can scope their
+    /// queries should consult `hasKeychainAccessGroup` and omit
+    /// `kSecAttrAccessGroup` entirely; passing a group the process is not
+    /// entitled to fails every SecItem call with errSecMissingEntitlement.
+    static let keychainAccessGroup: String = {
+        let value = plist("RootshellKeychainAccessGroup") ?? "D97ZME3ET2.com.kk2.ghostty-ios"
+        return value == "-" ? "" : value
+    }()
 
-    static let iCloudContainerID: String = plist("RootshellICloudContainer") ?? "iCloud.rootshell"
+    static let hasKeychainAccessGroup: Bool = !keychainAccessGroup.isEmpty
+
+    /// The CloudKit container, or `nil` when the process holds no iCloud
+    /// entitlement (MacPorts enablement: `RootshellICloudContainer` empty).
+    /// Constructing a `CKContainer` without the entitlement raises an
+    /// Objective-C exception at launch, so callers must not try.
+    static let iCloudContainerID: String? = plist("RootshellICloudContainer")
+        ?? (plist("RootshellDevelopmentTeam") == nil ? nil : "iCloud.rootshell")
 
     private static func plist(_ key: String) -> String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,

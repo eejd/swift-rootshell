@@ -14,6 +14,19 @@ class KeychainManager {
     // Must match the keychain-access-groups in entitlements: $(AppIdentifierPrefix)$(ROOTSHELL_KEYCHAIN_GROUP_SUFFIX)
     nonisolated private let accessGroup = AppIdentifiers.keychainAccessGroup
 
+    /// Every SecItem dictionary passes through here. MacPorts enablement: a
+    /// build that declared no keychain access group (`AppIdentifiers
+    /// .hasKeychainAccessGroup == false`) must not send `kSecAttrAccessGroup`
+    /// at all; an unentitled group fails every call with
+    /// errSecMissingEntitlement (-34018) instead of falling back to the
+    /// app's own default keychain.
+    nonisolated private func scoped(_ attributes: [String: Any]) -> [String: Any] {
+        guard !AppIdentifiers.hasKeychainAccessGroup else { return attributes }
+        var stripped = attributes
+        stripped.removeValue(forKey: kSecAttrAccessGroup as String)
+        return stripped
+    }
+
     nonisolated private init() {
         Self.logger.info("KeychainManager initialized")
         Self.logger.info("Access Group: \(self.accessGroup)")
@@ -74,7 +87,7 @@ class KeychainManager {
 
         Self.logger.debug("savePrivateKey - Account: \(identifier), Data size: \(keyData.count) bytes")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status != errSecSuccess {
             Self.logger.error("savePrivateKey failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -148,7 +161,7 @@ class KeychainManager {
 
         Self.logger.debug("savePrivateKey (secure) - Account: \(identifier), StorageLevel: \(storageLevel.rawValue), AuthRequirement: \(effectiveAuth.rawValue), HasAccessControl: \(query[kSecAttrAccessControl as String] != nil), Data size: \(keyData.count) bytes")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         Self.logger.debug("savePrivateKey (secure) - Status: \(status)")
         if status != errSecSuccess {
@@ -245,7 +258,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -285,7 +298,7 @@ class KeychainManager {
         }
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             return true
@@ -326,7 +339,7 @@ class KeychainManager {
         }
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         switch status {
         case errSecSuccess:
@@ -357,7 +370,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -388,7 +401,7 @@ class KeychainManager {
             kSecValueData as String: keyData
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -421,7 +434,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         guard status != errSecDuplicateItem else {
             throw KeychainError.duplicateItem
@@ -446,7 +459,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let data = result as? Data,
@@ -467,7 +480,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(scoped(query) as CFDictionary)
         // Ignore errors - passphrase may not exist
     }
 
@@ -507,7 +520,7 @@ class KeychainManager {
             query[kSecAttrSynchronizable as String] = true
         }
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw KeychainError.unexpectedStatus(status)
         }
@@ -526,7 +539,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data else {
             return nil
         }
@@ -543,7 +556,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(scoped(query) as CFDictionary)
         // Ignore errors - secrets may not exist
     }
 
@@ -562,7 +575,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -594,7 +607,7 @@ class KeychainManager {
 
         Self.logger.debug("saveKubeconfig - Saving kubeconfig for cluster: \(identifier), Data size: \(kubeconfigData.count) bytes")
 
-        var status = SecItemAdd(query as CFDictionary, nil)
+        var status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         // If item already exists, update it instead
         if status == errSecDuplicateItem {
@@ -608,7 +621,7 @@ class KeychainManager {
             let updateAttributes: [String: Any] = [
                 kSecValueData as String: kubeconfigData
             ]
-            status = SecItemUpdate(searchQuery as CFDictionary, updateAttributes as CFDictionary)
+            status = SecItemUpdate(scoped(searchQuery) as CFDictionary, scoped(updateAttributes) as CFDictionary)
         }
 
         Self.logger.debug("saveKubeconfig - Status: \(status)")
@@ -636,7 +649,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -664,7 +677,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -688,7 +701,7 @@ class KeychainManager {
             kSecValueData as String: kubeconfigData
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -711,7 +724,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -745,7 +758,7 @@ class KeychainManager {
 
         Self.logger.debug("saveCloudCredentials - Account: \(identifier), Data size: \(credentialsData.count) bytes")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status != errSecSuccess {
             Self.logger.error("saveCloudCredentials failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -775,7 +788,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -809,7 +822,7 @@ class KeychainManager {
             kSecValueData as String: credentialsData
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -831,7 +844,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -850,7 +863,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -877,7 +890,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status != errSecSuccess {
             Self.logger.error("saveWiFiAPCredentials failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -903,7 +916,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -932,7 +945,7 @@ class KeychainManager {
             kSecValueData as String: credentialsData
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -951,7 +964,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -976,7 +989,7 @@ class KeychainManager {
         let dataSize = keyData.count
         Self.logger.debug("saveScrollbackEncryptionKey - Data size: \(dataSize) bytes")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status == errSecDuplicateItem {
             // Upsert: update existing key
@@ -989,7 +1002,7 @@ class KeychainManager {
             let attributes: [String: Any] = [
                 kSecValueData as String: keyData
             ]
-            let updateStatus = SecItemUpdate(searchQuery as CFDictionary, attributes as CFDictionary)
+            let updateStatus = SecItemUpdate(scoped(searchQuery) as CFDictionary, scoped(attributes) as CFDictionary)
             guard updateStatus == errSecSuccess else {
                 Self.logger.error("saveScrollbackEncryptionKey update failed - Status: \(updateStatus)")
                 throw KeychainError.unexpectedStatus(updateStatus)
@@ -1014,7 +1027,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1046,7 +1059,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status == errSecDuplicateItem {
             // Upsert: update existing key
@@ -1059,7 +1072,7 @@ class KeychainManager {
             let attributes: [String: Any] = [
                 kSecValueData as String: keyData
             ]
-            let updateStatus = SecItemUpdate(searchQuery as CFDictionary, attributes as CFDictionary)
+            let updateStatus = SecItemUpdate(scoped(searchQuery) as CFDictionary, scoped(attributes) as CFDictionary)
             guard updateStatus == errSecSuccess else {
                 Self.logger.error("saveClipboardEncryptionKey update failed - Status: \(updateStatus)")
                 throw KeychainError.unexpectedStatus(updateStatus)
@@ -1084,7 +1097,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1109,7 +1122,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -1142,15 +1155,15 @@ class KeychainManager {
         // ThisDeviceOnly accessibility classes cannot be synchronizable.
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status == errSecDuplicateItem {
             let attributes: [String: Any] = [
                 kSecValueData as String: data
             ]
             let updateStatus = SecItemUpdate(
-                redactionBaseQuery(synchronizable: true) as CFDictionary,
-                attributes as CFDictionary
+                scoped(redactionBaseQuery(synchronizable: true)) as CFDictionary,
+                scoped(attributes) as CFDictionary
             )
             guard updateStatus == errSecSuccess else {
                 Self.logger.error("saveRedactionItems update failed - Status: \(updateStatus)")
@@ -1165,7 +1178,7 @@ class KeychainManager {
 
         // Remove any legacy device-only copy so stale data can't shadow
         // the synced item on this device.
-        _ = SecItemDelete(redactionBaseQuery(synchronizable: false) as CFDictionary)
+        _ = SecItemDelete(scoped(redactionBaseQuery(synchronizable: false)) as CFDictionary)
     }
 
     func loadRedactionItems() throws -> Data {
@@ -1191,7 +1204,7 @@ class KeychainManager {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1210,7 +1223,7 @@ class KeychainManager {
 
     func deleteRedactionItems() throws {
         for synchronizable in [true, false] {
-            let status = SecItemDelete(redactionBaseQuery(synchronizable: synchronizable) as CFDictionary)
+            let status = SecItemDelete(scoped(redactionBaseQuery(synchronizable: synchronizable)) as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else {
                 throw KeychainError.unexpectedStatus(status)
             }
@@ -1257,7 +1270,7 @@ class KeychainManager {
 
         Self.logger.debug("saveSSHKeyMetadata - Account: \(identifier), StorageLevel: \(storageLevel.rawValue), Data size: \(metadata.count) bytes")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status != errSecSuccess {
             Self.logger.error("saveSSHKeyMetadata failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -1288,7 +1301,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1323,7 +1336,7 @@ class KeychainManager {
             kSecValueData as String: metadata
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1346,7 +1359,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny  // Include both synced and non-synced
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -1366,7 +1379,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -1392,7 +1405,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -1461,7 +1474,7 @@ class KeychainManager {
             }
         }
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
         if status == errSecDuplicateItem { throw KeychainError.duplicateItem }
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
     }
@@ -1487,7 +1500,7 @@ class KeychainManager {
         }
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             guard let data = result as? Data else { throw KeychainError.dataConversionFailed }
@@ -1511,7 +1524,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup,
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
         }
@@ -1542,7 +1555,7 @@ class KeychainManager {
             query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
             query[kSecAttrSynchronizable as String] = true
         }
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
         if status == errSecDuplicateItem { throw KeychainError.duplicateItem }
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
     }
@@ -1558,7 +1571,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         guard status != errSecItemNotFound else { throw KeychainError.itemNotFound }
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
         guard let data = result as? Data else { throw KeychainError.dataConversionFailed }
@@ -1573,7 +1586,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup,
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
         }
@@ -1591,7 +1604,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
         let attributes: [String: Any] = [kSecValueData as String: metadata]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
         guard status != errSecItemNotFound else { throw KeychainError.itemNotFound }
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
     }
@@ -1607,7 +1620,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         guard status == errSecSuccess, let items = result as? [[String: Any]] else { return [] }
         return items.compactMap { $0[kSecAttrAccount as String] as? String }
     }
@@ -1668,7 +1681,7 @@ class KeychainManager {
 
         Self.logger.debug("saveSSHPassword - ConnectionKey: \(connectionKey), StorageLevel: \(storageLevel.rawValue), AuthRequirement: \(authRequirement.rawValue)")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status != errSecSuccess {
             Self.logger.error("saveSSHPassword failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -1716,7 +1729,7 @@ class KeychainManager {
             kSecUseAuthenticationContext as String: context,
         ]
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             return .readable
@@ -1771,7 +1784,7 @@ class KeychainManager {
         }
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         switch status {
         case errSecSuccess:
@@ -1803,7 +1816,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -1832,7 +1845,7 @@ class KeychainManager {
             kSecValueData as String: passwordData
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1855,7 +1868,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, nil)
         return status == errSecSuccess
     }
 
@@ -1895,7 +1908,7 @@ class KeychainManager {
 
         Self.logger.debug("saveSSHPasswordMetadata - ConnectionKey: \(connectionKey), StorageLevel: \(storageLevel.rawValue), Data size: \(metadata.count) bytes")
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status != errSecSuccess {
             Self.logger.error("saveSSHPasswordMetadata failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -1926,7 +1939,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1961,7 +1974,7 @@ class KeychainManager {
             kSecValueData as String: metadata
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -1984,7 +1997,7 @@ class KeychainManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
@@ -2004,7 +2017,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -2030,7 +2043,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -2075,7 +2088,7 @@ class KeychainManager {
 
         Self.logger.debug("saveMoshSessionCredentials - Terminal: \(terminalId.uuidString), Data size: \(credentialsData.count) bytes")
 
-        var status = SecItemAdd(query as CFDictionary, nil)
+        var status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         // If item already exists, update it instead
         if status == errSecDuplicateItem {
@@ -2089,7 +2102,7 @@ class KeychainManager {
             let updateAttributes: [String: Any] = [
                 kSecValueData as String: credentialsData
             ]
-            status = SecItemUpdate(searchQuery as CFDictionary, updateAttributes as CFDictionary)
+            status = SecItemUpdate(scoped(searchQuery) as CFDictionary, scoped(updateAttributes) as CFDictionary)
         }
 
         Self.logger.debug("saveMoshSessionCredentials - Status: \(status)")
@@ -2117,7 +2130,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainError.itemNotFound
@@ -2147,7 +2160,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         // Item not found is OK - it may have already been deleted
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -2169,7 +2182,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -2270,7 +2283,7 @@ class KeychainManager {
         Self.logger.debug("saveTrzszSessionCredentials - Terminal: \(terminalId.uuidString), Data size: \(dataSize) bytes")
         ResumeDebugLogger.shared.log("saveTrzszSessionCredentials: uuid=\(terminalId.uuidString.prefix(8)), dataSize=\(dataSize)")
 
-        var status = SecItemAdd(query as CFDictionary, nil)
+        var status = SecItemAdd(scoped(query) as CFDictionary, nil)
 
         if status == errSecDuplicateItem {
             Self.logger.debug("saveTrzszSessionCredentials - Item exists, updating instead")
@@ -2283,7 +2296,7 @@ class KeychainManager {
             let updateAttributes: [String: Any] = [
                 kSecValueData as String: credentialsData
             ]
-            status = SecItemUpdate(searchQuery as CFDictionary, updateAttributes as CFDictionary)
+            status = SecItemUpdate(scoped(searchQuery) as CFDictionary, scoped(updateAttributes) as CFDictionary)
         }
 
         Self.logger.debug("saveTrzszSessionCredentials - Status: \(status)")
@@ -2312,7 +2325,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         ResumeDebugLogger.shared.log("loadTrzszSessionCredentials: uuid=\(terminalId.uuidString.prefix(8)), OSStatus=\(status)")
 
@@ -2345,7 +2358,7 @@ class KeychainManager {
             kSecAttrAccessGroup as String: accessGroup
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(scoped(query) as CFDictionary)
 
         ResumeDebugLogger.shared.log("deleteTrzszSessionCredentials: uuid=\(terminalId.uuidString.prefix(8)), OSStatus=\(status)")
 
@@ -2368,7 +2381,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {
@@ -2453,7 +2466,7 @@ class KeychainManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data else {
             throw KeychainError.itemNotFound
         }
