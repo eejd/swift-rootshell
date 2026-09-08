@@ -209,9 +209,30 @@ final class ThemeManager {
             // Must go through the lazy path: DayNightThemeManager writes this
             // during launch, long before the full catalog lands.
             currentThemeInfo = themeInfo(for: currentTheme)
-            guard ProtectedDataGuard.isAvailable else { return }
-            saveTheme()
+            // Propagate to Ghostty unconditionally. Only the UserDefaults write
+            // waits for protected data; dropping the event here left surfaces
+            // on a stale theme after a locked or background launch.
+            if ProtectedDataGuard.isAvailable {
+                saveTheme()
+            } else {
+                scheduleDeferredSave()
+            }
             themeDidChange.send(currentTheme)
+        }
+    }
+
+    /// True once a save has been queued for the next unlock.
+    @ObservationIgnored private var deferredSaveScheduled = false
+
+    /// Persist `currentTheme` once protected data becomes available. The value
+    /// saved is whatever is current at unlock, so repeated flips coalesce.
+    private func scheduleDeferredSave() {
+        guard !isReloading, !deferredSaveScheduled else { return }
+        deferredSaveScheduled = true
+        ProtectedDataGuard.whenAvailable { [weak self] in
+            guard let self else { return }
+            self.deferredSaveScheduled = false
+            self.saveTheme()
         }
     }
 
@@ -316,11 +337,16 @@ final class ThemeManager {
             themeDidChange.send(currentTheme)
             return
         }
+        let colorsBefore = currentThemeInfo?.colors
         rebuildCatalog()
         // Catalog mutations can change colors without changing the selected
         // name. Emit after the cache rebuild so current, window, and tab themes
-        // all resolve the new/deleted/renamed data atomically on refresh.
-        themeDidChange.send(currentTheme)
+        // all resolve the new/deleted/renamed data atomically on refresh, but
+        // only when the current theme's colors actually changed: every emit
+        // rewrites the Ghostty config and fans it out to every live surface.
+        if colorsBefore != currentThemeInfo?.colors {
+            themeDidChange.send(currentTheme)
+        }
     }
 
     // MARK: - Theme Loading

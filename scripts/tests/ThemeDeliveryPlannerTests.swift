@@ -1,8 +1,7 @@
 import Foundation
 
-@main
 enum ThemeDeliveryPlannerTests {
-    static func main() {
+    static func run() {
         testThemePrecedenceAndLiveChanges()
         testAtomicDeliveryFallback()
         testSurfaceReassociation()
