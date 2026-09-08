@@ -50,11 +50,40 @@ final class CloudKitSyncManager {
 
     // MARK: - CloudKit Components
 
-    /// CloudKit container
-    private let container: CKContainer
+    /// CloudKit container, or `nil` when this build holds no iCloud
+    /// entitlement (MacPorts enablement: an ad-hoc signed bundle cannot carry
+    /// one, and constructing a `CKContainer` without it raises at launch).
+    private let cloudContainer: CKContainer?
 
-    /// Private database
-    private let database: CKDatabase
+    /// Private database, `nil` alongside `cloudContainer`.
+    private let cloudDatabase: CKDatabase?
+
+    /// Thrown by every CloudKit entry point when the build has no container.
+    private struct CloudKitUnavailableError: LocalizedError {
+        var errorDescription: String? {
+            "iCloud sync is not available in this build (no iCloud entitlement)."
+        }
+    }
+
+    /// Throwing accessors so the existing `try await container…` /
+    /// `try await database…` call sites stay unchanged: a single `try` covers
+    /// the getter as well as the CloudKit call.
+    private var container: CKContainer {
+        get throws {
+            guard let cloudContainer else { throw CloudKitUnavailableError() }
+            return cloudContainer
+        }
+    }
+
+    private var database: CKDatabase {
+        get throws {
+            guard let cloudDatabase else { throw CloudKitUnavailableError() }
+            return cloudDatabase
+        }
+    }
+
+    /// Whether this build can talk to CloudKit at all.
+    var isAvailable: Bool { cloudContainer != nil }
 
     /// Offline queue for pending changes
     private let offlineQueue = CloudKitOfflineQueue()
@@ -98,8 +127,15 @@ final class CloudKitSyncManager {
     // MARK: - Initialization
 
     private init() {
-        self.container = CKContainer(identifier: AppIdentifiers.iCloudContainerID)
-        self.database = container.privateCloudDatabase
+        if let containerID = AppIdentifiers.iCloudContainerID {
+            let container = CKContainer(identifier: containerID)
+            self.cloudContainer = container
+            self.cloudDatabase = container.privateCloudDatabase
+        } else {
+            Self.logger.notice("CloudKit unavailable: no iCloud container in this build")
+            self.cloudContainer = nil
+            self.cloudDatabase = nil
+        }
 
         // Load settings
         loadSettings()
