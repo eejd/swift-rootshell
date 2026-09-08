@@ -22,9 +22,19 @@ private enum HelperPeerTrust {
     /// alike, and is nothing an attacker can obtain.
     private static let appRequirement: String = {
         let identifier = plist("RootshellAppBundleIdentifier") ?? "com.kk2.rootshell"
-        let team = plist("RootshellDevelopmentTeam") ?? "D97ZME3ET2"
+        // MacPorts enablement: a locally built, ad-hoc signed app has no team,
+        // so the certificate clause can never match. When the build opted in
+        // (RootshellHelperTrustAdhocPeer = YES, written by the Portfile) and no
+        // team is configured, trust the peer by bundle identifier alone. This
+        // is a deliberate downgrade for a bundle the user built themselves;
+        // any bundle carrying a team keeps the full requirement.
+        let team = plist("RootshellDevelopmentTeam")
+        if team == nil, let optIn = plist("RootshellHelperTrustAdhocPeer"),
+           ["YES", "TRUE", "1"].contains(optIn.uppercased()) {
+            return "identifier \"\(identifier)\""
+        }
         return "identifier \"\(identifier)\" and anchor apple generic "
-            + "and certificate leaf[subject.OU] = \"\(team)\""
+            + "and certificate leaf[subject.OU] = \"\(team ?? "D97ZME3ET2")\""
     }()
 
     private static func plist(_ key: String) -> String? {

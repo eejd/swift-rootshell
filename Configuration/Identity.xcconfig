@@ -47,6 +47,11 @@ ROOTSHELL_ICLOUD_CONTAINER = iCloud.rootshell
 // discovery and nothing else; clearing the override restores it.
 ROOTSHELL_APP_ENTITLEMENTS_SUFFIX =
 
+// Helper peer trust for builds with no Developer Team (ad-hoc signed). Empty
+// (default) keeps the full team-anchored code requirement. A package-manager
+// build sets YES so the helper accepts the app by bundle identifier alone.
+ROOTSHELL_HELPER_TRUST_ADHOC_PEER =
+
 // Personal Apple Developer team, org identifier, and iCloud container for a
 // contributor building under their own paid account instead of upstream's.
 // Untracked (see .gitignore), like Secrets.xcconfig alongside it. Set only the
