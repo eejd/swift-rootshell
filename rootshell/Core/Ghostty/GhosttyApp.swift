@@ -806,6 +806,32 @@ extension Ghostty {
             return delivery
         }
 
+        /// Build the initial tmux child config/scheme as one owned delivery and
+        /// keep it alive through Ghostty's synchronous constructor. The Zig
+        /// entry point clones the config and seeds the surface appearance before
+        /// starting renderer/IO threads, closing the pre-registration response
+        /// window for restored panes. Requires the fork GhosttyKit
+        /// (eejd/ghostty-rootshell#2).
+        func createTmuxPaneSurface(
+            tabId: UUID?,
+            windowId: String?,
+            _ create: (ghostty_config_t, ghostty_color_scheme_e) -> ghostty_surface_t?
+        ) -> ghostty_surface_t? {
+            guard let delivery = resolveSurfaceThemeDelivery(
+                tabId: tabId,
+                windowId: windowId
+            ) else {
+                logger.error("Could not build initial tmux pane theme delivery")
+                return nil
+            }
+            defer {
+                if delivery.artifacts.ownsConfig {
+                    ghostty_config_free(delivery.artifacts.config)
+                }
+            }
+            return create(delivery.artifacts.config, delivery.artifacts.scheme)
+        }
+
         /// Push one complete config/scheme pair to a live surface. Owned
         /// override configs transfer to the serial queue and are freed there.
         private func pushThemeDelivery(
@@ -1915,10 +1941,15 @@ extension Ghostty {
 
         /// Register a surface to receive config updates
         /// - Parameter surface: The ghostty_surface_t pointer
-        func registerSurface(_ surface: ghostty_surface_t) {
+        /// - Parameter themeAlreadySeeded: true for tmux panes whose constructor
+        ///   already received the config/scheme pair (see createTmuxPaneSurface).
+        func registerSurface(
+            _ surface: ghostty_surface_t,
+            themeAlreadySeeded: Bool = false
+        ) {
             let ptr = UnsafeMutableRawPointer(mutating: surface)
             SurfaceThemeInitializationCoordinator.register(
-                themeAlreadySeeded: false,
+                themeAlreadySeeded: themeAlreadySeeded,
                 recordLifetime: {
                     self.activeSurfaces.insert(ptr)
                     Ghostty.logger.debug("Registered surface, total active: \(self.activeSurfaces.count)")

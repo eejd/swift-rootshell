@@ -295,6 +295,24 @@ to Ghostty, so shells and TUIs that query `CSI ?996n` or subscribe with mode
 `scripts/test-theme-delivery.sh` to exercise the appearance resolver and the
 theme delivery planner outside Xcode.
 
+### Native tmux Panes and the Fork GhosttyKit
+
+Native tmux panes are seeded with their complete config and light/dark scheme
+inside Ghostty's constructor, before the renderer and IO threads start, and
+relay that state through tmux's `CSI ?996n` / mode-2031 protocol to subscribed
+shells and TUIs. This needs `ghostty_surface_new_tmux_pane_with_theme` from the
+Ghostty fork (`eejd/ghostty-rootshell`, branch `fix/runtime-color-scheme`,
+tracked in `eejd/ghostty-rootshell#2`). The Xcode project pins a GhosttyKit
+release that ships that symbol; for local iteration on Ghostty source, run
+`./scripts/build-framework.sh all --ghostty-source /path/to/ghostty-rootshell`
+and point the two `GhosttyKit*` package products at the generated, git-ignored
+`.local-packages/ghosttykit-rootshell` package without committing that change.
+
+A tmux pane is one shared process with one server-side theme state. Separate
+panes or sessions can follow separate clients, but two clients viewing the same
+pane with conflicting appearances cannot give that one TUI two simultaneous
+themes; the most recent per-pane report wins.
+
 ### macOS Local Shells
 
 Local shells on macOS use the `rootshell-helper` source included in this repository. The Standalone target builds the native background app and embeds it at `Contents/Helpers/rootshell-helper.app` with Code Sign on Copy; no prebuilt helper binary is stored in Git. Organizer distribution signs and notarizes the helper as nested code with the containing app. A sandboxed macOS build can connect to the same helper when it is launched separately because both products use the provisioned `group.com.kk2.ghostty` App Group container.
