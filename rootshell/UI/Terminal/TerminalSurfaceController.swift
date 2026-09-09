@@ -422,14 +422,10 @@ final class TerminalSurfaceController: NSObject {
         let insetPx = host.surfaceCurrentBottomInsetPixels
         if abs(insetPx - lastBottomInsetPx) < 0.5 { return }
         lastBottomInsetPx = insetPx
-        #if targetEnvironment(macCatalyst)
-        ghostty_surface_set_bottom_inset(surface, insetPx)
-        #else
         nonisolated(unsafe) let surfacePtr = surface
         Ghostty.TerminalView.ghosttyAPIQueue.async {
             ghostty_surface_set_bottom_inset(surfacePtr, insetPx)
         }
-        #endif
     }
 
     func sizeDidChange(_ size: CGSize) {

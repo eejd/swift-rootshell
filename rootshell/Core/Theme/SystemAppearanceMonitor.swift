@@ -19,8 +19,11 @@
 //    distributed notification the system posts on every flip, including the
 //    scheduled Auto transitions.
 //
-//  An unknown value is `nil`, never "light". Consumers defer until the first
-//  trustworthy read and keep the last known value across momentary gaps.
+//  An unreadable value is `nil`, never "light". On Mac Catalyst, an
+//  available `NSGlobalDomain` with no `AppleInterfaceStyle` key is the
+//  platform's light-mode representation; an unavailable domain remains
+//  unknown. Consumers defer until the first trustworthy read and keep the
+//  last known value across momentary gaps.
 //
 
 import Combine
@@ -44,6 +47,9 @@ final class SystemAppearanceMonitor: ObservableObject {
 
     private var started = false
     private var notificationObservers: [NSObjectProtocol] = []
+    #if targetEnvironment(macCatalyst)
+    private var delayedReevaluation: Task<Void, Never>?
+    #endif
     #if !targetEnvironment(macCatalyst) && !os(visionOS)
     private var screenRegistrations: [ObjectIdentifier: any UITraitChangeRegistration] = [:]
     #endif
@@ -71,8 +77,7 @@ final class SystemAppearanceMonitor: ObservableObject {
                 // domain is committed. Read now for ordinary flips, then once
                 // more after that short propagation window for Auto changes.
                 SystemAppearanceMonitor.shared.reevaluate()
-                try? await Task.sleep(for: .milliseconds(250))
-                SystemAppearanceMonitor.shared.reevaluate()
+                SystemAppearanceMonitor.shared.scheduleDelayedReevaluation()
             }
         }
         notificationObservers.append(themeChanged)
@@ -136,6 +141,17 @@ final class SystemAppearanceMonitor: ObservableObject {
         osStyle = style
         osStyleDidChange.send(style)
     }
+
+    #if targetEnvironment(macCatalyst)
+    private func scheduleDelayedReevaluation() {
+        delayedReevaluation?.cancel()
+        delayedReevaluation = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            self?.reevaluate()
+        }
+    }
+    #endif
 
     // MARK: - Sources
 
