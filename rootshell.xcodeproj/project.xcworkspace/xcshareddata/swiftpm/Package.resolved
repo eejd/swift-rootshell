@@ -1,5 +1,5 @@
 {
-  "originHash" : "cb5442bae984739db310caaba23ab2b70874e0c3ce0a155cd6f097b014d0c736",
+  "originHash" : "2747a299058592350c9c5c95ce90d11731fd94d724472c3eaa2ced6016297eee",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -38,15 +38,6 @@
       }
     },
     {
-      "identity" : "ghosttykit-rootshell",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kitknox/ghosttykit-rootshell.git",
-      "state" : {
-        "revision" : "56c6bc828405e134ec55a02296221afcd4c8122b",
-        "version" : "0.2.11"
-      }
-    },
-    {
       "identity" : "model",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftkube/model.git",
@@ -61,15 +52,6 @@
       "location" : "https://github.com/kitknox/rootshell-vnc.git",
       "state" : {
         "revision" : "f202e3990bf4ed952fe806937ff419440cb7f961"
-      }
-    },
-    {
-      "identity" : "sparkle-rootshell",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kitknox/Sparkle-rootshell.git",
-      "state" : {
-        "revision" : "81c3bcf59afb59c04fb67f19d9d939869198d657",
-        "version" : "2.9.4-rootshell.1"
       }
     },
     {
@@ -286,15 +268,6 @@
       "state" : {
         "revision" : "04632dc753f873116ab048076fd6474d429bbcd0",
         "version" : "4.4.8"
-      }
-    },
-    {
-      "identity" : "trzsz-ssh-rootshell",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kitknox/trzsz-ssh-rootshell.git",
-      "state" : {
-        "revision" : "bd9e777620a2ec40e7be59ec31e8a008ff5f7fa5",
-        "version" : "0.2.2"
       }
     },
     {
