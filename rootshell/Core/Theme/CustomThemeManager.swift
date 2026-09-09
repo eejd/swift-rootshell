@@ -20,6 +20,9 @@ class CustomThemeManager: ObservableObject {
     @Published private(set) var customThemes: [CustomTheme] = []
 
     private let fileManager = FileManager.default
+    /// Avoid reparsing unchanged backing files on every catalog rebuild. The
+    /// metadata remains the source of truth; a changed file is repaired below.
+    private var validatedBackingModificationDates: [UUID: Date] = [:]
 
     enum PersistenceError: LocalizedError {
         case themesDirectoryUnavailable
@@ -75,6 +78,7 @@ class CustomThemeManager: ObservableObject {
     /// subscribers until the Ghostty backing file and metadata are both durable.
     @discardableResult
     func saveTheme(_ theme: CustomTheme) -> Bool {
+        validatedBackingModificationDates.removeValue(forKey: theme.id)
         var updated = theme
         updated.modifiedDate = Date()
         let existingIndex = customThemes.firstIndex(where: { $0.id == theme.id })
@@ -306,15 +310,32 @@ class CustomThemeManager: ObservableObject {
         return dir.appendingPathComponent(name)
     }
 
-    /// Return a custom theme's file only when it exactly matches the metadata
-    /// used to derive its semantic light/dark scheme.
+    /// Return a metadata-backed custom theme file, repairing an externally
+    /// changed or missing copy. The JSON metadata is authoritative, so a
+    /// stale renderer file must not make the selected theme disappear.
     func validatedBackingFileURL(for theme: CustomTheme) -> URL? {
-        guard let fileURL = ghosttyThemeFileURL(named: theme.name),
-              let content = try? String(contentsOf: fileURL, encoding: .utf8),
-              content == theme.toGhosttyFileContent() else {
-            Self.logger.error("Custom theme backing file is missing or stale: \(theme.name)")
+        guard let fileURL = ghosttyThemeFileURL(named: theme.name) else {
+            Self.logger.error("Custom theme directory is unavailable: \(theme.name)")
             return nil
         }
+
+        let modificationDate = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        if let modificationDate, validatedBackingModificationDates[theme.id] == modificationDate {
+            return fileURL
+        }
+
+        let expected = theme.toGhosttyFileContent()
+        if (try? String(contentsOf: fileURL, encoding: .utf8)) != expected {
+            do {
+                try expected.write(to: fileURL, atomically: true, encoding: .utf8)
+                Self.logger.notice("Repaired custom theme backing file: \(theme.name)")
+            } catch {
+                Self.logger.error("Failed to repair custom theme backing file \(theme.name): \(error)")
+                return nil
+            }
+        }
+        let repairedDate = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        if let repairedDate { validatedBackingModificationDates[theme.id] = repairedDate }
         return fileURL
     }
 

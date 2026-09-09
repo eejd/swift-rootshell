@@ -515,9 +515,10 @@ extension Ghostty {
             // Seed libghostty's default before any surface exists. Every live
             // surface is updated independently below so tab/window overrides
             // can report their own effective appearance.
-            if let scheme = colorScheme(forTheme: ThemeManager.shared.currentTheme) {
-                ghostty_app_set_color_scheme(app, scheme)
-            }
+            ghostty_app_set_color_scheme(
+                app,
+                colorScheme(forTheme: ThemeManager.shared.currentTheme) ?? conservativeColorScheme()
+            )
 
             // Register this instance for callback access
             // Use raw pointer address as key (not ObjectIdentifier which creates new wrapper each time)
@@ -773,9 +774,13 @@ extension Ghostty {
                 effective: effective,
                 globalTheme: ThemeManager.shared.currentTheme
             ) { [self] resolution -> SurfaceThemeArtifacts? in
-                guard let scheme = colorScheme(forTheme: resolution.themeName) else {
-                    return nil
-                }
+                // A temporarily unavailable global theme must not leave a
+                // surface without both its config and semantic scheme. Use
+                // the last parsed global theme, then light as the stable
+                // startup floor; override configs still require their own
+                // readable backing file and fall through to this global pair.
+                let scheme = colorScheme(forTheme: resolution.themeName)
+                    ?? conservativeColorScheme()
 
                 let artifacts: SurfaceThemeArtifacts
                 switch resolution.source {
@@ -860,6 +865,12 @@ extension Ghostty {
                 return nil
             }
             return theme.isLight ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+        }
+
+        private func conservativeColorScheme() -> ghostty_color_scheme_e {
+            ThemeManager.shared.currentThemeInfo?.isLight == false
+                ? GHOSTTY_COLOR_SCHEME_DARK
+                : GHOSTTY_COLOR_SCHEME_LIGHT
         }
 
         /// Set up subscription to theme changes
