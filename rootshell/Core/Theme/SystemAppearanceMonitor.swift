@@ -44,7 +44,7 @@ final class SystemAppearanceMonitor: ObservableObject {
 
     private var started = false
     private var notificationObservers: [NSObjectProtocol] = []
-    #if !targetEnvironment(macCatalyst)
+    #if !targetEnvironment(macCatalyst) && !os(visionOS)
     private var screenRegistrations: [ObjectIdentifier: any UITraitChangeRegistration] = [:]
     #endif
 
@@ -69,6 +69,18 @@ final class SystemAppearanceMonitor: ObservableObject {
             Task { @MainActor in SystemAppearanceMonitor.shared.reevaluate() }
         }
         notificationObservers.append(themeChanged)
+        #elseif os(visionOS)
+        // No OS-level light/dark source is wired up here: `UIScreen` (this
+        // file's iOS/iPadOS source) is API_UNAVAILABLE(visionos), and
+        // visionOS has no equivalent system light/dark setting exposed the
+        // same way. readOSStyle() below returns nil unconditionally on this
+        // platform, so callers defer to AppearanceResolver's existing
+        // unknown-value handling (explicit override, or the last known
+        // value) rather than getting a wrong answer. Deliberately minimal:
+        // visionOS is out of scope for the MacPorts Mac Catalyst Standalone
+        // port (D5, ADR-0007), which never builds this platform; this is
+        // just enough to keep the shared, upstream-candidate source
+        // compiling for rootshell-AppStore's xros/xrsimulator targets.
         #else
         for scene in Self.windowScenes() { attachScreenObserver(to: scene.screen) }
         let sceneConnected = NotificationCenter.default.addObserver(
@@ -126,6 +138,9 @@ final class SystemAppearanceMonitor: ObservableObject {
         // Absent means light; the system only writes the key for dark mode.
         let value = UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
         return value?.caseInsensitiveCompare("Dark") == .orderedSame ? .dark : .light
+        #elseif os(visionOS)
+        // See start()'s visionOS branch: no wired-up source, deliberately.
+        return nil
         #else
         for scene in windowScenes() {
             switch scene.screen.traitCollection.userInterfaceStyle {
@@ -143,7 +158,7 @@ final class SystemAppearanceMonitor: ObservableObject {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     }
 
-    #if !targetEnvironment(macCatalyst)
+    #if !targetEnvironment(macCatalyst) && !os(visionOS)
     private func attachScreenObserver(to screen: UIScreen) {
         let key = ObjectIdentifier(screen)
         guard screenRegistrations[key] == nil else { return }
