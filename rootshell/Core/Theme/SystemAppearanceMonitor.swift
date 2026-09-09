@@ -66,7 +66,14 @@ final class SystemAppearanceMonitor: ObservableObject {
             object: nil,
             queue: .main
         ) { _ in
-            Task { @MainActor in SystemAppearanceMonitor.shared.reevaluate() }
+            Task { @MainActor in
+                // The distributed notification can arrive before the global
+                // domain is committed. Read now for ordinary flips, then once
+                // more after that short propagation window for Auto changes.
+                SystemAppearanceMonitor.shared.reevaluate()
+                try? await Task.sleep(for: .milliseconds(250))
+                SystemAppearanceMonitor.shared.reevaluate()
+            }
         }
         notificationObservers.append(themeChanged)
         #elseif os(visionOS)
@@ -135,8 +142,14 @@ final class SystemAppearanceMonitor: ObservableObject {
     /// The current OS appearance without side effects, or `nil` if unknown.
     static func readOSStyle() -> Style? {
         #if targetEnvironment(macCatalyst)
-        // Absent means light; the system only writes the key for dark mode.
-        let value = UserDefaults.standard.string(forKey: "AppleInterfaceStyle")
+        // Absent means light, but an unavailable global domain is unknown --
+        // never turn a failed read into a spurious Light transition.
+        guard let globalDomain = UserDefaults.standard.persistentDomain(
+            forName: UserDefaults.globalDomain
+        ) else {
+            return nil
+        }
+        let value = globalDomain["AppleInterfaceStyle"] as? String
         return value?.caseInsensitiveCompare("Dark") == .orderedSame ? .dark : .light
         #elseif os(visionOS)
         // See start()'s visionOS branch: no wired-up source, deliberately.

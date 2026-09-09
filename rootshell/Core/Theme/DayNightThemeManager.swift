@@ -73,6 +73,10 @@ final class DayNightThemeManager: ObservableObject {
     private var defaultTheme: String
 
     private var cancellables = Set<AnyCancellable>()
+    /// A fallback for Automatic mode only. `resolvedStyle` also records the
+    /// result of an explicit Light/Dark choice, so it must never be reused as
+    /// an OS fallback after returning to Automatic.
+    private var lastKnownSystemStyle: Style?
 
     /// Owned keys whose writes were skipped while protected data was unavailable.
     private var pendingPersistence: Set<String> = []
@@ -97,7 +101,10 @@ final class DayNightThemeManager: ObservableObject {
 
         // Both inputs of the resolver: the OS value and the explicit override.
         SystemAppearanceMonitor.shared.osStyleDidChange
-            .sink { [weak self] _ in self?.resolveAndApply() }
+            .sink { [weak self] style in
+                self?.lastKnownSystemStyle = style
+                self?.resolveAndApply()
+            }
             .store(in: &cancellables)
         AppearanceManager.shared.appearanceModeDidChange
             .sink { [weak self] _ in self?.resolveAndApply() }
@@ -182,14 +189,18 @@ final class DayNightThemeManager: ObservableObject {
     }
 
     private func resolveAndApply() {
+        let osStyle = SystemAppearanceMonitor.shared.osStyle
+        if let osStyle {
+            lastKnownSystemStyle = osStyle
+        }
         let decision = AppearanceResolver.decide(AppearanceResolver.Input(
-            osStyle: SystemAppearanceMonitor.shared.osStyle,
+            osStyle: osStyle,
             appearanceMode: Self.mode(AppearanceManager.shared.currentAppearanceMode),
             dayNightEnabled: enabled,
             dayTheme: dayTheme,
             nightTheme: nightTheme,
             protectedDataAvailable: ProtectedDataGuard.isAvailable,
-            lastKnown: resolvedStyle
+            lastKnown: lastKnownSystemStyle
         ))
 
         switch decision {

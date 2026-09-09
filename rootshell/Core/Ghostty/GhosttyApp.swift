@@ -687,8 +687,7 @@ extension Ghostty {
             globalConfig: ghostty_config_t,
             completion: (@MainActor @Sendable () -> Void)? = nil
         ) -> (updated: Int, overridden: Int) {
-            var overrideSurfaces: [(UnsafeMutableRawPointer, UnsafeMutableRawPointer)] = []
-            var surfaceSchemes: [(UnsafeMutableRawPointer, ghostty_color_scheme_e)] = []
+            var deliveries: [(UnsafeMutableRawPointer, SurfaceThemeArtifacts)] = []
             var overridden = 0
 
             for surface in activeSurfaces {
@@ -703,25 +702,25 @@ extension Ghostty {
                     continue
                 }
 
-                surfaceSchemes.append((surface, delivery.artifacts.scheme))
+                deliveries.append((surface, delivery.artifacts))
                 if delivery.artifacts.ownsConfig {
                     overridden += 1
-                    overrideSurfaces.append((surface, delivery.artifacts.config))
                 }
             }
 
             nonisolated(unsafe) let appPtr = app
             nonisolated(unsafe) let cfg = globalConfig
-            nonisolated(unsafe) let overrides = overrideSurfaces
-            nonisolated(unsafe) let schemes = surfaceSchemes
+            nonisolated(unsafe) let surfaceDeliveries = deliveries
             Ghostty.TerminalView.ghosttyAPIQueue.async {
                 ghostty_app_update_config(appPtr, cfg)
-                for (surface, surfaceConfig) in overrides {
-                    ghostty_surface_update_config(surface, surfaceConfig)
-                    ghostty_config_free(surfaceConfig)
-                }
-                for (surface, scheme) in schemes {
-                    ghostty_surface_set_color_scheme(surface, scheme)
+                // Keep the renderer config and semantic scheme adjacent for
+                // every surface. The app fan-out above establishes the config
+                // inherited by future surfaces; this loop fixes each live
+                // surface as one indivisible delivery.
+                for (surface, artifacts) in surfaceDeliveries {
+                    ghostty_surface_update_config(surface, artifacts.config)
+                    ghostty_surface_set_color_scheme(surface, artifacts.scheme)
+                    if artifacts.ownsConfig { ghostty_config_free(artifacts.config) }
                 }
                 if let completion {
                     Task { @MainActor in completion() }
