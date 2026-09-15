@@ -458,7 +458,11 @@ extension Ghostty {
 
             // A unique file prevents overlapping surface refreshes from
             // loading one another's theme. It is removed after Ghostty has
-            // synchronously parsed it, never becoming shared mutable state.
+            // synchronously parsed it, never becoming shared mutable state:
+            // ghostty_config_load_file (called by loadConfigWithTheme below)
+            // reads and ghostty_config_finalize completes the parse before
+            // either call returns, so the file is safe to delete as soon as
+            // loadConfigWithTheme returns, not just eventually.
             guard let configDirectory else {
                 logger.error("Failed to get config directory")
                 return nil
@@ -470,7 +474,17 @@ extension Ghostty {
                 logger.error("Failed to write config file for per-surface theme: \(themeName)")
                 return nil
             }
-            defer { try? FileManager.default.removeItem(at: overrideFile) }
+            defer {
+                do {
+                    try FileManager.default.removeItem(at: overrideFile)
+                } catch {
+                    // Non-fatal (the file is only a transient parse input),
+                    // but a silently-failing removal accumulates
+                    // config.override.* files in configDirectory over many
+                    // surface registrations, so it's worth knowing about.
+                    logger.warning("Failed to remove per-surface override file \(overrideFile.lastPathComponent): \(error)")
+                }
+            }
 
             // Load exactly that file
             guard let cfg = loadConfigWithTheme(file: overrideFile) else {

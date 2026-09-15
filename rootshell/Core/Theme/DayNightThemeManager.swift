@@ -46,6 +46,14 @@ final class DayNightThemeManager: ObservableObject {
         didSet {
             guard oldValue != dayTheme else { return }
             persist(Settings.Theme.dayNightDay, dayTheme)
+            // Suppressed mid-reload(keys:) for the same reason persist() is:
+            // reload assigns dayTheme/nightTheme/enabled independently, and
+            // resolving after each individual assignment means an earlier
+            // call can see a stale value for a property that hasn't been
+            // reassigned yet in the same batch. reload() itself calls
+            // resolveAndApply() once, after every key in the batch has
+            // landed.
+            guard !isReloading else { return }
             resolveAndApply()
         }
     }
@@ -55,6 +63,7 @@ final class DayNightThemeManager: ObservableObject {
         didSet {
             guard oldValue != nightTheme else { return }
             persist(Settings.Theme.dayNightNight, nightTheme)
+            guard !isReloading else { return }
             resolveAndApply()
         }
     }
@@ -151,6 +160,12 @@ final class DayNightThemeManager: ObservableObject {
         if keys.contains(Settings.Theme.dayNightDay.name) { dayTheme = store.get(Settings.Theme.dayNightDay) }
         if keys.contains(Settings.Theme.dayNightNight.name) { nightTheme = store.get(Settings.Theme.dayNightNight) }
         if keys.contains(Settings.Theme.dayNightEnabled.name) { enabled = store.get(Settings.Theme.dayNightEnabled) }
+        // dayTheme/nightTheme suppress their own per-assignment resolveAndApply()
+        // while isReloading is set (see their didSet), so the batch always ends
+        // with exactly one resolution against the final, fully-applied state —
+        // never zero (a theme-only reload with no `enabled` change previously
+        // resolved nothing at all) and never more than one per batch.
+        resolveAndApply()
     }
 
     // MARK: - Resolution
