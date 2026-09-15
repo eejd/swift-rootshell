@@ -308,9 +308,9 @@ final class TerminalSurfaceController: NSObject {
         self.surface = surface
         host.surfaceControllerDidSetSurface(surface)
 
-        host.surfaceGhosttyApp?.registerSurface(surface)
-        Ghostty.logger.info("Surface registered for config updates")
-
+        // Establish ownership before registerSurface seeds Ghostty's effective
+        // color scheme. This makes the first terminal response honor tab >
+        // window > global precedence, including for restored/tmux panes.
         host.surfaceGhosttyApp?.registerSurfaceWindow(surface, windowId: host.surfaceWindowID)
         let windowID = host.surfaceWindowID
         Ghostty.logger.info("Surface registered to window \(windowID)")
@@ -320,12 +320,10 @@ final class TerminalSurfaceController: NSObject {
             Ghostty.logger.info("Surface registered to tab \(tabId)")
         }
 
+        host.surfaceGhosttyApp?.registerSurface(surface)
+        Ghostty.logger.info("Surface registered for config updates")
+
         host.surfaceSetupThemeOverrideSubscription()
-        host.surfaceGhosttyApp?.refreshSurfaceTheme(
-            surface,
-            tabId: host.surfaceContainingTabID,
-            windowId: host.surfaceWindowID
-        )
 
         if let delegate = host.surfaceUserdata as? GhosttyActionDelegate {
             host.surfaceGhosttyApp?.registerSurfaceDelegate(surface, delegate: delegate)
@@ -424,14 +422,10 @@ final class TerminalSurfaceController: NSObject {
         let insetPx = host.surfaceCurrentBottomInsetPixels
         if abs(insetPx - lastBottomInsetPx) < 0.5 { return }
         lastBottomInsetPx = insetPx
-        #if targetEnvironment(macCatalyst)
-        ghostty_surface_set_bottom_inset(surface, insetPx)
-        #else
         nonisolated(unsafe) let surfacePtr = surface
         Ghostty.TerminalView.ghosttyAPIQueue.async {
             ghostty_surface_set_bottom_inset(surfacePtr, insetPx)
         }
-        #endif
     }
 
     func sizeDidChange(_ size: CGSize) {

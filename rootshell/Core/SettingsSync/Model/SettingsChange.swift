@@ -8,6 +8,10 @@
 import Foundation
 
 nonisolated enum SettingsChangeOrigin: String, Sendable {
+    /// Hydrated from the persisted domain after a locked launch. This is not
+    /// a write: registered managers must reload their initial defaults before
+    /// they can schedule any persistence.
+    case bootstrap
     /// Written by this process through any UserDefaults path.
     case local
     /// Applied from iCloud.

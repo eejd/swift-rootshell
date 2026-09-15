@@ -14,7 +14,7 @@ import UIKit
 /// This is a base class rather than a protocol because `SplitTree` requires
 /// `ViewType: UIView & Identifiable`, which an existential cannot satisfy.
 @MainActor
-class SplitPaneView: UIView, Identifiable {
+class SplitPaneView: UIView, Identifiable, SurfaceThemeContextRetargeting {
 
     /// Unique, stable identity for this pane (survives restore).
     nonisolated let uuid: UUID
@@ -85,6 +85,19 @@ class SplitPaneView: UIView, Identifiable {
 
     /// Re-home the pane to another window (tab transfer).
     func retargetWindow(to windowId: String) {}
+
+    /// Re-home the pane to another tab. Concrete terminal panes use this hook
+    /// to keep their renderer-side theme ownership in sync.
+    func retargetTab(to tabID: UUID?) {
+        containingTabID = tabID
+    }
+
+    /// Re-home both pieces of theme ownership as one logical operation. Views
+    /// without renderer-side theme state retain the existing hooks.
+    func retargetThemeContext(toWindowID windowID: String, tabID: UUID?) {
+        retargetWindow(to: windowID)
+        retargetTab(to: tabID)
+    }
 
     /// Prepare a live pane for insertion beneath a view controller. Panes that
     /// own child view controllers can re-home them here before UIKit validates

@@ -41,6 +41,9 @@ enum ProtectedDataGuard {
         logger.warning("Protected data NOT available — deferring initialization")
         final class TokenHolder: @unchecked Sendable {
             var token: NSObjectProtocol?
+            // Accessed only by the MainActor task below. The notification
+            // queue only retains the holder; it never mutates it.
+            var didRun = false
         }
         let holder = TokenHolder()
         holder.token = NotificationCenter.default.addObserver(
@@ -48,9 +51,21 @@ enum ProtectedDataGuard {
             object: nil,
             queue: protectedDataQueue
         ) { _ in
-            if let token = holder.token { NotificationCenter.default.removeObserver(token) }
             Task { @MainActor in
-                runWhenProtectedDataAvailable(action, reason: "unlock")
+                // A notification is not a proof that the receiving process
+                // can read its protected preferences yet. Keep the observer
+                // armed until the MainActor confirms availability; otherwise
+                // a lock/unlock race permanently drops this caller's work.
+                guard !holder.didRun, UIApplication.shared.isProtectedDataAvailable else {
+                    logger.warning("Protected data notification arrived before data was readable; keeping observer armed")
+                    return
+                }
+                holder.didRun = true
+                if let token = holder.token {
+                    NotificationCenter.default.removeObserver(token)
+                    holder.token = nil
+                }
+                _ = runWhenProtectedDataAvailable(action, reason: "unlock")
             }
         }
     }
@@ -59,22 +74,21 @@ enum ProtectedDataGuard {
     private static func runWhenProtectedDataAvailable(
         _ action: @MainActor @escaping @Sendable () -> Void,
         reason: String
-    ) {
+    ) -> Bool {
         guard UIApplication.shared.isProtectedDataAvailable else {
             logger.warning("Protected data notification fired but protected data is unavailable")
-            return
+            return false
         }
 
         logger.info("Protected data available")
 
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                LifecycleDebugLogger.shared.checkpoint("ProtectedData.run", ms: nil, [
-                    ("reason", reason),
-                    ("appState", String(describing: UIApplication.shared.applicationState)),
-                ])
-                action()
-            }
-        }
+        // This method is MainActor-isolated. Running synchronously avoids a
+        // second lock transition in the former DispatchQueue.main.async gap.
+        LifecycleDebugLogger.shared.checkpoint("ProtectedData.run", ms: nil, [
+            ("reason", reason),
+            ("appState", String(describing: UIApplication.shared.applicationState)),
+        ])
+        action()
+        return true
     }
 }

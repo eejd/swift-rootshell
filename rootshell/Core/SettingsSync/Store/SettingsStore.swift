@@ -77,6 +77,18 @@ final class SettingsStore {
         observer = SettingsLocalChangeObserver(store: self)
         isReady = true
         Self.logger.info("Primed \(self.cache.snapshot().count) registered values")
+
+        // Managers can be constructed before protected data is available and
+        // therefore start with registry defaults. Tell every registered owner
+        // that its persisted values are now trustworthy before any deferred
+        // save gets a chance to run; otherwise those defaults can overwrite
+        // the user's real theme or appearance on unlock.
+        let hydratedKeys = Set(cache.snapshot().keys)
+        if !hydratedKeys.isEmpty {
+            let hydrated = SettingsChange(keys: hydratedKeys, origin: .bootstrap)
+            SettingsRefreshHub.shared.dispatch(hydrated)
+            emit(hydrated)
+        }
         if !deferredBatch.isEmpty {
             let batch = deferredBatch
             deferredBatch = [:]

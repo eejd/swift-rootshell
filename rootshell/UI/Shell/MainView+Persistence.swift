@@ -412,7 +412,7 @@ extension MainView {
         )
 
         for pane in allPanes {
-            pane.containingTabID = tab.id
+            pane.retargetTab(to: tab.id)
         }
 
         // A saved hidden flag reaching the NORMAL path is necessarily a hidden

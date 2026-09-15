@@ -180,7 +180,7 @@ extension MainView {
         profileThemeSourceID: UUID? = nil
     ) {
         let newTab = TerminalTab(paneView: pane, title: title, windowId: windowId)
-        pane.containingTabID = newTab.id
+        pane.retargetTab(to: newTab.id)
         applyProfileTheme(profileID: profileThemeSourceID, tabID: newTab.id)
 
         // Insert tab after current tab (not at end)
@@ -293,7 +293,7 @@ extension MainView {
         logLabel: String,
         profileThemeSourceID: UUID? = nil
     ) {
-        pane.containingTabID = terminals[tabIndex].id
+        pane.retargetTab(to: terminals[tabIndex].id)
 
         // Insert the new split and set focus
         do {
@@ -1129,7 +1129,7 @@ extension MainView {
             ? request.sourceProfileID : nil
         let terminalView = makeConnectedTerminalView(app: app, config: .ssh(config), sourceProfileID: sourceProfileID)
         let tab = terminals[index]
-        terminalView.containingTabID = tab.id
+        terminalView.retargetTab(to: tab.id)
         do {
             tab.splitTree = try tab.splitTree.replace(node: .leaf(view: previous), with: .leaf(view: terminalView))
         } catch {

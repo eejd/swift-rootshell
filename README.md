@@ -283,6 +283,18 @@ xcodebuild -project rootshell.xcodeproj \
   -sdk iphonesimulator -arch arm64 build
 ```
 
+### Appearance and Terminal Color Scheme
+
+The app resolves one appearance state: the iOS/macOS system setting when the
+Appearance setting is Automatic, or the explicit Light/Dark override otherwise.
+That state drives the window chrome and, with Match System Theme enabled, the
+Day/Night terminal theme pair. Each terminal surface then reports the semantic
+light/dark scheme of the theme it is actually drawing (tab > window > global)
+to Ghostty, so shells and TUIs that query `CSI ?996n` or subscribe with mode
+2031 receive the same answer as the visible colors. Run
+`scripts/test-theme-delivery.sh` to exercise the appearance resolver and the
+theme delivery planner outside Xcode.
+
 ### macOS Local Shells
 
 Local shells on macOS use the `rootshell-helper` source included in this repository. The Standalone target builds the native background app and embeds it at `Contents/Helpers/rootshell-helper.app` with Code Sign on Copy; no prebuilt helper binary is stored in Git. Organizer distribution signs and notarizes the helper as nested code with the containing app. A sandboxed macOS build can connect to the same helper when it is launched separately because both products use the provisioned `group.com.kk2.ghostty` App Group container.

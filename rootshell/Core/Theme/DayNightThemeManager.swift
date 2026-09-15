@@ -2,7 +2,11 @@
 //  DayNightThemeManager.swift
 //  rootshell
 //
-//  Manages automatic theme switching based on system light/dark mode.
+//  Switches the terminal theme between a day/night pair from the app's single
+//  resolved appearance: the OS setting (read only by SystemAppearanceMonitor)
+//  when the Appearance mode is Automatic, or the user's explicit Light/Dark
+//  override. The decision itself lives in AppearanceResolver so it can be
+//  tested outside Xcode.
 //
 
 import Combine
@@ -10,10 +14,12 @@ import Foundation
 import os
 import UIKit
 
-/// Manages automatic day/night theme switching based on system appearance
+/// Manages automatic day/night theme switching based on the resolved appearance
 @MainActor
 final class DayNightThemeManager: ObservableObject {
     static let shared = DayNightThemeManager()
+
+    typealias Style = AppearanceResolver.Style
 
     // MARK: - UserDefaults Keys
 
@@ -29,8 +35,8 @@ final class DayNightThemeManager: ObservableObject {
     /// Whether day/night theme switching is enabled
     @Published var enabled: Bool {
         didSet {
-            guard ProtectedDataGuard.isAvailable else { return }
-            if !isReloading { SettingsStore.shared.set(Settings.Theme.dayNightEnabled, enabled) }
+            guard oldValue != enabled else { return }
+            persist(Settings.Theme.dayNightEnabled, enabled)
             handleEnabledChange(wasEnabled: oldValue)
         }
     }
@@ -38,44 +44,52 @@ final class DayNightThemeManager: ObservableObject {
     /// Theme to use during light mode
     @Published var dayTheme: String {
         didSet {
-            guard ProtectedDataGuard.isAvailable else { return }
-            if !isReloading { SettingsStore.shared.set(Settings.Theme.dayNightDay, dayTheme) }
-            if enabled {
-                applyCurrentTheme()
-            }
+            guard oldValue != dayTheme else { return }
+            persist(Settings.Theme.dayNightDay, dayTheme)
+            // Suppressed mid-reload(keys:) for the same reason persist() is:
+            // reload assigns dayTheme/nightTheme/enabled independently, and
+            // resolving after each individual assignment means an earlier
+            // call can see a stale value for a property that hasn't been
+            // reassigned yet in the same batch. reload() itself calls
+            // resolveAndApply() once, after every key in the batch has
+            // landed.
+            guard !isReloading else { return }
+            resolveAndApply()
         }
     }
 
     /// Theme to use during dark mode
     @Published var nightTheme: String {
         didSet {
-            guard ProtectedDataGuard.isAvailable else { return }
-            if !isReloading { SettingsStore.shared.set(Settings.Theme.dayNightNight, nightTheme) }
-            if enabled {
-                applyCurrentTheme()
-            }
+            guard oldValue != nightTheme else { return }
+            persist(Settings.Theme.dayNightNight, nightTheme)
+            guard !isReloading else { return }
+            resolveAndApply()
         }
     }
 
-    /// Whether the system is currently in light mode
-    @Published private(set) var isCurrentlyLight: Bool = true
+    /// The resolved appearance the pair currently follows; `nil` until the
+    /// first trustworthy OS read (or an explicit override) has been applied.
+    @Published private(set) var resolvedStyle: Style?
+
+    /// Whether the resolved appearance is light. Unknown counts as light for
+    /// display purposes only; nothing is applied from this value.
+    var isCurrentlyLight: Bool { resolvedStyle != .dark }
 
     // MARK: - Private Properties
 
     /// Theme to revert to when feature is disabled
     private var defaultTheme: String
 
-    /// Hidden UIView used to observe trait changes
-    private var traitObserverView: TraitObserverView?
+    private var cancellables = Set<AnyCancellable>()
+    /// A fallback for Automatic mode only. `resolvedStyle` also records the
+    /// result of an explicit Light/Dark choice, so it must never be reused as
+    /// an OS fallback after returning to Automatic.
+    private var lastKnownSystemStyle: Style?
 
-    /// Notification observer for scene activation (retry attaching observer)
-    private var sceneActivationObserver: NSObjectProtocol?
-
-    /// Notification observer for window becoming key (reliable window availability)
-    private var windowBecameKeyObserver: NSObjectProtocol?
-
-    /// Whether the initial theme has been applied with a real window
-    private var hasAppliedInitialTheme = false
+    /// Owned keys whose writes were skipped while protected data was unavailable.
+    private var pendingPersistence: Set<String> = []
+    private var unlockFlushScheduled = false
 
     private static let logger = Logger(subsystem: "com.rootshell", category: "DayNightTheme")
 
@@ -94,59 +108,48 @@ final class DayNightThemeManager: ObservableObject {
             self?.reload(keys: keys)
         }
 
-        // Try to read current system appearance — may be unreliable before windows exist
-        isCurrentlyLight = Self.currentInterfaceStyleIsLight()
-
-        setupNotifications()
+        // Both inputs of the resolver: the OS value and the explicit override.
+        SystemAppearanceMonitor.shared.osStyleDidChange
+            .sink { [weak self] style in
+                self?.lastKnownSystemStyle = style
+                self?.resolveAndApply()
+            }
+            .store(in: &cancellables)
+        AppearanceManager.shared.appearanceModeDidChange
+            .sink { [weak self] _ in self?.resolveAndApply() }
+            .store(in: &cancellables)
 
         if enabled {
-            setupTraitObserver()
-            applyCurrentTheme()
+            SystemAppearanceMonitor.shared.start()
+            resolveAndApply()
         }
     }
 
-    // MARK: - Static Helpers
+    // MARK: - Settings persistence
 
-    /// Reads the current interface style, trying multiple sources for reliability.
-    /// At app launch time, key window may not exist yet, so we also try the
-    /// window scene's traitCollection directly.
-    static func currentInterfaceStyleIsLight() -> Bool {
-        // Try key window first (most reliable when available)
-        if let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first {
-            // Try key window
-            if let keyWindow = windowScene.keyWindow {
-                return keyWindow.traitCollection.userInterfaceStyle != .dark
-            }
-            // Try any window in the scene
-            if let anyWindow = windowScene.windows.first {
-                return anyWindow.traitCollection.userInterfaceStyle != .dark
-            }
-            // Try the scene's own trait collection
-            let sceneStyle = windowScene.traitCollection.userInterfaceStyle
-            if sceneStyle != .unspecified {
-                return sceneStyle != .dark
-            }
+    /// Write an owned key now, or once the device unlocks. The in-memory value
+    /// is always applied immediately; only the UserDefaults write waits.
+    private func persist<V: SettingValue>(_ key: SettingKey<V>, _ value: V) {
+        guard !isReloading else { return }
+        if ProtectedDataGuard.isAvailable {
+            SettingsStore.shared.set(key, value)
+            return
         }
-        // Treat .unspecified as light (no window/scene available yet)
-        return true
+        pendingPersistence.insert(key.name)
+        guard !unlockFlushScheduled else { return }
+        unlockFlushScheduled = true
+        ProtectedDataGuard.whenAvailable { [weak self] in self?.flushPendingPersistence() }
     }
 
-    // MARK: - Private Methods
-
-    private func setupNotifications() {
-        // Handle app returning to foreground
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let strongSelf = self else { return }
-            Task { @MainActor in
-                strongSelf.handleForegroundReturn()
-            }
-        }
+    private func flushPendingPersistence() {
+        unlockFlushScheduled = false
+        let pending = pendingPersistence
+        pendingPersistence.removeAll()
+        let store = SettingsStore.shared
+        if pending.contains(Settings.Theme.dayNightEnabled.name) { store.set(Settings.Theme.dayNightEnabled, enabled) }
+        if pending.contains(Settings.Theme.dayNightDay.name) { store.set(Settings.Theme.dayNightDay, dayTheme) }
+        if pending.contains(Settings.Theme.dayNightNight.name) { store.set(Settings.Theme.dayNightNight, nightTheme) }
+        if pending.contains(Settings.Theme.dayNightDefault.name) { store.set(Settings.Theme.dayNightDefault, defaultTheme) }
     }
 
     /// Re-reads owned keys after an external batch (iCloud, restore, config file).
@@ -157,209 +160,80 @@ final class DayNightThemeManager: ObservableObject {
         if keys.contains(Settings.Theme.dayNightDay.name) { dayTheme = store.get(Settings.Theme.dayNightDay) }
         if keys.contains(Settings.Theme.dayNightNight.name) { nightTheme = store.get(Settings.Theme.dayNightNight) }
         if keys.contains(Settings.Theme.dayNightEnabled.name) { enabled = store.get(Settings.Theme.dayNightEnabled) }
+        // dayTheme/nightTheme suppress their own per-assignment resolveAndApply()
+        // while isReloading is set (see their didSet), so the batch always ends
+        // with exactly one resolution against the final, fully-applied state —
+        // never zero (a theme-only reload with no `enabled` change previously
+        // resolved nothing at all) and never more than one per batch.
+        resolveAndApply()
     }
+
+    // MARK: - Resolution
 
     private func handleEnabledChange(wasEnabled: Bool) {
         if enabled && !wasEnabled {
             // Feature was just enabled — capture current theme for reversion
             defaultTheme = ThemeManager.shared.currentTheme
-            SettingsStore.shared.set(Settings.Theme.dayNightDefault, defaultTheme)
-
-            isCurrentlyLight = Self.currentInterfaceStyleIsLight()
-            setupTraitObserver()
-            applyCurrentTheme()
+            persist(Settings.Theme.dayNightDefault, defaultTheme)
+            SystemAppearanceMonitor.shared.start()
+            resolveAndApply()
         } else if !enabled && wasEnabled {
-            // Feature was just disabled
-            teardownTraitObserver()
-
-            // Revert to default theme
+            // Feature was just disabled — revert to the explicit theme
             Self.logger.info("Reverting to default theme: \(self.defaultTheme)")
+            resolvedStyle = nil
             ThemeManager.shared.currentTheme = defaultTheme
         }
     }
 
-    /// Re-check the system appearance and apply the correct theme if needed.
-    /// Call this once the UI is fully loaded and the window exists, to fix
-    /// any stale state from init() where no window was available.
+    /// Re-read the OS and apply the resolved theme. Safe to call at any time,
+    /// including from a background launch: the monitor keeps re-evaluating on
+    /// unlock, foreground, and scene activation, and every one of those lands
+    /// back here through `osStyleDidChange`.
     func recheckAppearance() {
         guard enabled else { return }
+        SystemAppearanceMonitor.shared.reevaluate()
+        resolveAndApply()
+    }
 
-        let nowLight = Self.currentInterfaceStyleIsLight()
-        if nowLight != isCurrentlyLight {
-            Self.logger.info("recheckAppearance: correcting to \(nowLight ? "light" : "dark")")
-            isCurrentlyLight = nowLight
-        }
-        // Force-apply even if isCurrentlyLight didn't change, because the
-        // initial apply during init() may have fired before Ghostty.App
-        // subscribed to themeDidChange.
-        let theme = isCurrentlyLight ? dayTheme : nightTheme
-        if ThemeManager.shared.currentTheme != theme {
-            Self.logger.info("recheckAppearance: applying \(theme)")
-            ThemeManager.shared.currentTheme = theme
+    private static func mode(_ mode: AppearanceManager.AppearanceMode) -> AppearanceResolver.Mode {
+        switch mode {
+        case .automatic: return .automatic
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 
-    private func applyCurrentTheme() {
-        guard enabled else { return }
-
-        let theme = isCurrentlyLight ? dayTheme : nightTheme
-
-        if ThemeManager.shared.currentTheme != theme {
-            let mode = isCurrentlyLight ? "light" : "dark"
-            Self.logger.info("Applying \(mode) theme: \(theme)")
-            ThemeManager.shared.currentTheme = theme
+    private func resolveAndApply() {
+        let osStyle = SystemAppearanceMonitor.shared.osStyle
+        if let osStyle {
+            lastKnownSystemStyle = osStyle
         }
-    }
+        let decision = AppearanceResolver.decide(AppearanceResolver.Input(
+            osStyle: osStyle,
+            appearanceMode: Self.mode(AppearanceManager.shared.currentAppearanceMode),
+            dayNightEnabled: enabled,
+            dayTheme: dayTheme,
+            nightTheme: nightTheme,
+            protectedDataAvailable: ProtectedDataGuard.isAvailable,
+            lastKnown: lastKnownSystemStyle
+        ))
 
-    private func handleForegroundReturn() {
-        guard enabled else { return }
-
-        Self.logger.info("App returned to foreground, verifying theme state")
-
-        let nowLight = Self.currentInterfaceStyleIsLight()
-        if nowLight != isCurrentlyLight {
-            Self.logger.info("System appearance changed while backgrounded, correcting")
-            isCurrentlyLight = nowLight
-            applyCurrentTheme()
-        }
-    }
-
-    // MARK: - Trait Observer
-
-    private func setupTraitObserver() {
-        guard traitObserverView == nil else { return }
-
-        if let window = Self.keyWindow() {
-            attachTraitObserver(to: window)
-        } else {
-            // Window not ready yet — listen for both scene activation and window
-            // becoming key. UIScene.didActivateNotification may fire before keyWindow
-            // is set; UIWindow.didBecomeKeyNotification guarantees a usable window.
-            sceneActivationObserver = NotificationCenter.default.addObserver(
-                forName: UIScene.didActivateNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                guard let strongSelf = self else { return }
-                Task { @MainActor in
-                    strongSelf.retryTraitObserverAttachment()
-                }
+        switch decision {
+        case .noop:
+            return
+        case .deferred(let reason):
+            Self.logger.info("Deferring day/night theme: \(reason)")
+        case .apply(let theme, let style, _):
+            if resolvedStyle != style {
+                Self.logger.info("Resolved appearance is \(style == .light ? "light" : "dark")")
+                resolvedStyle = style
             }
-
-            windowBecameKeyObserver = NotificationCenter.default.addObserver(
-                forName: UIWindow.didBecomeKeyNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                guard let strongSelf = self else { return }
-                // Delivered on .main; the hop below just re-enters MainActor.
-                nonisolated(unsafe) let notification = notification
-                Task { @MainActor in
-                    strongSelf.handleWindowBecameKey(notification)
-                }
+            // ThemeManager propagates the change immediately and defers its own
+            // persistence while protected data is unavailable.
+            if ThemeManager.shared.currentTheme != theme {
+                Self.logger.info("Applying \(style == .light ? "day" : "night") theme: \(theme)")
+                ThemeManager.shared.currentTheme = theme
             }
         }
-    }
-
-    private func handleWindowBecameKey(_ notification: Notification) {
-        guard traitObserverView == nil, enabled else { return }
-
-        // Use the window from the notification directly — guaranteed to be available
-        if let window = notification.object as? UIWindow {
-            attachTraitObserver(to: window)
-            cleanupPendingObservers()
-        }
-    }
-
-    private func retryTraitObserverAttachment() {
-        guard traitObserverView == nil, enabled else { return }
-
-        if let window = Self.keyWindow() {
-            attachTraitObserver(to: window)
-            cleanupPendingObservers()
-        }
-    }
-
-    /// Remove one-shot observers used to wait for window availability
-    private func cleanupPendingObservers() {
-        if let observer = sceneActivationObserver {
-            NotificationCenter.default.removeObserver(observer)
-            sceneActivationObserver = nil
-        }
-        if let observer = windowBecameKeyObserver {
-            NotificationCenter.default.removeObserver(observer)
-            windowBecameKeyObserver = nil
-        }
-    }
-
-    private func attachTraitObserver(to window: UIWindow) {
-        let observer = TraitObserverView { [weak self] isLight in
-            guard let self else { return }
-            guard self.isCurrentlyLight != isLight else { return }
-            Self.logger.info("System appearance changed to \(isLight ? "light" : "dark")")
-            self.isCurrentlyLight = isLight
-            self.applyCurrentTheme()
-        }
-        observer.isHidden = true
-        observer.frame = .zero
-        window.addSubview(observer)
-        traitObserverView = observer
-
-        // Now that we have a real window, re-check the actual interface style.
-        // During init(), the window may not have existed yet, causing
-        // isCurrentlyLight to default to true (light). Correct it now.
-        let actuallyLight = window.traitCollection.userInterfaceStyle != .dark
-        if actuallyLight != isCurrentlyLight {
-            Self.logger.info("Correcting initial appearance to \(actuallyLight ? "light" : "dark")")
-            isCurrentlyLight = actuallyLight
-        }
-        // Always apply on first window attachment to ensure Ghostty surfaces
-        // (which may have been created with a stale theme) get updated.
-        // ThemeManager.currentTheme setter is idempotent if theme matches.
-        if !hasAppliedInitialTheme {
-            hasAppliedInitialTheme = true
-            let theme = isCurrentlyLight ? dayTheme : nightTheme
-            let mode = isCurrentlyLight ? "light" : "dark"
-            Self.logger.info("Initial window theme apply: \(mode) → \(theme)")
-            // Force-set even if ThemeManager already has this theme name,
-            // because Ghostty.App may not have been subscribed when it was
-            // first set during init().
-            ThemeManager.shared.currentTheme = theme
-            ThemeManager.shared.themeDidChange.send(theme)
-        }
-    }
-
-    private func teardownTraitObserver() {
-        traitObserverView?.removeFromSuperview()
-        traitObserverView = nil
-        cleanupPendingObservers()
-    }
-
-    private static func keyWindow() -> UIWindow? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.keyWindow
-    }
-}
-
-// MARK: - TraitObserverView
-
-/// Hidden UIView that observes system interface style changes via `registerForTraitChanges`.
-private final class TraitObserverView: UIView {
-    private let onChange: @MainActor (Bool) -> Void
-
-    init(onChange: @escaping @MainActor (Bool) -> Void) {
-        self.onChange = onChange
-        super.init(frame: .zero)
-
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: TraitObserverView, _: UITraitCollection) in
-            let isLight = self.traitCollection.userInterfaceStyle != .dark
-            self.onChange(isLight)
-        }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
     }
 }
