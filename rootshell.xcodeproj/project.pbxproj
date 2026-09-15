@@ -11,23 +11,17 @@
 		06641C55E10A388BA59C6B87 /* AppIconRadicalSolarizedLight.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A1000B2F9D0BCD009B5D30 /* AppIconRadicalSolarizedLight.icon */; };
 		0668A4F421BC22AFA165E265 /* GhosttyKitStandalone in Frameworks */ = {isa = PBXBuildFile; productRef = 417549D6E2D63FC56F6548A4 /* GhosttyKitStandalone */; };
 		080869408081B5901914EC2F /* shaders in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47SHADER12F01AAA0009B57F8 /* shaders */; };
-		0C0B51031524B8BC4C420F0D /* curl_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47CURL0012FE0000AABB0001 /* curl_ios */; };
 		0C4C7E212A0534DAF9834789 /* AppIconSixColors.icon in Resources */ = {isa = PBXBuildFile; fileRef = 477738CD2F9D0529009B5D30 /* AppIconSixColors.icon */; };
 		0F905F2A06A49BEFBD5F1479 /* CoreWLANPlugin.bundle in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47CWP0032F560000DDEE0003 /* CoreWLANPlugin.bundle */; platformFilter = maccatalyst; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		13A91C3A2FD151F351ED6472 /* AppIconRadicalMonoLight.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100062F9D0BCD009B5D30 /* AppIconRadicalMonoLight.icon */; };
 		144F15BEF8ACD7398212F854 /* fonts in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47FONT012ED92ABC009B57F8 /* fonts */; };
 		19652348F320932361FFE7E6 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 47AE8FBD2F4BBBAA0032A651 /* Localizable.xcstrings */; };
 		1D7BBB021D79B8582EC969FC /* Release.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511ACE2EDF598900696C18 /* Release.xcconfig */; };
-		206884FA83075DDFB6893CD2 /* jq_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47JQPKG12FB00000AABB0001 /* jq_ios */; };
-		25CCC0D42A0A366F028CC1D0 /* xz_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47XZPKG12FF00000AABB0001 /* xz_ios */; };
 		2FBBD16A46933A901DD9436B /* joe in CopyFiles */ = {isa = PBXBuildFile; fileRef = 992A6D1173F54B70A4EDBA3E /* joe */; platformFilters = (ios, xros, ); };
-		32C1AF05A7FD2B7BDCE991EE /* vim in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47A0B0022F8A000000000002 /* vim */; };
 		3B3903EC78C639818770DF57 /* AppIconRadicalTokyoNight.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A1000C2F9D0BCD009B5D30 /* AppIconRadicalTokyoNight.icon */; };
 		3BCC6C15B782320C7D6747A3 /* rootshellVNC in Frameworks */ = {isa = PBXBuildFile; productRef = 47564E4300000000000000B1 /* rootshellVNC */; };
 		40B1BAB1D1358AAAC012FCD8 /* AppStore.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511AC92EDF598900696C18 /* AppStore.xcconfig */; };
 		43ECCF65EBA2463FCD0053AE /* terminfo in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47TINFO012F0000AABB000001 /* terminfo */; };
-		4711C29C2F496F5F00FE521D /* curl_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47CURL0012FE0000AABB0001 /* curl_ios */; };
-		4711C9542F4A54C300FE521D /* bat_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47BTP0012F680000AABB0001 /* bat_ios */; };
 		472253712F2BB891000B8D2E /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 472253702F2BB891000B8D2E /* CryptoSwift */; };
 		47280D7B2EEEFF6200624984 /* SwiftOpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 47280D7A2EEEFF6200624984 /* SwiftOpenAI */; };
 		473118FE2FFC2B4D00FB3C83 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 473118FD2FFC2B4D00FB3C83 /* NetworkExtension.framework */; };
@@ -35,7 +29,6 @@
 		4739D05A2ED3A4F4000EE57A /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 4739D0592ED3A4F4000EE57A /* Citadel */; };
 		474646262F3D90FC00AD763B /* helix-runtime in Resources */ = {isa = PBXBuildFile; fileRef = 474646252F3D90FC00AD763B /* helix-runtime */; platformFilters = (ios, xros, ); };
 		4747A10B2F2ADF800080DE63 /* YubiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4747A10A2F2ADF800080DE63 /* YubiKit */; };
-		47511A1C2EDD496700696C18 /* libarchive_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47LAR0012FF20000AABB0001 /* libarchive_ios */; };
 		47511AD32EDF598900696C18 /* Debug-Standalone.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511ACD2EDF598900696C18 /* Debug-Standalone.xcconfig */; };
 		47511AD42EDF598900696C18 /* AppStore.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511AC92EDF598900696C18 /* AppStore.xcconfig */; };
 		47511AD52EDF598900696C18 /* Debug.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511ACB2EDF598900696C18 /* Debug.xcconfig */; };
@@ -70,9 +63,6 @@
 		478D16D42F9EE6B6007B574B /* AppIconOrig.icon in Resources */ = {isa = PBXBuildFile; fileRef = 478D16D22F9EE6B6007B574B /* AppIconOrig.icon */; };
 		478D16DF2F9FC42B007B574B /* AppIconRadicalDracula.icon in Resources */ = {isa = PBXBuildFile; fileRef = 478D16DE2F9FC42B007B574B /* AppIconRadicalDracula.icon */; };
 		478D16E02F9FC42B007B574B /* AppIconRadicalDracula.icon in Resources */ = {isa = PBXBuildFile; fileRef = 478D16DE2F9FC42B007B574B /* AppIconRadicalDracula.icon */; };
-		478E97812ED21DBD00BCDFDB /* network_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47NWPKG12FF10000AABB0001 /* network_ios */; };
-		47A0B0032F8A000000000003 /* vim in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47A0B0022F8A000000000002 /* vim */; };
-		47A0B0042F8A000000000004 /* vim in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47A0B0022F8A000000000002 /* vim */; };
 		47A101012F9D0BCD009B5D30 /* AppIconRadicalBases.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100012F9D0BCD009B5D30 /* AppIconRadicalBases.icon */; };
 		47A101022F9D0BCD009B5D30 /* AppIconRadicalCatppuccin.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100022F9D0BCD009B5D30 /* AppIconRadicalCatppuccin.icon */; };
 		47A101042F9D0BCD009B5D30 /* AppIconRadicalGruvboxDark.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100042F9D0BCD009B5D30 /* AppIconRadicalGruvboxDark.icon */; };
@@ -96,31 +86,20 @@
 		47A1020B2F9D0BCD009B5D30 /* AppIconRadicalSolarizedLight.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A1000B2F9D0BCD009B5D30 /* AppIconRadicalSolarizedLight.icon */; };
 		47A1020C2F9D0BCD009B5D30 /* AppIconRadicalTokyoNight.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A1000C2F9D0BCD009B5D30 /* AppIconRadicalTokyoNight.icon */; };
 		47A51A932EEDC704000D76E0 /* VimRuntime.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 47A51A922EEDC704000D76E0 /* VimRuntime.bundle */; platformFilters = (ios, xros, ); };
-		47A66CBA2F3EEF82006E36BD /* HelixKit in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47HLX0012FD00000AABB0001 /* HelixKit */; };
 		47A810A82EE39B03005A0B9C /* curl in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47A810A72EE39B03005A0B9C /* curl */; platformFilters = (ios, xros, ); };
 		47A810B22EE40000005A0B9C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilter = maccatalyst; productRef = 47A810B12EE40000005A0B9C /* Sparkle */; };
-		47A85EE92EE639FB005A0B9C /* jq_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47JQPKG12FB00000AABB0001 /* jq_ios */; };
 		47AABB012FF40000AABB0001 /* rootshell-helper.app in Embed Helper */ = {isa = PBXBuildFile; fileRef = 47AABB072FF40000AABB0007 /* rootshell-helper.app */; platformFilter = maccatalyst; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		47ABC10F2FF50000AABB000F /* rootshell-helper/Sources/PTYManagerImpl.m in Sources */ = {isa = PBXBuildFile; fileRef = 47ABC10D2FF50000AABB000D /* rootshell-helper/Sources/PTYManagerImpl.m */; };
 		47ABC1102FF50000AABB0010 /* rootshell-helper/Sources/ProcessSpawner.m in Sources */ = {isa = PBXBuildFile; fileRef = 47ABC10E2FF50000AABB000E /* rootshell-helper/Sources/ProcessSpawner.m */; };
 		47AE8FBE2F4BBBAA0032A651 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 47AE8FBD2F4BBBAA0032A651 /* Localizable.xcstrings */; };
 		47B9B9322F996A6D003FFF58 /* AppIconUnderscore.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47B9B9312F996A6D003FFF58 /* AppIconUnderscore.icon */; };
 		47CD00000E00000000000000 /* SwiftkubeClient in Frameworks */ = {isa = PBXBuildFile; productRef = 477408A42ED5F6B60035CE92 /* SwiftkubeClient */; };
-		47CD00000F00000000000000 /* jq_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47JQPKG12FB00000AABB0001 /* jq_ios */; };
 		47CD00001000000000000000 /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 47D8B28A2ECAC24B00CA99EC /* libc++.tbd */; };
 		47CD00001200000000000000 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47D8B2A02ECB90D100CA99EC /* Metal.framework */; };
-		47CD00001400000000000000 /* ripgrep_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47RGP0012F680000AABB0001 /* ripgrep_ios */; };
 		47CD00001500000000000000 /* TrzszSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 47TSSH0112FC00000AABB0001 /* TrzszSSH */; };
-		47CD00001600000000000000 /* libgit2 in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47B617122FF30000AABB0001 /* libgit2 */; };
 		47CD00001900000000000000 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 477408922ED51B9F0035CE92 /* Yams */; };
 		47CD00001A00000000000000 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 472253702F2BB891000B8D2E /* CryptoSwift */; };
-		47CD00001B00000000000000 /* libarchive_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47LAR0012FF20000AABB0001 /* libarchive_ios */; };
-		47CD00001C00000000000000 /* curl_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47CURL0012FE0000AABB0001 /* curl_ios */; };
-		47CD00001D00000000000000 /* xz_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47XZPKG12FF00000AABB0001 /* xz_ios */; };
-		47CD00001E00000000000000 /* network_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47NWPKG12FF10000AABB0001 /* network_ios */; };
 		47CD00002400000000000000 /* SwiftOpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 47280D7A2EEEFF6200624984 /* SwiftOpenAI */; };
-		47CD00002600000000000000 /* bat_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47BTP0012F680000AABB0001 /* bat_ios */; };
-		47CD00002700000000000000 /* HelixKit in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47HLX0012FD00000AABB0001 /* HelixKit */; };
 		47CD00002800000000000000 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 4739D0592ED3A4F4000EE57A /* Citadel */; };
 		47CD00002900000000000000 /* YubiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4747A10A2F2ADF800080DE63 /* YubiKit */; };
 		47CD00002B00000000000000 /* helix-runtime in Resources */ = {isa = PBXBuildFile; fileRef = 474646252F3D90FC00AD763B /* helix-runtime */; platformFilters = (ios, xros, ); };
@@ -149,12 +128,7 @@
 		47ED19994CFF9EF35029B687 /* TrzszSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 47TSSH0112FC00000AABB0001 /* TrzszSSH */; };
 		47FF768D2F33DD6900DFD408 /* TrzszSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 47TSSH0112FC00000AABB0001 /* TrzszSSH */; };
 		47FONT022ED92ABC009B57F8 /* fonts in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47FONT012ED92ABC009B57F8 /* fonts */; };
-		47IOS0032FA00000AABB0003 /* ios_system in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47IOS0012FA00000AABB0001 /* ios_system */; };
-		47IOS0042FA00000AABB0004 /* ios_system in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47IOS0012FA00000AABB0001 /* ios_system */; };
-		47JOE0032FA00000AABB0003 /* joe in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47JOE0012FA00000AABB0001 /* joe */; settings = {ATTRIBUTES = (Weak, ); }; };
-		47JOE0042FA00000AABB0004 /* joe in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47JOE0012FA00000AABB0001 /* joe */; settings = {ATTRIBUTES = (Weak, ); }; };
 		47LA00092F360000AABB0009 /* SessionActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47LA00022F360000AABB0002 /* SessionActivityWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		47LG20012F680000AABB0001 /* libgit2 in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47B617122FF30000AABB0001 /* libgit2 */; };
 		47PKG0112F900000AABB0011 /* RootshellPushKit in Frameworks */ = {isa = PBXBuildFile; productRef = 47PKG0012F900000AABB0001 /* RootshellPushKit */; };
 		47PKG0122F900000AABB0012 /* RootshellPushKit in Frameworks */ = {isa = PBXBuildFile; productRef = 47PKG0022F900000AABB0002 /* RootshellPushKit */; };
 		47PKG0132F900000AABB0013 /* RootshellPushKit in Frameworks */ = {isa = PBXBuildFile; productRef = 47PKG0032F900000AABB0003 /* RootshellPushKit */; };
@@ -162,43 +136,31 @@
 		47PSH0092F900000AABB0009 /* PushNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47PSH0022F900000AABB0002 /* PushNotificationService.appex */; platformFilters = (ios, maccatalyst, xros, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		47PSH0192F900000AABB0019 /* PushNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47PSH0022F900000AABB0002 /* PushNotificationService.appex */; platformFilters = (ios, maccatalyst, xros, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		47PSH0292F900000AABB0029 /* PushNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47PSH0022F900000AABB0002 /* PushNotificationService.appex */; platformFilters = (ios, maccatalyst, xros, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		47RG00012F680000AABB0001 /* ripgrep_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47RGP0012F680000AABB0001 /* ripgrep_ios */; };
 		47SHADER22F01AAA0009B57F8 /* shaders in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47SHADER12F01AAA0009B57F8 /* shaders */; };
 		47TINFO022F0000AABB000002 /* terminfo in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47TINFO012F0000AABB000001 /* terminfo */; };
 		47TINFO032F0000AABB000003 /* terminfo in CopyFiles */ = {isa = PBXBuildFile; fileRef = 47TINFO012F0000AABB000001 /* terminfo */; };
 		47VPN0012F460000BBCC0001 /* VPNTunnelExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47VPN0032F460000BBCC0003 /* VPNTunnelExtension.appex */; platformFilters = (ios, xros, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		47VPN0412F460000BBCC0041 /* VPNTunnel in Frameworks */ = {isa = PBXBuildFile; productRef = 47TSSH0122FC00000AABB0002 /* VPNTunnel */; };
 		47VPN0512F460000BBCC0051 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 47VPN0502F460000BBCC0050 /* Citadel */; };
 		47VPNT0100000000000000C2 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 47VPNT0100000000000000C1 /* Citadel */; };
 		47VPNT0100000000000000E1 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 477738A82F9C3553009B5D30 /* AppIcon.icon */; };
-		47VPNT0100000000000000F1 /* VPNTunnel in Frameworks */ = {isa = PBXBuildFile; productRef = 47TSSH0122FC00000AABB0002 /* VPNTunnel */; };
 		47WASM00000000000000002 /* Wasm in Resources */ = {isa = PBXBuildFile; fileRef = 47WASM00000000000000001 /* Wasm */; platformFilters = (ios, xros, ); };
 		47WASM00000000000000003 /* Wasm in Resources */ = {isa = PBXBuildFile; fileRef = 47WASM00000000000000001 /* Wasm */; platformFilters = (ios, xros, ); };
-		47XZ00012F6A0000AA000001 /* xz_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47XZPKG12FF00000AABB0001 /* xz_ios */; };
 		49A64D82640818B24D1124DF /* RFBTransport in Frameworks */ = {isa = PBXBuildFile; productRef = 47564E4300000000000000B2 /* RFBTransport */; };
-		5198F795D57004F4C6322178 /* bat_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47BTP0012F680000AABB0001 /* bat_ios */; };
-		56DC6F220B1EEFB3D6E09182 /* GhosttyKitAppStore in Frameworks */ = {isa = PBXBuildFile; productRef = 1F83B189B33FFF1BDDA28F6B /* GhosttyKitAppStore */; };
-		578D6F01AF094AFD41054637 /* ripgrep_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47RGP0012F680000AABB0001 /* ripgrep_ios */; };
 		58C561D6471D9A73F6449307 /* Release-AppStore.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511ACF2EDF598900696C18 /* Release-AppStore.xcconfig */; };
 		5C28DA23DDA19BB1EBBB266C /* AppIconRadicalSolarizedDark.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A1000A2F9D0BCD009B5D30 /* AppIconRadicalSolarizedDark.icon */; };
 		5CA4177B6C62B09F54BB0A99 /* Base.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 47511ACA2EDF598900696C18 /* Base.xcconfig */; };
 		634E1E48B09AF882843F1E3D /* SessionActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47LA00022F360000AABB0002 /* SessionActivityWidgetExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		662CF0D376DF52830CF03170 /* HelixKit in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47HLX0012FD00000AABB0001 /* HelixKit */; };
 		6732145A59984DB4A3E5F3DD /* joe in CopyFiles */ = {isa = PBXBuildFile; fileRef = 992A6D1173F54B70A4EDBA3E /* joe */; platformFilters = (ios, xros, ); };
-		6F56BECFE9E124072519705C /* joe in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47JOE0012FA00000AABB0001 /* joe */; settings = {ATTRIBUTES = (Weak, ); }; };
 		7F940B9B20177E5C2E69B243 /* AppIconRadicalMonoDark.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100052F9D0BCD009B5D30 /* AppIconRadicalMonoDark.icon */; };
-		827CBEA17215FD6C0884854B /* libarchive_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47LAR0012FF20000AABB0001 /* libarchive_ios */; };
 		83689DD09DF60BAB5AA09561 /* themes in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4771ED462ECBE635009B57F8 /* themes */; };
 		8BDC7995F7EBDB8888205EC7 /* AppIconNoBorder.icon in Resources */ = {isa = PBXBuildFile; fileRef = 477738AB2F9C407C009B5D30 /* AppIconNoBorder.icon */; };
 		8D7BCFE346070E72B343C490 /* AppIconUnderscore.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47B9B9312F996A6D003FFF58 /* AppIconUnderscore.icon */; };
 		94D505F620F9D627A4647594 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 477408922ED51B9F0035CE92 /* Yams */; };
 		9A6A4CAF63FC20D16239EFA4 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 477738A82F9C3553009B5D30 /* AppIcon.icon */; };
-		9B2D98F1DC569AAEFDB2EDB0 /* ios_system in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47IOS0012FA00000AABB0001 /* ios_system */; };
 		9D2889305CBF0BECCF672E98 /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 47D8B28A2ECAC24B00CA99EC /* libc++.tbd */; };
 		A23972AA169848A2E86AB72A /* AppIconRadicalBases.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100012F9D0BCD009B5D30 /* AppIconRadicalBases.icon */; };
 		A4CC464E04B1A24C8DA7CE9F /* AppIconRadicalCatppuccin.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100022F9D0BCD009B5D30 /* AppIconRadicalCatppuccin.icon */; };
 		A535239D82EE41FD0C9E2B42 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 472253702F2BB891000B8D2E /* CryptoSwift */; };
-		A59BE05369DF957AFD95D231 /* GhosttyKitAppStore in Frameworks */ = {isa = PBXBuildFile; productRef = 1F83B189B33FFF1BDDA28F6B /* GhosttyKitAppStore */; };
 		A5B221CDCC1085FC7B70D516 /* AppIconRadicalNord.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100082F9D0BCD009B5D30 /* AppIconRadicalNord.icon */; };
 		A7C40E52334118891C3DBD23 /* AppIconRadicalRosePine.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47A100092F9D0BCD009B5D30 /* AppIconRadicalRosePine.icon */; };
 		A9BBF874025632A0FE5F4495 /* SwiftkubeClient in Frameworks */ = {isa = PBXBuildFile; productRef = 477408A42ED5F6B60035CE92 /* SwiftkubeClient */; };
@@ -223,7 +185,6 @@
 		F053C5922D21FD448FBDF660 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 4739D0592ED3A4F4000EE57A /* Citadel */; };
 		F95F66F45A2A58F968B83428 /* VimRuntime.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 47A51A922EEDC704000D76E0 /* VimRuntime.bundle */; platformFilters = (ios, xros, ); };
 		F9641A2175775B2B2284EFF2 /* AppIconRadicalDracula.icon in Resources */ = {isa = PBXBuildFile; fileRef = 478D16DE2F9FC42B007B574B /* AppIconRadicalDracula.icon */; };
-		FA804455DA96B007ACED884C /* network_ios in Frameworks */ = {isa = PBXBuildFile; platformFilters = (ios, xros, ); productRef = 47NWPKG12FF10000AABB0001 /* network_ios */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -800,23 +761,12 @@
 			files = (
 				47PKG0122F900000AABB0012 /* RootshellPushKit in Frameworks */,
 				A9BBF874025632A0FE5F4495 /* SwiftkubeClient in Frameworks */,
-				206884FA83075DDFB6893CD2 /* jq_ios in Frameworks */,
 				9D2889305CBF0BECCF672E98 /* libc++.tbd in Frameworks */,
-				9B2D98F1DC569AAEFDB2EDB0 /* ios_system in Frameworks */,
 				CCBF8A064C637C8B5C58CBBC /* Metal.framework in Frameworks */,
-				578D6F01AF094AFD41054637 /* ripgrep_ios in Frameworks */,
 				47ED19994CFF9EF35029B687 /* TrzszSSH in Frameworks */,
-				32C1AF05A7FD2B7BDCE991EE /* vim in Frameworks */,
 				94D505F620F9D627A4647594 /* Yams in Frameworks */,
 				A535239D82EE41FD0C9E2B42 /* CryptoSwift in Frameworks */,
-				827CBEA17215FD6C0884854B /* libarchive_ios in Frameworks */,
-				0C0B51031524B8BC4C420F0D /* curl_ios in Frameworks */,
-				25CCC0D42A0A366F028CC1D0 /* xz_ios in Frameworks */,
-				FA804455DA96B007ACED884C /* network_ios in Frameworks */,
-				6F56BECFE9E124072519705C /* joe in Frameworks */,
 				C2DDAD8BB5C9D525A85D3F31 /* SwiftOpenAI in Frameworks */,
-				5198F795D57004F4C6322178 /* bat_ios in Frameworks */,
-				662CF0D376DF52830CF03170 /* HelixKit in Frameworks */,
 				F053C5922D21FD448FBDF660 /* Citadel in Frameworks */,
 				C7D1F9564495153CDED77175 /* YubiKit in Frameworks */,
 				3BCC6C15B782320C7D6747A3 /* rootshellVNC in Frameworks */,
@@ -853,7 +803,6 @@
 			files = (
 				473118FE2FFC2B4D00FB3C83 /* NetworkExtension.framework in Frameworks */,
 				47VPNT0100000000000000C2 /* Citadel in Frameworks */,
-				47VPNT0100000000000000F1 /* VPNTunnel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -877,29 +826,16 @@
 			files = (
 				47PKG0132F900000AABB0013 /* RootshellPushKit in Frameworks */,
 				47CD00000E00000000000000 /* SwiftkubeClient in Frameworks */,
-				47CD00000F00000000000000 /* jq_ios in Frameworks */,
 				47CD00001000000000000000 /* libc++.tbd in Frameworks */,
-				47IOS0042FA00000AABB0004 /* ios_system in Frameworks */,
 				47CD00001200000000000000 /* Metal.framework in Frameworks */,
-				47CD00001400000000000000 /* ripgrep_ios in Frameworks */,
 				47CD00001500000000000000 /* TrzszSSH in Frameworks */,
-				47CD00001600000000000000 /* libgit2 in Frameworks */,
-				47A0B0042F8A000000000004 /* vim in Frameworks */,
 				47CD00001900000000000000 /* Yams in Frameworks */,
 				47CD00001A00000000000000 /* CryptoSwift in Frameworks */,
-				47CD00001B00000000000000 /* libarchive_ios in Frameworks */,
-				47CD00001C00000000000000 /* curl_ios in Frameworks */,
-				47CD00001D00000000000000 /* xz_ios in Frameworks */,
-				47CD00001E00000000000000 /* network_ios in Frameworks */,
-				47JOE0042FA00000AABB0004 /* joe in Frameworks */,
 				47CD00002400000000000000 /* SwiftOpenAI in Frameworks */,
-				47CD00002600000000000000 /* bat_ios in Frameworks */,
-				47CD00002700000000000000 /* HelixKit in Frameworks */,
 				47CD00002800000000000000 /* Citadel in Frameworks */,
 				47CD00002900000000000000 /* YubiKit in Frameworks */,
 				47564E4300000000000000C3 /* rootshellVNC in Frameworks */,
 				47564E4300000000000000C4 /* RFBTransport in Frameworks */,
-				A59BE05369DF957AFD95D231 /* GhosttyKitAppStore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -916,29 +852,16 @@
 			files = (
 				47PKG0112F900000AABB0011 /* RootshellPushKit in Frameworks */,
 				477408A52ED5F6B60035CE92 /* SwiftkubeClient in Frameworks */,
-				47A85EE92EE639FB005A0B9C /* jq_ios in Frameworks */,
 				47D8B28B2ECAC24B00CA99EC /* libc++.tbd in Frameworks */,
-				47IOS0032FA00000AABB0003 /* ios_system in Frameworks */,
 				47D8B2A12ECB90D100CA99EC /* Metal.framework in Frameworks */,
-				47RG00012F680000AABB0001 /* ripgrep_ios in Frameworks */,
 				47FF768D2F33DD6900DFD408 /* TrzszSSH in Frameworks */,
-				47LG20012F680000AABB0001 /* libgit2 in Frameworks */,
-				47A0B0032F8A000000000003 /* vim in Frameworks */,
 				477408932ED51B9F0035CE92 /* Yams in Frameworks */,
 				472253712F2BB891000B8D2E /* CryptoSwift in Frameworks */,
-				47511A1C2EDD496700696C18 /* libarchive_ios in Frameworks */,
-				4711C29C2F496F5F00FE521D /* curl_ios in Frameworks */,
-				47XZ00012F6A0000AA000001 /* xz_ios in Frameworks */,
-				478E97812ED21DBD00BCDFDB /* network_ios in Frameworks */,
-				47JOE0032FA00000AABB0003 /* joe in Frameworks */,
 				47280D7B2EEEFF6200624984 /* SwiftOpenAI in Frameworks */,
-				4711C9542F4A54C300FE521D /* bat_ios in Frameworks */,
-				47A66CBA2F3EEF82006E36BD /* HelixKit in Frameworks */,
 				4739D05A2ED3A4F4000EE57A /* Citadel in Frameworks */,
 				4747A10B2F2ADF800080DE63 /* YubiKit in Frameworks */,
 				47564E4300000000000000C1 /* rootshellVNC in Frameworks */,
 				47564E4300000000000000C2 /* RFBTransport in Frameworks */,
-				56DC6F220B1EEFB3D6E09182 /* GhosttyKitAppStore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -961,7 +884,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47VPN0412F460000BBCC0041 /* VPNTunnel in Frameworks */,
 				47VPN0512F460000BBCC0051 /* Citadel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1187,7 +1109,6 @@
 			name = tunnel;
 			packageProductDependencies = (
 				47VPNT0100000000000000C1 /* Citadel */,
-				47TSSH0122FC00000AABB0002 /* VPNTunnel */,
 			);
 			productName = tunnel;
 			productReference = 473118FC2FFC2B4D00FB3C83 /* com.kk2.rootshellvpn.tunnel.systemextension */;
@@ -1267,20 +1188,7 @@
 				472253702F2BB891000B8D2E /* CryptoSwift */,
 				47564E4300000000000000B1 /* rootshellVNC */,
 				47564E4300000000000000B2 /* RFBTransport */,
-				47RGP0012F680000AABB0001 /* ripgrep_ios */,
-				47BTP0012F680000AABB0001 /* bat_ios */,
-				47A0B0022F8A000000000002 /* vim */,
-				47IOS0012FA00000AABB0001 /* ios_system */,
-				47JOE0012FA00000AABB0001 /* joe */,
-				47JQPKG12FB00000AABB0001 /* jq_ios */,
-				47CURL0012FE0000AABB0001 /* curl_ios */,
-				47XZPKG12FF00000AABB0001 /* xz_ios */,
-				47LAR0012FF20000AABB0001 /* libarchive_ios */,
-				47NWPKG12FF10000AABB0001 /* network_ios */,
-				1F83B189B33FFF1BDDA28F6B /* GhosttyKitAppStore */,
 				47TSSH0112FC00000AABB0001 /* TrzszSSH */,
-				47HLX0012FD00000AABB0001 /* HelixKit */,
-				47B617122FF30000AABB0001 /* libgit2 */,
 			);
 			productName = "rootshell-china";
 			productReference = 47CD00000200000000000000 /* rootshell.app */;
@@ -1342,20 +1250,7 @@
 				472253702F2BB891000B8D2E /* CryptoSwift */,
 				47564E4300000000000000B1 /* rootshellVNC */,
 				47564E4300000000000000B2 /* RFBTransport */,
-				47RGP0012F680000AABB0001 /* ripgrep_ios */,
-				47BTP0012F680000AABB0001 /* bat_ios */,
-				47A0B0022F8A000000000002 /* vim */,
-				47IOS0012FA00000AABB0001 /* ios_system */,
-				47JOE0012FA00000AABB0001 /* joe */,
-				47JQPKG12FB00000AABB0001 /* jq_ios */,
-				47CURL0012FE0000AABB0001 /* curl_ios */,
-				47XZPKG12FF00000AABB0001 /* xz_ios */,
-				47LAR0012FF20000AABB0001 /* libarchive_ios */,
-				47NWPKG12FF10000AABB0001 /* network_ios */,
-				1F83B189B33FFF1BDDA28F6B /* GhosttyKitAppStore */,
 				47TSSH0112FC00000AABB0001 /* TrzszSSH */,
-				47HLX0012FD00000AABB0001 /* HelixKit */,
-				47B617122FF30000AABB0001 /* libgit2 */,
 			);
 			productName = rootshell;
 			productReference = 47D8B2422ECAAE7F00CA99EC /* rootshell.app */;
@@ -1422,7 +1317,6 @@
 			name = VPNTunnelExtension;
 			packageProductDependencies = (
 				47VPN0502F460000BBCC0050 /* Citadel */,
-				47TSSH0122FC00000AABB0002 /* VPNTunnel */,
 			);
 			productName = VPNTunnelExtension;
 			productReference = 47VPN0032F460000BBCC0003 /* VPNTunnelExtension.appex */;
@@ -1465,19 +1359,8 @@
 				472253702F2BB891000B8D2E /* CryptoSwift */,
 				47564E4300000000000000B1 /* rootshellVNC */,
 				47564E4300000000000000B2 /* RFBTransport */,
-				47RGP0012F680000AABB0001 /* ripgrep_ios */,
-				47BTP0012F680000AABB0001 /* bat_ios */,
-				47A0B0022F8A000000000002 /* vim */,
-				47IOS0012FA00000AABB0001 /* ios_system */,
-				47JOE0012FA00000AABB0001 /* joe */,
-				47JQPKG12FB00000AABB0001 /* jq_ios */,
-				47CURL0012FE0000AABB0001 /* curl_ios */,
-				47XZPKG12FF00000AABB0001 /* xz_ios */,
-				47LAR0012FF20000AABB0001 /* libarchive_ios */,
-				47NWPKG12FF10000AABB0001 /* network_ios */,
 				417549D6E2D63FC56F6548A4 /* GhosttyKitStandalone */,
 				47TSSH0112FC00000AABB0001 /* TrzszSSH */,
-				47HLX0012FD00000AABB0001 /* HelixKit */,
 				47A810B12EE40000005A0B9C /* Sparkle */,
 			);
 			productName = rootshell;
@@ -1585,22 +1468,10 @@
 				4747A1092F2ADF800080DE63 /* XCRemoteSwiftPackageReference "yubikit-swift-rootshell" */,
 				4722536F2F2BB891000B8D2E /* XCRemoteSwiftPackageReference "CryptoSwift" */,
 				47564E4300000000000000A1 /* XCRemoteSwiftPackageReference "rootshell-vnc" */,
-				47RGP0002F680000AABB0000 /* XCRemoteSwiftPackageReference "ripgrep-rootshell" */,
-				47BTP0002F680000AABB0000 /* XCRemoteSwiftPackageReference "bat-rootshell" */,
-				47A0B0012F8A000000000001 /* XCRemoteSwiftPackageReference "vim-rootshell" */,
-				47IOS0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "ios_system-rootshell" */,
-				47JOE0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "joe-rootshell" */,
-				47JQPKG02FB00000AABB0000 /* XCRemoteSwiftPackageReference "jq-rootshell" */,
-				9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */,
-				47TSSH0002FC00000AABB0000 /* XCRemoteSwiftPackageReference "trzsz-ssh-rootshell" */,
-				47HLX0002FD00000AABB0000 /* XCRemoteSwiftPackageReference "helix-rootshell" */,
-				47CURL0002FE0000AABB0000 /* XCRemoteSwiftPackageReference "curl_ios-rootshell" */,
-				47XZPKG02FF00000AABB0000 /* XCRemoteSwiftPackageReference "xz_ios-rootshell" */,
-				47LAR0002FF20000AABB0000 /* XCRemoteSwiftPackageReference "libarchive_ios-rootshell" */,
-				47NWPKG02FF10000AABB0000 /* XCRemoteSwiftPackageReference "network_ios-rootshell" */,
-				47B617022FF30000AABB0000 /* XCRemoteSwiftPackageReference "libgit2-rootshell" */,
-				47A810B02EE40000005A0B9C /* XCRemoteSwiftPackageReference "Sparkle-rootshell" */,
 				47PKG0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/RootshellPushKit" */,
+				47SPK0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/sparkle-rootshell" */,
+				47TZS0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/trzsz-ssh-rootshell" */,
+				47GHK0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/ghosttykit-rootshell" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 47D8B2432ECAAE7F00CA99EC /* Products */;
@@ -6331,6 +6202,18 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/RootshellPushKit;
 		};
+		47SPK0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/sparkle-rootshell" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/sparkle-rootshell;
+		};
+		47TZS0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/trzsz-ssh-rootshell" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/trzsz-ssh-rootshell;
+		};
+		47GHK0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/ghosttykit-rootshell" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/ghosttykit-rootshell;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -6390,137 +6273,12 @@
 				version = 0.25.1;
 			};
 		};
-		47A0B0012F8A000000000001 /* XCRemoteSwiftPackageReference "vim-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/vim-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		47A810B02EE40000005A0B9C /* XCRemoteSwiftPackageReference "Sparkle-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/Sparkle-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = "2.9.4-rootshell.1";
-			};
-		};
-		47B617022FF30000AABB0000 /* XCRemoteSwiftPackageReference "libgit2-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/libgit2-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.6;
-			};
-		};
-		47BTP0002F680000AABB0000 /* XCRemoteSwiftPackageReference "bat-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/bat-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.1;
-			};
-		};
-		47CURL0002FE0000AABB0000 /* XCRemoteSwiftPackageReference "curl_ios-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/curl_ios-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.2.0;
-			};
-		};
-		47HLX0002FD00000AABB0000 /* XCRemoteSwiftPackageReference "helix-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/helix-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.5;
-			};
-		};
-		47IOS0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "ios_system-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/ios_system-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		47JOE0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "joe-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/joe-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		47JQPKG02FB00000AABB0000 /* XCRemoteSwiftPackageReference "jq-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/jq-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		47LAR0002FF20000AABB0000 /* XCRemoteSwiftPackageReference "libarchive_ios-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/libarchive_ios-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		47NWPKG02FF10000AABB0000 /* XCRemoteSwiftPackageReference "network_ios-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/network_ios-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.4.0;
-			};
-		};
-		47RGP0002F680000AABB0000 /* XCRemoteSwiftPackageReference "ripgrep-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/ripgrep-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		47TSSH0002FC00000AABB0000 /* XCRemoteSwiftPackageReference "trzsz-ssh-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/trzsz-ssh-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.2.2;
-			};
-		};
-		47XZPKG02FF00000AABB0000 /* XCRemoteSwiftPackageReference "xz_ios-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/xz_ios-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.0;
-			};
-		};
-		9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kitknox/ghosttykit-rootshell.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.2.11;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		1F83B189B33FFF1BDDA28F6B /* GhosttyKitAppStore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */;
-			productName = GhosttyKitAppStore;
-		};
 		417549D6E2D63FC56F6548A4 /* GhosttyKitStandalone */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 9CE133DDBCF3D8D79F649B5F /* XCRemoteSwiftPackageReference "ghosttykit-rootshell" */;
+			package = 47GHK0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/ghosttykit-rootshell" */;
 			productName = GhosttyKitStandalone;
 		};
 		472253702F2BB891000B8D2E /* CryptoSwift */ = {
@@ -6563,60 +6321,10 @@
 			package = 477408A32ED5F6B60035CE92 /* XCRemoteSwiftPackageReference "Swiftkube-rootshell" */;
 			productName = SwiftkubeClient;
 		};
-		47A0B0022F8A000000000002 /* vim */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47A0B0012F8A000000000001 /* XCRemoteSwiftPackageReference "vim-rootshell" */;
-			productName = vim;
-		};
 		47A810B12EE40000005A0B9C /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 47A810B02EE40000005A0B9C /* XCRemoteSwiftPackageReference "Sparkle-rootshell" */;
+			package = 47SPK0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/sparkle-rootshell" */;
 			productName = Sparkle;
-		};
-		47B617122FF30000AABB0001 /* libgit2 */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47B617022FF30000AABB0000 /* XCRemoteSwiftPackageReference "libgit2-rootshell" */;
-			productName = libgit2;
-		};
-		47BTP0012F680000AABB0001 /* bat_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47BTP0002F680000AABB0000 /* XCRemoteSwiftPackageReference "bat-rootshell" */;
-			productName = bat_ios;
-		};
-		47CURL0012FE0000AABB0001 /* curl_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47CURL0002FE0000AABB0000 /* XCRemoteSwiftPackageReference "curl_ios-rootshell" */;
-			productName = curl_ios;
-		};
-		47HLX0012FD00000AABB0001 /* HelixKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47HLX0002FD00000AABB0000 /* XCRemoteSwiftPackageReference "helix-rootshell" */;
-			productName = HelixKit;
-		};
-		47IOS0012FA00000AABB0001 /* ios_system */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47IOS0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "ios_system-rootshell" */;
-			productName = ios_system;
-		};
-		47JOE0012FA00000AABB0001 /* joe */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47JOE0002FA00000AABB0000 /* XCRemoteSwiftPackageReference "joe-rootshell" */;
-			productName = joe;
-		};
-		47JQPKG12FB00000AABB0001 /* jq_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47JQPKG02FB00000AABB0000 /* XCRemoteSwiftPackageReference "jq-rootshell" */;
-			productName = jq_ios;
-		};
-		47LAR0012FF20000AABB0001 /* libarchive_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47LAR0002FF20000AABB0000 /* XCRemoteSwiftPackageReference "libarchive_ios-rootshell" */;
-			productName = libarchive_ios;
-		};
-		47NWPKG12FF10000AABB0001 /* network_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47NWPKG02FF10000AABB0000 /* XCRemoteSwiftPackageReference "network_ios-rootshell" */;
-			productName = network_ios;
 		};
 		47PKG0012F900000AABB0001 /* RootshellPushKit */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -6638,20 +6346,10 @@
 			package = 47PKG0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/RootshellPushKit" */;
 			productName = RootshellPushKit;
 		};
-		47RGP0012F680000AABB0001 /* ripgrep_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47RGP0002F680000AABB0000 /* XCRemoteSwiftPackageReference "ripgrep-rootshell" */;
-			productName = ripgrep_ios;
-		};
 		47TSSH0112FC00000AABB0001 /* TrzszSSH */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 47TSSH0002FC00000AABB0000 /* XCRemoteSwiftPackageReference "trzsz-ssh-rootshell" */;
+			package = 47TZS0002F900000AABB0000 /* XCLocalSwiftPackageReference "Packages/trzsz-ssh-rootshell" */;
 			productName = TrzszSSH;
-		};
-		47TSSH0122FC00000AABB0002 /* VPNTunnel */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47TSSH0002FC00000AABB0000 /* XCRemoteSwiftPackageReference "trzsz-ssh-rootshell" */;
-			productName = VPNTunnel;
 		};
 		47VPN0502F460000BBCC0050 /* Citadel */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -6662,11 +6360,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4739D0582ED3A4F4000EE57A /* XCRemoteSwiftPackageReference "Citadel-rootshell" */;
 			productName = Citadel;
-		};
-		47XZPKG12FF00000AABB0001 /* xz_ios */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47XZPKG02FF00000AABB0000 /* XCRemoteSwiftPackageReference "xz_ios-rootshell" */;
-			productName = xz_ios;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
