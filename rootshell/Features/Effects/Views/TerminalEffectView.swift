@@ -22,7 +22,7 @@ extension EnvironmentValues {
 private struct BackgroundEffectSelectionPicker: View {
     let title: LocalizedStringKey
     @Binding var effectID: String
-    private var effectManager = EffectManager.shared
+    var effectManager = EffectManager.shared
 
     var body: some View {
         Group {
