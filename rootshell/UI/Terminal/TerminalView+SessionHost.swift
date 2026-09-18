@@ -72,9 +72,19 @@ extension Ghostty.TerminalView: TerminalSessionControllerHost {
         // Cancel connection success timer if session ends prematurely.
         self.sessionController.cancelConnectionSuccessTimer()
 
+        #if targetEnvironment(macCatalyst)
+        if restoredLocalMultiplexerAttachment != nil {
+            cancelLocalMultiplexerRecovery()
+            return
+        }
+        #endif
+
         // Reconnection starts outside any picker-attached passthrough session;
         // configured bindings are restored when the new session becomes ready.
         self.passthroughMultiplexer = nil
+        self.localMultiplexerAttachment = nil
+        self.localMultiplexerRecoveryTask?.cancel()
+        self.localMultiplexerRecoveryTask = nil
 
         // Check if reconnection manager is in a state that should keep tab open
         if let state = self.sessionController.reconnectionState {
@@ -100,7 +110,7 @@ extension Ghostty.TerminalView: TerminalSessionControllerHost {
     func sessionDidBecomeReady() {
         invalidateWritingAssistance(resetDocument: true)
         // Clear restoration state if we were reconnecting from restore
-        if self.restorationState == .connectingFromRestore {
+        if self.restorationState == .connectingFromRestore, restoredLocalMultiplexerAttachment == nil {
             self.restorationState = .none
             // Notify SwiftUI to update the overlay visibility
             // (TerminalView is a class, so @State doesn't observe its property changes)
@@ -121,8 +131,21 @@ extension Ghostty.TerminalView: TerminalSessionControllerHost {
         // agent detection never adopts an identity from a multi-window surface.
         self.applyConfiguredMultiplexerBinding()
 
+        #if targetEnvironment(macCatalyst)
+        if let attachment = restoredLocalMultiplexerAttachment, attachment.isHerdrControl {
+            startHerdrControlMode(sessionName: attachment.sessionName)
+            return
+        }
+        #endif
+        // The helper is already attaching this restored local PTY. Do not
+        // present connect-time discovery over it or inject a startup command.
+        guard restoredLocalMultiplexerAttachment == nil else { return }
+
         // Send tmux auto-connect and/or launch command if configured
         self.sendLaunchCommandIfConfigured()
+
+        // herdr control mode rides its own exec channel beside the shell.
+        self.startHerdrControlModeIfConfigured()
 
         // Discover multiplexer sessions in the background (if configured)
         self.discoverSessionsIfConfigured()
@@ -150,7 +173,17 @@ extension Ghostty.TerminalView {
     }
     var terminalRestoredTrzszLastConnectedAt: Date? { restoredTrzszLastConnectedAt }
     var terminalRestoredWasTmuxGateway: Bool { restoredWasTmuxGateway }
+    var terminalLocalMultiplexerRecovery: LocalMultiplexerAttachment? { restoredLocalMultiplexerAttachment }
+    func terminalLocalMultiplexerSessionCreated(supported: Bool, accepted: Bool) {
+        #if targetEnvironment(macCatalyst)
+        localMultiplexerSessionCreated(supported: supported, accepted: accepted)
+        #endif
+    }
     var terminalHasTmuxController: Bool { tmuxController != nil }
+    func terminalMakeHerdrPaneSession() -> TerminalSession? {
+        guard let binding = herdrPaneBinding else { return nil }
+        return HerdrController.controller(forGateway: binding.gatewayUUID)?.makePaneSession(for: binding)
+    }
     var terminalSurfaceAvailable: Bool { surface != nil }
     var terminalSurfaceGridSize: (rows: UInt16, cols: UInt16)? {
         guard let surfaceSize else { return nil }

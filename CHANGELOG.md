@@ -3,6 +3,187 @@
 All notable changes to the rootshell app for iPhone, iPad, Vision Pro, and Mac, newest first.
 Versions are listed as `release-build`, matching the version shown in Settings, About.
 
+## 1.0.12-151 - September 17, 2026
+
+### Critical Crash Fix: Session Discovery
+
+- **Session Discovery Crash:** Fixed a critical regression introduced in build 147 that could crash the app during multiplexer session discovery. Reports pointed to iPhone Pro Max devices with session discovery enabled and an active multiplexer session found. The crash required specific device and keyboard geometry and was reproduced in the simulator.
+- **Stable Session Picker Layout:** Fixed repeated layout updates in the session picker with the software keyboard visible. If you were affected, please retry connecting with multiplexer session discovery enabled and an active session available, and report any remaining crashes.
+
+### Open in Folder
+
+- **Open Tabs and Splits in a Folder:** Press Shift-Command-J to open a new tab or split in a folder on the focused pane's host. Works with local shells, SSH, tssh, mosh, and tmux or herdr control-mode sessions.
+- **Folder Browsing and Completion:** Browse with folder previews and Tab completion. Shift-Tab goes to the parent folder. Suggestions include recent folders and working directories from other panes on the same host.
+- **Placement and Recent Folders:** Choose a new tab or split direction in the picker, or use your existing new-tab and split shortcuts while it is open. Recent folders are remembered per host, along with your last placement choice.
+
+### Animated Gesture Help
+
+- **Animated Demonstrations:** Find Gesture Help in Settings -> Terminal for animated demonstrations and expandable instructions covering terminal gestures, tabs, splits, selection, and keyboard controls.
+- **Device-Aware Instructions:** Help adapts to your device, explains when each gesture is available, and is searchable from Settings. Animations respect Reduce Motion and pause when offscreen.
+
+### Aquarium Background
+
+- **Animated Aquarium:** Added an animated aquarium with clownfish, blue tangs, butterflyfish, angelfish, neon tetras, swaying kelp, bubbles, and underwater lighting.
+- **Appearance and Performance Controls:** Customize fish population, water current, kelp density, lighting, color, haze, and bloom. Reading Protection softens the effect behind central text, and render-quality options let you balance appearance and performance.
+- **Device Defaults and Motion Controls:** Starts with 3 fish on iPhone and 8 on other devices. Pause the aquarium or reset its settings to defaults. Reduce Motion displays a still aquarium, and Battery Saver lowers quality automatically.
+
+### Independent Keyboard and Sidebar Effects
+
+- **Separate Background Effects:** Choose separate background effects for the custom Terminal Keyboard on iPhone and iPad and the pinned tab sidebar on iPad and Mac. Each area can follow the terminal effect or use its own selection.
+- **Keyboard and Sidebar Only:** Set the terminal effect to None to show an effect only in the keyboard or sidebar. Keyboard effects can cover just the toolbar or the entire keyboard, with photos and downloaded videos also available.
+- **Shared Effect Settings:** Configure the selected effect without enabling it for the terminal. Areas using the same effect share its settings. Keyboard and toolbar glass styling is preserved.
+
+### herdr Split Fix
+
+- **Reliable Equalize Splits:** Fixed Equalize Splits in herdr control mode. Keyboard shortcuts, menus, and divider gestures now update the server's layout so pane sizes stay equalized, including nested splits and fallback connections.
+
+## 1.0.12-150 - September 17, 2026
+
+### iPadOS 27 Menu Fix
+
+- **Reliable Menu Commands:** Fixed menu commands failing to act when menu tracking lost the terminal's responder chain, including tab, split, search, scrolling and view actions. Pane actions target the focused pane in the correct window.
+
+### New Terminal Keyboard for iPhone and iPad
+
+- **Optional Terminal Keyboard:** Try the English QWERTY keyboard in Settings -> Terminal -> Terminal Keyboard. It is off by default, with an interactive preview in Settings. Use the keyboard button to switch to Apple's keyboard for other languages, swipe typing, emoji or dictation.
+- **Swipe between Key Pages:** Swipe across the keys to reach Symbols, Navigation and Shortcuts. Navigation includes arrows, Home, End, Page Up/Down, Delete and F1-F12. Choose Shell, Vim, Emacs, Nano or Agent shortcut presets.
+- **Agent Shortcuts:** The Agent preset adds common slash commands such as `/model`, `/copy`, `/compact`, `/resume` and `/review`. Buttons insert editable text; press Return to submit. Command availability depends on the agent you are running.
+- **Modifiers and Cursor Control:** Tap a modifier for the next key, double-tap to lock it, or hold it while typing. Hold Space and drag to move the cursor. Your customized toolbar buttons and stacked or cycling drawer rows carry over to the new keyboard.
+- **Optional Typing Assistance:** Local letter prediction helps resolve taps near letter boundaries and can be disabled for literal targeting. Optional spelling suggestions and completions apply only when tapped, adding a trailing space; words are never automatically replaced. Suggestions and haptics are off by default.
+- **Theme and Appearance Options:** The keyboard follows the active terminal theme by default, including tab and window overrides. Customize compact height, key glyphs and haptics. The existing double-space period setting is respected.
+
+### Custom Terminal Keyboard: Detached Mode on iPad
+
+- **System Detached Keyboard:** The new custom Terminal Keyboard can float using iPadOS's detached keyboard container, allowing it to move beyond the app window. Use System Detached Keyboard is on by default when the custom keyboard is enabled. To float or dock it, switch to Apple's keyboard, change its placement, then switch back using the toolbar's keyboard button.
+- **Float within rootshell:** To float the custom keyboard inside rootshell instead, turn off Use System Detached Keyboard in Terminal Keyboard settings. Pinch inward to float, drag the handle to move, and spread two fingers or double-tap the handle to dock.
+- **Detached Appearance Options:** Choose Regular, Clear or Solid glass and adjust tint strength, with a detached preview in Settings. Reduce Transparency uses a solid background.
+- **Stable Keyboard Layout:** Drawer changes animate while keeping terminal space in sync. Detached keyboard positioning stays stable as drawers open and close, and returning to hardware keyboard input collapses the software keys.
+
+### Image and PDF Uploads
+
+- **Drag to Upload:** Pasting images and PDFs into SSH-backed terminals was already supported. Build 150 adds dragging these files from Finder, Files, Photos or screenshot previews. Both paste and drag open the same upload sheet, including in tmux and herdr control-mode panes.
+- **Complete Documents and Ordered Attachments:** PDFs retain their full document rather than uploading an image preview. Multiple attachments keep their drop order, and image conversion runs in the background to keep the interface responsive.
+
+### Session Discovery and herdr
+
+- **Separate Automatic Discovery Settings:** Automatic remote session discovery now has its own setting and remains on by default. Automatic local discovery on standalone macOS defaults to off; saved preferences are preserved.
+- **Manual Discovery:** Manual discovery works even when automatic discovery is off, while still respecting which multiplexers you have enabled.
+- **Prefer the Local rootshell herdr Fork:** herdr launches and restored local sessions now prefer the rootshell fork in `~/.local/opt/herdr-rootshell/bin` when installed, with fallback to existing installations. To switch back to upstream, removing its PATH entry alone is insufficient; follow [the herdr control-mode guide](docs/herdr-control-mode.md), including removing the fork binary and restarting the intended server after saving your work.
+
+## 1.0.12-149 - September 16, 2026
+
+### SSH Compatibility and Security
+
+- **Strict Key Exchange:** Added the OpenSSH strict key exchange extension when supported by the server.
+- **Server Greeting Compatibility:** Fixed connections failing host-key verification when a server sends greeting text before its SSH version line (RFC 4253 §4.2).
+- **Unknown Messages and Transport Pings:** Unknown SSH message types now receive the required `SSH_MSG_UNIMPLEMENTED` reply without breaking the connection (RFC 4253 §11.4). OpenSSH transport ping messages are also answered.
+- **Reliable Writes during Key Renewal:** Fixed terminal data being lost or writes failing during SSH key renewal. Writes now wait until the key exchange finishes (RFC 4253 §7.1).
+- **Correct Message Authentication Keys:** Fixed message authentication failures with `hmac-sha2-512` when the key exchange uses a shorter hash. Derived keys now expand to the required length (RFC 4253 §7.2).
+
+### tssh Connections
+
+- **Per-Profile Connection Timeout:** Set a connection timeout under advanced TSSH settings: 1–120 seconds, with a default of 30. It controls connection, reconnection and stream-opening waits for newly created terminal and VPN transports. Shorter values let failed attempts retry sooner; the setting follows saved profiles and session restoration.
+- **Auxiliary Channel Cleanup:** rootshell now cleans up auxiliary tssh channels when quitting and reaps leftover channels after reconnecting following a force quit. This prevents abandoned herdr control bridges from continuing to hold tabs or appear as connected clients. No server update is required for this cleanup.
+
+### herdr Shared Sessions
+
+- **Required Fork Upgrade:** If you use control mode with the rootshell herdr fork, upgrade the fork on each host before using build 149. Run `herdr update` with the fork selected, then save your work and restart the affected herdr server before reconnecting. Updating the binary alone does not update a running server; restarting the server terminates its pane processes.
+- **Shared Tab Viewing:** View the same herdr tab from several devices at once with the updated experimental rootshell herdr fork. Shared viewing requires a host advertising control-stream protocol 2 and shared-viewing support; regular herdr continues to work in fallback mode.
+- **More Reliable Attachment and Recovery:** Fixed blank panes on initial attachment and improved layout and output synchronization during app recovery. Fallback connections now retry after an endpoint disconnect.
+- **Image Uploads and Local Fork Discovery:** Pasting or dropping images into remote herdr panes in control mode now uploads them to the correct host. Local macOS attachments now find the fork installed in `~/.local/opt/herdr-rootshell/bin`.
+
+### Dictation and Terminal Fixes
+
+- **More Reliable Dictation Corrections:** Improved iPhone and iPad dictation corrections, including late results after recording stops and iPad live dictation. Corrections now track the text belonging to the dictation session, preventing them from erasing unrelated input after the cursor moves or another input method takes over. Korean input also handles late dictation corrections more reliably.
+- **Trackpad Tab Switching on macOS:** Fixed two-finger horizontal trackpad swipes failing to switch tabs on macOS in herdr control mode and other terminals with scrollback.
+- **Lower GPU Memory Use for Hidden Tabs:** Hidden tabs no longer recreate their Metal rendering buffers when the window or layout changes, keeping their GPU memory released.
+
+## 1.0.12-147 - September 13, 2026
+
+### herdr Control Mode
+
+- **Native Tabs and Panes:** rootshell now offers optional control mode for herdr, similar to tmux control mode: herdr's tabs become native rootshell tabs, and its splits become native rootshell panes. Navigate with the tab bar, sidebar, keyboard shortcuts and Tab Exposé. Create, rename, close, zoom and rearrange panes with rootshell's controls, with changes kept in sync with herdr. Workspaces are grouped in the sidebar, with agent activity shown per pane.
+- **Workspace and Worktree Management:** Manage herdr workspaces and Git worktrees from the workspace dashboard. Create or open worktrees, rename and reorder workspaces, and move panes between tabs or workspaces without leaving rootshell.
+- **Flexible Connections:** Enable Control Mode in the session picker, choose "herdr (control)" as the auto-start option in a profile or connection, or use `--herdr-control` in Quick Connect. Runs over SSH and tssh exec channels with more efficient encoding than tmux control mode, and also supports local sessions on macOS. The choice follows saved profiles, connection history and iCloud sync.
+- **Standard and Experimental herdr Support:** Control mode requires herdr 0.9.0 or newer on the host. Regular herdr uses fallback mode and supports most features, including native text selection and automatic scrolling while selecting. The optional experimental rootshell herdr fork provides more event-driven, efficient updates, fully pixel-smooth native scrolling and global scrollback search. We hope upstream herdr will adopt these additional control-mode changes; fallback mode supports regular herdr if they aren't included. The gateway tab provides upgrade guidance.
+- **Gateway and Session Recovery:** Hide the gateway tab, or press Escape on it to detach without stopping herdr. Session persistence restores local macOS control-mode sessions on reopening rootshell. Connection Info shows herdr mode and session details.
+- **Agent Detection and Notifications:** In herdr control mode, herdr's agent detection rules and engine take priority over rootshell's own detection engine. Agent notifications route to the matching pane. `rootshell-notify` now supports herdr pane notifications; update it on the host to use this support.
+
+### Session Discovery
+
+- **Rescan without Reconnecting:** Discover Sessions rescans for multiplexer sessions without reconnecting. Open it from the Tabs menu, terminal context menu, or Control+Command+S. The picker shows search progress, empty results and errors.
+- **Improved iPhone Session Picker:** The session picker fits above the keyboard and toolbar, with larger previews, accessible connection and control-mode actions, and support for larger text.
+
+### Screen Sharing
+
+- **Trackpad Pointer Mode:** Move the remote pointer with one finger, tap to click, tap with two fingers to right-click and scroll with two fingers. Adjust pointer speed or switch between Touch and Trackpad from Screen Sharing settings; the session menu changes the current mode.
+- **Cursor Options:** Choose a sharp, resizable local cursor or the remote Mac's cursor. Rendering preferences apply to new connections.
+
+### Keyboard Shortcuts
+
+- **Shortcut Reassignment:** Reassigning a shortcut shows its current owner and asks for confirmation, then removes the previous binding, including profile shortcuts. The recorder also captures macOS menu shortcuts.
+
+### Fixes
+
+- **Reliable SSH Keepalives:** Fixed SSH sessions hanging in a repeated error loop when a server answered a keepalive with "unimplemented". The reply is now handled without stalling the session.
+- **SSH Authentication Compatibility:** SSH authentication now starts with a "none" probe, as OpenSSH does, allowing servers to grant access without credentials or report their supported methods. Keyboard-interactive is now offered as a fallback only when the server advertises it. These fixes improve compatibility with servers including MikroTik RouterOS.
+- **Correct iPhone Keyboard Layout:** Fixed a regression introduced in build 140 where terminal and Screen Sharing content extended beneath the iPhone keyboard toolbar after hiding and showing the keyboard.
+
+## 1.0.11-146 - September 11, 2026
+
+### Local Session Recovery (macOS)
+
+- **Restore Local Multiplexer Sessions:** With session persistence enabled, rootshell now restores tmux, zellij, herdr and zmx sessions launched from a local shell when you reopen the app. It verifies that the original session is still available before reattaching; if recovery fails, it returns to your configured shell.
+- **Restore tmux Layouts:** Local tmux control-mode sessions also recover their tab positions, split layouts and hidden gateway state.
+
+### zmx Tab Exposé
+
+- **Faster, More Reliable Previews:** Opening Exposé on a known zmx session is faster, with fewer SSH round trips before the first previews appear. If the saved session name is out of date, rootshell checks again instead of closing Exposé on a session that is still running.
+- **Improved Session Detection:** Improved detection for `ZMX_SESSION_PREFIX` and labeled attachments, including on macOS hosts. Moving between panes or tabs while Exposé is open now refreshes the connection context for the selected pane.
+- **More Reliable Session Switching:** Improved switching after a zmx session's active client disconnects, including a workaround for older zmx versions that could terminate the session. Shared sessions no longer incorrectly rename this pane when a switch moves another attached client; zmx can still direct switches to that other client.
+
+### tmux and Tab Restoration
+
+- **Preserve Focus during Background Reconnects:** Background tmux reconnects no longer steal the active tab or keyboard focus. Explicit session switches and newly created splits still receive focus.
+- **Restore the Correct Selected Tab:** Reopening a window now restores the correct selected tab even when other saved tabs cannot be restored.
+
+### Local Shell (iPhone, iPad and Apple Vision Pro)
+
+- **Interactive Shell Functions:** Fixed shell functions defined in `~/.rootshellrc` or at the prompt failing with "command not found" when called interactively. Quoted or escaped function names and pipelines without spaces now work too.
+- **Correct Alias Arguments:** Fixed alias argument handling around pipelines and redirections. Aliases retain precedence over functions, self-referential aliases expand only once, and argument placeholders preserve trailing options and file arguments.
+
+### Fixes
+
+- **Stable Settings Search on iOS 27:** Fixed the Settings search bar jumping when opening Settings or dismissing the terminal keyboard on iOS 27. Expanded search continues to stay above the keyboard.
+- **Responsive Sidebar Context Menus:** Fixed freezes when opening context menus in the vertical tab sidebar. Menu actions remain up to date as tabs change.
+- **curl Compatibility on Older iPads:** Fixed a curl startup crash on older iPads running iOS 18 caused by unsupported CPU instructions in the bundled OpenSSL library.
+- **Native Connection Picker:** Restored the native connection picker on iPhone and iPad now that the iOS/iPadOS 27 beta 5 tap-handling bug is fixed.
+
+## 1.0.11-145 - September 10, 2026
+
+### tssh Jump Relays
+
+- **Configurable Jump Relays:** tssh jump hosts can now handle only SSH bootstrap or relay the full UDP transport, reaching targets that are not directly accessible from your device. In a saved profile or Quick Connect, add a jump host and choose Relay full session. Install tsshd on both hosts and allow UDP for each hop; advanced controls can override the jump host's tsshd path and UDP range.
+- **Resumable Full-Relay Connections:** Full-relay connections keep tssh's resume behavior across network changes. If the jump connection alone is lost, Rebuild Jump Connection authenticates to the jump host again while preserving the target shell. Remote forwards are restored after recovery, and relay routing also works with VPN connections and encrypted session transfer between your devices.
+- **Synced Relay Preferences and Command-Line Controls:** Relay preferences are retained with profiles and connection history and follow iCloud sync. The `tssh` command also accepts `--jump-relay`, with optional `--jump-server` and `--jump-udp-port` controls.
+
+### Profiles and Shortcuts
+
+- **Profile Keyboard Shortcuts:** Assign an optional keyboard shortcut to any connection profile for one-step access from the terminal. Record it in the profile editor; rootshell shows the shortcut beside the profile and uses the normal profile connection path, including saved authentication and multiplexer settings.
+
+### tmux Control Mode
+
+- **Faster Heavy Output:** Heavy tmux output is substantially faster and smoother. rootshell now parses control records in bulk and batches pane updates per read, cutting renderer locks, wakeups and allocations while preserving output order across resizes, snapshots and passthrough sequences.
+
+### Screen Sharing
+
+- **Faster Adaptive DCT Decoding:** Standard Screen Sharing decodes Adaptive DCT frames faster by reusing buffers and accelerating common transforms and color conversion, reducing CPU work during active remote sessions.
+
+### Keyboard and Input
+
+- **Layout-Aware Hardware Keyboard Shortcuts:** Fixed Control input with Colemak and other alternate hardware keyboard layouts, where shortcuts could follow the physical QWERTY key instead of the character being typed (#435). Command shortcuts and shortcut recording are layout-aware too, including Dvorak-QWERTY Command mappings; special keys keep their physical behavior, and Command-Period can be recorded reliably.
+- **Hardware Keyboard Input in the Emoji Picker:** Fixed the system emoji picker when using a hardware keyboard on Mac and iPad. Hardware keyboard input now reaches the emoji search field, then returns correctly to the terminal when the picker closes (#434).
+
 ## 1.0.11-144 - September 8, 2026
 
 ### Live Activities

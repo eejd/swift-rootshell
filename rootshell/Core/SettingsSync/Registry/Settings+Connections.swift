@@ -11,12 +11,16 @@ extension ProfileSortOrder: SettingValue {}
 extension KeyAuthRequirement: SettingValue {}
 extension KeyStorageLevel: SettingValue {}
 extension TmuxAutoMode: SettingValue {}
+extension HerdrAutoMode: SettingValue {}
 extension TmuxTabCloseAction: SettingValue {}
 extension SessionDiscoverySortOrder: SettingValue {}
 extension MoshConfig.PredictionMode: SettingValue {}
 extension TrzszConfig.TransportMode: SettingValue {}
 extension ScreenSharingClipboardSyncDefault: SettingValue {}
 extension ScreenSharingPanningDefault: SettingValue {}
+extension ScreenSharingPointerModeDefault: SettingValue {}
+extension ScreenSharingCursorRenderingDefault: SettingValue {}
+extension ScreenSharingCursorSizeDefault: SettingValue {}
 
 nonisolated extension Settings {
     enum Connections {
@@ -145,6 +149,15 @@ nonisolated extension Settings {
         static let herdrSessionDiscovery = SettingKey(
             "herdrSessionDiscoveryEnabled", default: true, group: .multiplexer, configKey: "herdr-session-discovery-enabled",
             title: String(localized: "Discover herdr Sessions", comment: "Setting title"))
+        static let herdrDiscoveryAttachMode = SettingKey(
+            "herdrDiscoveryAttachMode", default: HerdrAutoMode.regular, group: .multiplexer, configKey: "herdr-discovery-attach-mode",
+            title: String(localized: "herdr Attach Mode", comment: "Setting title"))
+        static let herdrAutoHideGatewayOnAttach = SettingKey(
+            "herdrAutoHideGatewayOnAttach", default: false, group: .multiplexer, configKey: "herdr-auto-hide-gateway-on-attach",
+            title: String(localized: "Auto-hide herdr Gateway on Attach", comment: "Setting title"))
+        static let herdrControlHistoryLimitBytes = SettingKey(
+            "herdrControlHistoryLimitBytes", default: 1_048_576, group: .multiplexer, configKey: "herdr-control-history-limit-bytes",
+            title: String(localized: "herdr Control Scrollback Limit", comment: "Setting title"))
         static let zmxSessionName = SettingKey(
             "zmxSessionName", default: "", group: .multiplexer, configKey: "zmx-session-name",
             title: String(localized: "zmx Session Name", comment: "Setting title"))
@@ -155,8 +168,11 @@ nonisolated extension Settings {
             "zmxSessionDiscoveryEnabled", default: true, group: .multiplexer, configKey: "zmx-session-discovery-enabled",
             title: String(localized: "Discover zmx Sessions", comment: "Setting title"))
         static let localSessionDiscovery = SettingKey(
-            "localSessionDiscoveryEnabled", default: true, group: .multiplexer, configKey: "local-session-discovery-enabled",
-            title: String(localized: "Discover Local Sessions", comment: "Setting title"))
+            "localSessionDiscoveryEnabled", default: false, group: .multiplexer, configKey: "local-session-discovery-enabled",
+            title: String(localized: "Automatically Discover Local Sessions", comment: "Setting title"))
+        static let remoteSessionDiscovery = SettingKey(
+            "remoteSessionDiscoveryEnabled", default: true, group: .multiplexer, configKey: "remote-session-discovery-enabled",
+            title: String(localized: "Automatically Discover Remote Sessions", comment: "Setting title"))
         static let sessionDiscoverySortOrder = SettingKey(
             "sessionDiscoverySortOrder", default: SessionDiscoverySortOrder.attachedFirst, group: .multiplexer,
             configKey: "session-discovery-sort-order",
@@ -176,8 +192,9 @@ nonisolated extension Settings {
             tmuxAutoHideGatewayOnAttach.erased, tmuxDiscoveryAttachMode.erased,
             tmuxTabCloseAction.erased, zellijSessionDiscovery.erased, herdrSessionName.erased,
             herdrCustomCommand.erased, herdrSessionDiscovery.erased,
+            herdrDiscoveryAttachMode.erased, herdrAutoHideGatewayOnAttach.erased, herdrControlHistoryLimitBytes.erased,
             zmxSessionName.erased, zmxCustomCommand.erased, zmxSessionDiscovery.erased, localSessionDiscovery.erased,
-            sessionDiscoverySortOrder.erased, tabExposeMultiplexer.erased,
+            remoteSessionDiscovery.erased, sessionDiscoverySortOrder.erased, tabExposeMultiplexer.erased,
             tmuxHiddenWindowsBySession, tmuxLastSessionByConnection,
         ]
     }
@@ -268,9 +285,27 @@ nonisolated extension Settings {
             "screenSharingPanningDefault", default: ScreenSharingPanningDefault.edge, group: .screenSharing,
             configKey: "screen-sharing-panning-default",
             title: String(localized: "Default Panning Mode", comment: "Setting title"))
+        static let pointerModeDefault = SettingKey(
+            "screenSharingPointerModeDefault", default: ScreenSharingPointerModeDefault.direct, group: .screenSharing,
+            configKey: "screen-sharing-pointer-mode-default",
+            title: String(localized: "Default Pointer Mode", comment: "Setting title"))
+        static let pointerSpeed = SettingKey(
+            "screenSharingPointerSpeed", default: 1.0, group: .screenSharing,
+            configKey: "screen-sharing-pointer-speed",
+            title: String(localized: "Pointer Speed", comment: "Setting title"))
+        static let cursorRenderingDefault = SettingKey(
+            "screenSharingCursorRenderingDefault", default: ScreenSharingCursorRenderingDefault.local, group: .screenSharing,
+            configKey: "screen-sharing-cursor-rendering-default",
+            title: String(localized: "Cursor Rendering", comment: "Setting title"))
+        static let cursorSizeDefault = SettingKey(
+            "screenSharingCursorSizeDefault", default: ScreenSharingCursorSizeDefault.medium, group: .screenSharing,
+            configKey: "screen-sharing-cursor-size-default",
+            title: String(localized: "Cursor Size", comment: "Setting title"))
 
         static let all: [AnySettingDefinition] = [
             clipboardSyncDefault.erased, panningDefault.erased,
+            pointerModeDefault.erased, pointerSpeed.erased,
+            cursorRenderingDefault.erased, cursorSizeDefault.erased,
             controlOptionAsCommandDefault.erased, routeReservedShortcutsToVNCDefault.erased,
         ]
     }

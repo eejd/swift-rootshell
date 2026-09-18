@@ -7,9 +7,18 @@ import Foundation
 
 /// Builds shell commands that can pass through POSIX or fish login shells.
 nonisolated enum LoginShellCommand {
+    static let herdrDirectoryRelativeToHome = ".local/opt/herdr-rootshell/bin"
+    static let preferredHerdrDirectory = "$HOME/\(herdrDirectoryRelativeToHome)"
+
     static let toolPathEntries = [
+        // Prefer rootshell's herdr installation over every other tool directory.
+        preferredHerdrDirectory,
         "/opt/homebrew/bin",
         "/usr/local/bin",
+        // herdr's installer and cargo install here; .zshrc-only PATH
+        // additions never reach a non-interactive login shell.
+        "$HOME/.local/bin",
+        "$HOME/.cargo/bin",
         "$HOME/go/bin",
         "/usr/local/go/bin"
     ]

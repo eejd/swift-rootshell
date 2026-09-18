@@ -109,6 +109,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
         let udpPortMin: Int
         let udpPortMax: Int
         let serverPath: String?
+        let connectTimeoutSec: Int?
 
         init(from config: TrzszConfig) {
             self.sshConfig = SSHConfigSafe(from: config.sshConfig)
@@ -116,6 +117,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             self.udpPortMin = config.udpPortMin
             self.udpPortMax = config.udpPortMax
             self.serverPath = config.serverPath
+            self.connectTimeoutSec = config.connectTimeoutSec
         }
 
         // @MainActor: builds a live TrzszConfig (MainActor init); Codable stays nonisolated.
@@ -126,7 +128,8 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
                 transportMode: transportMode,
                 udpPortMin: udpPortMin,
                 udpPortMax: udpPortMax,
-                serverPath: serverPath
+                serverPath: serverPath,
+                connectTimeoutSec: connectTimeoutSec
             )
         }
 
@@ -157,6 +160,9 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
         /// herdr auto-attach. Optional for backward compat — older serialized
         /// sessions decode as nil and restore as disabled.
         let herdrAutoEnable: Bool?
+        /// herdr launch mode. Optional for backward compat; nil restores as
+        /// regular.
+        let herdrAutoMode: HerdrAutoMode?
         let zmxAutoEnable: Bool?
         let launchCommand: String?
         let launchCommandMode: SSHConfig.LaunchCommandMode?
@@ -166,6 +172,9 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
         /// Per-profile multiplexer session name. Optional for backward compat —
         /// older serialized sessions decode as nil and use the global default.
         let multiplexerSessionName: String?
+        /// Folder the pane was opened in (Open in Folder). Optional for
+        /// backward compat; nil restores in the login directory.
+        let initialDirectory: String?
 
         /// Auth method that doesn't store actual passwords
         nonisolated enum AuthMethodSafe: Codable, Equatable, Sendable {
@@ -176,6 +185,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
 
         /// Jump host config without password
         nonisolated struct JumpHostConfigSafe: Codable, Equatable, Sendable {
+            var tsshRelay: TSSHRelaySettings? = nil
             let host: String
             let port: Int
             let username: String
@@ -195,11 +205,13 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             self.tmuxAutoEnable = config.tmuxAutoEnable
             self.tmuxAutoMode = config.tmuxAutoMode
             self.herdrAutoEnable = config.herdrAutoEnable
+            self.herdrAutoMode = config.herdrAutoMode
             self.zmxAutoEnable = config.zmxAutoEnable
             self.launchCommand = config.launchCommand
             self.launchCommandMode = config.launchCommandMode
             self.terminalType = config.terminalType
             self.multiplexerSessionName = config.multiplexerSessionName
+            self.initialDirectory = config.initialDirectory
 
             // Convert auth method, stripping passwords
             switch config.authMethod {
@@ -233,6 +245,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
                     jumpAuth = .passwordRequired
                 }
                 self.jumpHost = JumpHostConfigSafe(
+                    tsshRelay: jump.tsshRelay,
                     host: jump.host,
                     port: jump.port,
                     username: jump.username,
@@ -277,11 +290,13 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             config.tmuxAutoEnable = tmuxAutoEnable ?? false
             config.tmuxAutoMode = tmuxAutoMode ?? .regular
             config.herdrAutoEnable = herdrAutoEnable ?? false
+            config.herdrAutoMode = herdrAutoMode ?? .regular
             config.zmxAutoEnable = zmxAutoEnable ?? false
             config.launchCommand = launchCommand
             config.launchCommandMode = launchCommandMode ?? .afterConnect
             config.terminalType = terminalType
             config.multiplexerSessionName = multiplexerSessionName
+            config.initialDirectory = initialDirectory
 
             if let jump = jumpHost {
                 let jumpAuth: SSHConfig.AuthMethod
@@ -309,6 +324,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
                     authMethod: jumpAuth,
                     fallbackKeyIDs: jumpFallbackIDs?.isEmpty == true ? nil : jumpFallbackIDs
                 )
+                config.jumpHost?.tsshRelay = jump.tsshRelay
             }
 
             return config

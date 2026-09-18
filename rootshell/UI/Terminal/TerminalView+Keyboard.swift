@@ -312,6 +312,7 @@ extension Ghostty.TerminalView {
     // Register key commands for dynamic keybindings
     // Uses cached array to avoid 26+ allocations per keystroke
     override var keyCommands: [UIKeyCommand]? {
+        guard !shouldYieldHardwareInputToEmojiUI else { return nil }
         #if targetEnvironment(macCatalyst)
         let shouldSuppressControlShortcuts = false
         #else
@@ -336,11 +337,17 @@ extension Ghostty.TerminalView {
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         lastHardwareTextInputTime = ProcessInfo.processInfo.systemUptime
-        lastDictationActivityAt = nil
+        endDictationSession()
         invalidateWritingAssistance()
         // Hardware keys reach the responder chain, not the window-level touch
         // observer, so typing has to restart the always-on-display window here.
         noteAlwaysOnDisplayInteraction()
+
+        if shouldYieldHardwareInputToEmojiUI {
+            resetKeyboardInteractionState(sendSyntheticKeyReleases: true)
+            super.pressesBegan(presses, with: event)
+            return
+        }
 
         var handled = false
         var shouldSkipSuper = false
@@ -405,8 +412,10 @@ extension Ghostty.TerminalView {
     /// Returns whether the press was handled and whether super should be skipped.
     @discardableResult
     func processKeyPress(_ press: UIPress, virtualModifier: ModTapModifier?) -> (handled: Bool, skipSuper: Bool) {
+        // Also cover deferred mod-tap replays, which bypass pressesBegan.
+        guard !shouldYieldHardwareInputToEmojiUI else { return (false, false) }
         lastHardwareTextInputTime = ProcessInfo.processInfo.systemUptime
-        lastDictationActivityAt = nil
+        endDictationSession()
         invalidateWritingAssistance()
         // iOS 13.4+ - use UIPress.key for better key information
         guard let key = press.key else { return (false, false) }
@@ -452,6 +461,7 @@ extension Ghostty.TerminalView {
         heldHardwareModifiers = ghosttyInputMods(from: effectiveModifiers, virtualModifier: virtualModifier)
 
         let hasOption = effectiveModifiers.contains(.alternate)
+        lazy var logicalKey = KeyCode(uiKey: key, modifiers: effectiveModifiers)
 
         // The reserved Cmd+Period system-cancel chord can arrive translated as
         // plain Escape. Give a cmd+period binding first refusal; a twin of a
@@ -476,8 +486,8 @@ extension Ghostty.TerminalView {
         let isTranslatedCancelChord = key.keyCode != .keyboardEscape
             && KeyCode.sentinelKey(for: key.characters) == .escape
         if isTranslatedCancelChord
-            || (key.keyCode == .keyboardPeriod
-                && KeybindModifiers(uiModifierFlags: effectiveModifiers) == .command) {
+            || (KeybindModifiers(uiModifierFlags: effectiveModifiers) == .command
+                && logicalKey == .period) {
             // Translation only happens with Command physically down, so the
             // snapshot is live again.
             if isTranslatedCancelChord {
@@ -532,8 +542,14 @@ extension Ghostty.TerminalView {
             return (true, true)
         }
 
-        // Intercept keys when session discovery overlay is visible.
-        if discoveredSessions != nil {
+        // herdr gateway: same ESC-detaches contract as the tmux gateway.
+        if key.keyCode == .keyboardEscape, detachHerdrGatewayIfCovered() {
+            return (true, true)
+        }
+
+        // Intercept keys when session discovery overlay is visible. A searching or
+        // empty card has nothing to select, so it must not eat Return/arrows.
+        if hasDiscoveredSessionRows {
             if key.keyCode == .keyboardReturnOrEnter {
                 selectHighlightedSession()
                 return (true, true)
@@ -556,6 +572,10 @@ extension Ghostty.TerminalView {
                 return (true, true)
             }
             // All other text keys: dismiss overlay and let them pass through
+            dismissSessionDiscovery()
+        } else if discoveredSessions != nil, !key.characters.isEmpty, !isModifierOnlyKey(key.keyCode) {
+            // Searching or empty card: typing still dismisses it, but every key
+            // reaches the terminal because there is nothing to select.
             dismissSessionDiscovery()
         }
         // Modifier-only key presses should update state but never emit terminal input.
@@ -587,7 +607,7 @@ extension Ghostty.TerminalView {
 
         commitKoreanCompositionIfNeeded(external: true)
 
-        let hardwareTrigger = KeyCode(hidUsage: key.keyCode).map {
+        let hardwareTrigger = logicalKey.map {
             KeyTrigger(key: $0, modifiers: KeybindModifiers(uiModifierFlags: effectiveModifiers))
         }
         let bindingTrigger = hardwareTrigger.map { trigger in
@@ -603,7 +623,7 @@ extension Ghostty.TerminalView {
                 }
                 return manager.keybind(for: candidate) != nil || manager.isSequencePrefix(candidate)
             }
-            // Explicit physical-key bindings take precedence over symbol aliases.
+            // Explicit base-key bindings take precedence over symbol aliases.
             return !isClaimed(trigger) && isClaimed(symbolTrigger) ? symbolTrigger : trigger
         }
 
@@ -777,8 +797,6 @@ extension Ghostty.TerminalView {
             }
         }
 
-        // FAST PATH: Handle Ctrl+A-Z directly without KeybindManager lookup
-        // This avoids object creation and linear search overhead
         // Ctrl+key fast path: send raw control bytes for legacy terminal mode.
         // When Shift or Alt is also held, skip this path and let the Ghostty
         // encoder handle it (for correct CSI u / Kitty protocol encoding).
@@ -793,10 +811,7 @@ extension Ghostty.TerminalView {
             }
             #endif
 
-            // Check if this is a letter key (A-Z) or Ctrl+symbol
-            let keyCode = key.keyCode
-
-            if let controlByte = controlCharacterByte(for: keyCode) {
+            if let controlByte = logicalKey?.controlCharacterByte {
                 let controlData = Data([controlByte])
 
                 // Handle Ctrl-C for local shell interrupt (non-Catalyst only)
@@ -840,11 +855,11 @@ extension Ghostty.TerminalView {
         }
 
         // Handle other key combinations via KeybindManager
-        // Note: Ctrl+A-Z are handled via GCKeyboard in KeyboardTracker on all platforms
+        // Ctrl+A-Z use the fast path above or UIKeyCommand on Catalyst.
         if let trigger = bindingTrigger,
            let keybind = KeybindManager.shared.keybind(for: trigger) {
 
-            // Skip control characters - handled by fast path above (iOS) or GCKeyboard (all platforms)
+            // Skip control characters - handled by the fast path or Catalyst UIKeyCommands.
             if keybind.action.isControlCharacter {
                 return (false, false)
             }
@@ -1056,6 +1071,11 @@ extension Ghostty.TerminalView {
     }
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if shouldYieldHardwareInputToEmojiUI {
+            resetKeyboardInteractionState(sendSyntheticKeyReleases: true)
+            super.pressesEnded(presses, with: event)
+            return
+        }
         // Reset OPTION key flag on key release
         didHandleOptionKey = false
 
@@ -1068,8 +1088,9 @@ extension Ghostty.TerminalView {
 
             guard let key = press.key else { continue }
             // A translated Cmd+Period press can be tracked as Escape by the
-            // overlay handlers but released as physical Period.
-            if key.keyCode == .keyboardPeriod {
+            // overlay handlers but released at the layout's Period position.
+            if keysConsumedByOverlayAction.contains(.keyboardEscape),
+               KeyCode(uiKey: key, modifiers: .command) == .period {
                 keysConsumedByOverlayAction.remove(.keyboardEscape)
             }
             keyRepeatManager.stopIfMatches(key.keyCode)
@@ -1602,54 +1623,6 @@ extension Ghostty.TerminalView {
 
         return 0
     }
-
-    /// Fast lookup: Convert UIKeyboardHIDUsage to control character byte (0-31)
-    /// Returns nil if not a recognized control key
-    func controlCharacterByte(for keyCode: UIKeyboardHIDUsage) -> UInt8? {
-        switch keyCode {
-        case .keyboardSpacebar: return 0       // Ctrl+Space = NUL
-        case .keyboardA: return 1
-        case .keyboardB: return 2
-        case .keyboardC: return 3
-        case .keyboardD: return 4
-        case .keyboardE: return 5
-        case .keyboardF: return 6
-        case .keyboardG: return 7
-        case .keyboardH: return 8
-        case .keyboardI: return 9
-        case .keyboardJ: return 10
-        case .keyboardK: return 11
-        case .keyboardL: return 12
-        case .keyboardM: return 13
-        case .keyboardN: return 14
-        case .keyboardO: return 15
-        case .keyboardP: return 16
-        case .keyboardQ: return 17
-        case .keyboardR: return 18
-        case .keyboardS: return 19
-        case .keyboardT: return 20
-        case .keyboardU: return 21
-        case .keyboardV: return 22
-        case .keyboardW: return 23
-        case .keyboardX: return 24
-        case .keyboardY: return 25
-        case .keyboardZ: return 26
-        case .keyboardOpenBracket: return 27   // Ctrl+[ = ESC
-        case .keyboardBackslash: return 28     // Ctrl+\ = FS
-        case .keyboardCloseBracket: return 29  // Ctrl+] = GS
-        case .keyboard2: return 0              // Ctrl+2 = NUL
-        case .keyboard3: return 27             // Ctrl+3 = ESC
-        case .keyboard4: return 28             // Ctrl+4 = FS
-        case .keyboard5: return 29             // Ctrl+5 = GS
-        case .keyboard6: return 30             // Ctrl+6 = RS
-        case .keyboard7: return 31             // Ctrl+7 = US
-        case .keyboard8: return 127            // Ctrl+8 = DEL
-        case .keyboardHyphen: return 31        // Ctrl+- = US
-        case .keyboardSlash: return 31         // Ctrl+/ = US
-        case .keyboardGraveAccentAndTilde: return 0  // Ctrl+` = NUL
-        default: return nil
-        }
-    }
 }
 
 // MARK: - Key Handlers
@@ -1721,7 +1694,7 @@ extension Ghostty.TerminalView {
         guard let input = command.input else { return }
         if overlayConsumedKeyCommand(command) { return }
 
-        if discoveredSessions != nil {
+        if hasDiscoveredSessionRows {
             switch input {
             case UIKeyCommand.inputUpArrow: moveSessionSelection(by: -1)
             case UIKeyCommand.inputDownArrow: moveSessionSelection(by: 1)
@@ -1767,7 +1740,7 @@ extension Ghostty.TerminalView {
         // A one-shot action consumed this press; swallow repeats until release
         // so the held key doesn't leak input into the newly focused session.
         if keysConsumedByOverlayAction.contains(.keyboardReturnOrEnter) { return }
-        if discoveredSessions != nil {
+        if hasDiscoveredSessionRows {
             keysConsumedByOverlayAction.insert(.keyboardReturnOrEnter)
             selectHighlightedSession()
             return
@@ -1802,7 +1775,7 @@ extension Ghostty.TerminalView {
         commitKoreanCompositionIfNeeded(external: true)
         if overlayConsumedKeyCommand(command) { return }
         if keysConsumedByOverlayAction.contains(.keyboardReturnOrEnter) { return }
-        if discoveredSessions != nil {
+        if hasDiscoveredSessionRows {
             keysConsumedByOverlayAction.insert(.keyboardReturnOrEnter)
             selectHighlightedSession()
             return
@@ -1880,6 +1853,10 @@ extension Ghostty.TerminalView {
         if let target = selectedTmuxGatewayView() ?? ((tmuxController?.isActive == true || isTmuxGatewaySurfaceActive) ? self : nil) {
             keysConsumedByOverlayAction.insert(.keyboardEscape)
             target.sendTmuxDetach()
+            return
+        }
+        if detachHerdrGatewayIfCovered() {
+            keysConsumedByOverlayAction.insert(.keyboardEscape)
             return
         }
 
@@ -2352,6 +2329,10 @@ extension Ghostty.TerminalView {
         NotificationCenter.default.post(name: .showTmuxSessions, object: self)
     }
 
+    @objc func menuDiscoverSessions(_ sender: Any?) {
+        NotificationCenter.default.post(name: .discoverSessions, object: self)
+    }
+
     @objc func menuDetachOtherClients(_ sender: Any?) {
         NotificationCenter.default.post(name: .detachOtherClients, object: self)
     }
@@ -2406,6 +2387,10 @@ extension Ghostty.TerminalView {
 
     @objc func menuToggleQuickSettings(_ sender: Any?) {
         NotificationCenter.default.post(name: .toggleQuickSettings, object: self)
+    }
+
+    @objc func menuOpenInFolder(_ sender: Any?) {
+        NotificationCenter.default.post(name: .openInFolder, object: self)
     }
 
     @objc func menuToggleThemePicker(_ sender: Any?) {
@@ -2642,6 +2627,10 @@ extension Ghostty.TerminalView {
             userInfo["tabIndex"] = 9
         case .new_tab, .new_window, .close_tab:
             userInfo["windowId"] = windowId
+        case .open_profile:
+            if let parameter {
+                userInfo["profileID"] = parameter
+            }
         default:
             break
         }

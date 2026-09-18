@@ -111,6 +111,7 @@ struct TSSHTransportParams: Sendable {
     let clientID: Int64
     let serverID: Int64
     let mtu: Int               // 0 = use Go-side default
+    let connectTimeoutSec: Int
     let proxyKeyHex: String?
     let kcpPassHex: String?
     let kcpSaltHex: String?
@@ -152,6 +153,7 @@ struct TSSHForwardParams: Sendable {
     let bindPort: Int
     let targetHost: String
     let targetPort: Int
+    let recoverRemoteListener: Bool
 }
 
 // MARK: - Registry storage
@@ -162,6 +164,7 @@ struct TSSHForwardParams: Sendable {
 
 private nonisolated final class TSSHRegistryStorage: @unchecked Sendable {
     var transports: [TSSHTransportRef: IosbridgeTransport] = [:]
+    var relayParents: [TSSHTransportRef: TSSHTransportRef] = [:]
     var sessions:   [TSSHSessionRef:   IosbridgeTransportSession] = [:]
     var forwarders: [TSSHForwarderRef: IosbridgePortForwarder] = [:]
 }
@@ -231,7 +234,7 @@ actor TSSHCallGate {
 
     // MARK: - Transport lifecycle
 
-    func connect(_ params: TSSHTransportParams) async throws -> TSSHTransportRef {
+    func connect(_ params: TSSHTransportParams, via proxyRef: TSSHTransportRef? = nil) async throws -> TSSHTransportRef {
         guard let config = IosbridgeNewTransportConfig() else {
             throw TSSHCallGateError.configCreationFailed
         }
@@ -247,6 +250,7 @@ actor TSSHCallGate {
         if params.mtu > 0 {
             config.mtu = params.mtu
         }
+        config.connectTimeoutSec = params.connectTimeoutSec
         config.debugLabel = params.debugLabel
 
         if let pass = params.kcpPassHex, let salt = params.kcpSaltHex {
@@ -264,10 +268,20 @@ actor TSSHCallGate {
         // The actual handshake runs on the worker queue, releasing the
         // actor for other gate methods (writes/resizes/health polls on
         // existing transports proceed concurrently).
+        nonisolated(unsafe) let proxy: IosbridgeTransport? = proxyRef.flatMap { ref in
+            registry.withLock { $0.transports[ref] }
+        }
+        if proxyRef != nil && proxy == nil { throw TSSHCallGateError.unknownTransport }
         nonisolated(unsafe) let connectConfig = config
         let transport: IosbridgeTransport = try await runOnWorker {
             var connectError: NSError?
-            guard let transport = IosbridgeConnectTransport(connectConfig, &connectError) else {
+            let connected: IosbridgeTransport?
+            if let proxy {
+                connected = IosbridgeConnectTransportViaProxy(connectConfig, proxy, &connectError)
+            } else {
+                connected = IosbridgeConnectTransport(connectConfig, &connectError)
+            }
+            guard let transport = connected else {
                 throw TSSHCallGateError.connectFailed(
                     connectError?.localizedDescription ?? "unknown error"
                 )
@@ -276,7 +290,14 @@ actor TSSHCallGate {
         }
 
         let ref = TSSHTransportRef(id: UUID())
-        registry.withLock { $0.transports[ref] = transport }
+        registry.withLock {
+            $0.transports[ref] = transport
+            $0.relayParents[ref] = proxyRef
+        }
+        if Task.isCancelled {
+            emergencyAbandon(ref)
+            throw CancellationError()
+        }
         return ref
     }
 
@@ -293,7 +314,26 @@ actor TSSHCallGate {
         defer {
             registry.withLock { _ = $0.transports.removeValue(forKey: ref) }
         }
-        try await runOnWorker { try t.close() }
+        do { try await runOnWorker { try t.close() } }
+        catch {
+            if let parent = registry.withLock({ $0.relayParents.removeValue(forKey: ref) }) {
+                emergencyAbandon(parent)
+            }
+            throw error
+        }
+        if let parent = registry.withLock({ $0.relayParents.removeValue(forKey: ref) }) {
+            try await close(parent)
+        }
+    }
+
+    func effectiveRelayMTU(_ ref: TSSHTransportRef, requested: Int, mode: String) async throws -> Int {
+        guard let transport = registry.withLock({ $0.transports[ref] }) else { throw TSSHCallGateError.unknownTransport }
+        nonisolated(unsafe) let t = transport
+        return try await runOnWorker {
+            var result = 0
+            try t.effectiveRelayMTU(requested, mode: mode, ret0_: &result)
+            return result
+        }
     }
 
     func lastActiveTimeMs(_ ref: TSSHTransportRef) -> Int64 {
@@ -459,11 +499,15 @@ actor TSSHCallGate {
         nonisolated(unsafe) let t = transport
         let clamped = Int32(min(maxBytes, Int(Int32.max)))
         return try await runOnWorker {
-            let data = try t.streamLocalRead(channelRef, maxBytes: clamped)
-            // The Go side signals clean EOF as nil-data + nil-error;
-            // gomobile maps that to an empty Data. Surface as nil so
-            // the AsyncBytePipe contract reads cleanly.
-            return data.isEmpty ? nil : data
+            do {
+                let data = try t.streamLocalRead(channelRef, maxBytes: clamped)
+                // The Go side signals clean EOF as nil-data + nil-error;
+                // surface it as nil so the AsyncBytePipe contract reads cleanly.
+                return data.isEmpty ? nil : data
+            } catch let error where Self.isBridgedNilReturn(error) {
+                // Same EOF seen through the ObjC bridge as a nil return.
+                return nil
+            }
         }
     }
 
@@ -514,6 +558,150 @@ actor TSSHCallGate {
         guard let transport else { return }
         nonisolated(unsafe) let t = transport
         try await runOnWorker { try t.streamLocalClose(channelRef) }
+    }
+
+    // MARK: - Auxiliary exec channels
+
+    /// Start `command` in an auxiliary non-PTY session on the same tsshd
+    /// and return its exec channel handle. Unlike the primary session
+    /// there can be many, and they never carry the discard machinery.
+    func openExec(
+        on ref: TSSHTransportRef,
+        command: String
+    ) async throws -> Int64 {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else {
+            throw TSSHCallGateError.unknownTransport
+        }
+        nonisolated(unsafe) let t = transport
+        return try await runOnWorker {
+            var channelRef: Int64 = 0
+            try t.openExec(command, ret0_: &channelRef)
+            return channelRef
+        }
+    }
+
+    func openExecPTY(on ref: TSSHTransportRef, command: String, term: String, rows: Int, cols: Int) async throws -> Int64 {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { throw TSSHCallGateError.unknownTransport }
+        nonisolated(unsafe) let t = transport
+        return try await runOnWorker {
+            var channelRef: Int64 = 0
+            try t.openExecPTY(command, term: term, rows: rows, cols: cols, ret0_: &channelRef)
+            return channelRef
+        }
+    }
+
+    /// The server-side session id behind an exec channel, or 0 when there is
+    /// none to name. Saved so a later run can end a channel this one leaves
+    /// behind; see `exitSession`.
+    func execSessionID(on ref: TSSHTransportRef, channelRef: Int64) async -> Int64 {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { return 0 }
+        nonisolated(unsafe) let t = transport
+        return (try? await runOnWorker { t.execSessionID(channelRef) }) ?? 0
+    }
+
+    /// Ends a session by id, including one this transport never opened. An
+    /// attachable tsshd keeps a departed client's sessions running for a
+    /// reattach that an auxiliary channel never gets.
+    func exitSession(on ref: TSSHTransportRef, sessionID: Int64) async throws {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { throw TSSHCallGateError.unknownTransport }
+        nonisolated(unsafe) let t = transport
+        try await runOnWorker { try t.exitSession(sessionID) }
+    }
+
+    func execResizePTY(on ref: TSSHTransportRef, channelRef: Int64, rows: Int, cols: Int) async throws {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { throw TSSHCallGateError.unknownTransport }
+        nonisolated(unsafe) let t = transport
+        try await runOnWorker { try t.execResizePTY(channelRef, rows: rows, cols: cols) }
+    }
+
+    /// Read up to `maxBytes` of the command's stdout. Blocks on the
+    /// concurrent worker until data arrives; nil on clean EOF.
+    func execRead(
+        on ref: TSSHTransportRef,
+        channelRef: Int64,
+        maxBytes: Int
+    ) async throws -> Data? {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else {
+            throw TSSHCallGateError.unknownTransport
+        }
+        nonisolated(unsafe) let t = transport
+        let clamped = min(maxBytes, Int(Int32.max))
+        return try await runOnWorker {
+            do {
+                let data = try t.execRead(channelRef, maxBytes: clamped)
+                return data.isEmpty ? nil : data
+            } catch let error where Self.isBridgedNilReturn(error) {
+                // Clean EOF: Go hands back nil bytes with no error, and the
+                // ObjC bridge turns a nil object without an NSError into
+                // this generic failure. A real Go error carries its own
+                // domain and message and still throws.
+                return nil
+            }
+        }
+    }
+
+    /// Swift's `_GenericObjCError.nilError`: a throwing ObjC method that
+    /// returned nil without setting an error.
+    private nonisolated static func isBridgedNilReturn(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == "Foundation._GenericObjCError" && nsError.code == 0
+    }
+
+    /// Write to the command's stdin; returns the bytes accepted.
+    func execWrite(
+        on ref: TSSHTransportRef,
+        channelRef: Int64,
+        data: Data
+    ) async throws -> Int {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else {
+            throw TSSHCallGateError.unknownTransport
+        }
+        nonisolated(unsafe) let t = transport
+        return try await runOnWorker {
+            var written: Int32 = 0
+            try t.execWrite(channelRef, data: data, ret0_: &written)
+            return Int(written)
+        }
+    }
+
+    /// Deliver EOF on the command's stdin while stdout stays readable.
+    func execCloseStdin(
+        on ref: TSSHTransportRef,
+        channelRef: Int64
+    ) async throws {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { return }
+        nonisolated(unsafe) let t = transport
+        try await runOnWorker { try t.execCloseStdin(channelRef) }
+    }
+
+    /// Exit code once the command finished, -1 while it runs.
+    func execExitCode(
+        on ref: TSSHTransportRef,
+        channelRef: Int64
+    ) async -> Int {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { return -1 }
+        nonisolated(unsafe) let t = transport
+        return (try? await runOnWorker { t.execExitCode(channelRef) }) ?? -1
+    }
+
+    /// Tear down an exec channel; idempotent.
+    func execClose(
+        on ref: TSSHTransportRef,
+        channelRef: Int64
+    ) async throws {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else { return }
+        nonisolated(unsafe) let t = transport
+        try await runOnWorker { try t.execClose(channelRef) }
     }
 
     // MARK: - Session lifecycle
@@ -701,6 +889,7 @@ actor TSSHCallGate {
             goConfig.bindPort    = params.bindPort
             goConfig.targetHost  = params.targetHost
             goConfig.targetPort  = params.targetPort
+            goConfig.recoverRemoteListener = params.recoverRemoteListener
             try f.startForward(goConfig)
         }
     }
@@ -746,11 +935,17 @@ actor TSSHCallGate {
     /// Forcefully abandons a transport, bypassing the actor.
     /// Idempotent. Safe to call concurrently with a wedged transport call.
     nonisolated func emergencyAbandon(_ ref: TSSHTransportRef) {
-        let transport = registry.withLock { $0.transports.removeValue(forKey: ref) }
-        guard let transport else { return }
-        Self.logger.info("emergencyAbandon: dispatching Go Abandon on worker queue")
+        let transports: [IosbridgeTransport] = registry.withLock { storage in
+            var result: [IosbridgeTransport] = []
+            var current: TSSHTransportRef? = ref
+            while let id = current {
+                if let transport = storage.transports.removeValue(forKey: id) { result.append(transport) }
+                current = storage.relayParents.removeValue(forKey: id)
+            }
+            return result
+        }
         workerQueue.async {
-            transport.abandon()
+            for transport in transports { transport.abandon() }
         }
     }
 

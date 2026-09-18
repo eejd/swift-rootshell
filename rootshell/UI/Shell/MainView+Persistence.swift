@@ -36,18 +36,11 @@ extension MainView {
 
     private func resumableTmuxGatewayUUIDs() -> Set<UUID> {
         Set(
-            terminals.flatMap { $0.splitTree.terminalLeaves }
-                .filter { view in
-                    view.connectionConfig.isTrzsz
-                    && (
-                        view.tmuxController != nil
-                        || view.restoredWasTmuxGateway
-                        || view.tmuxResumeRequested
-                        || view.tmuxResumeCancelRequested
-                    )
-                }
+            (terminals + TmuxWindowRegistry.allTabsModels().flatMap(\.tabs))
+                .flatMap { $0.splitTree.terminalLeaves }
+                .filter(\.hasPersistableTmuxGateway)
                 .map(\.uuid)
-        )
+        ).union(WindowStateManager.shared.pendingTmuxGatewayUUIDs)
     }
 
     /// Serialize current window state for persistence
@@ -65,25 +58,25 @@ extension MainView {
         // `ensureWindow` stamps them) is excluded rather than restored as a bogus
         // local shell.
         //
-        // Gateways whose tmux -CC session survives an app restart: only trzsz/tssh
-        // keeps the remote pty (and the live tmux -CC process) alive across a
-        // reconnect. A local-shell or plain-SSH gateway's tmux -CC dies with the
-        // app, so its projected window tabs must NOT be persisted — they could never
-        // be re-adopted and would linger as empty, un-closable tabs. Keyed on
-        // live OR pending tmux-gateway state so an autosave during the resume
-        // window keeps placeholders only for the gateway that can adopt them.
+        // tssh can resume its stream; verified local gateways can attach a new
+        // client to the same server/session. Both can re-adopt these placeholders.
         let resumableGatewayUUIDs = resumableTmuxGatewayUUIDs()
 
         var persisted: [(tab: TabModel, serialized: SerializableTab)] = []
         persisted.reserveCapacity(terminals.count)
         for tab in terminals {
+            // herdr control-mode tabs are rebuilt from the server on the next
+            // attach; their panes are not sessions of their own.
+            if tab.isHerdrWindow || tab.splitTree.contains(where: { $0.asTerminal?.isHerdrPane == true }) {
+                continue
+            }
             let hasLivePane = tab.splitTree.contains { $0.asTerminal?.tmuxPaneBinding != nil }
             if tab.isTmuxWindow || hasLivePane {
                 // `tmuxWindowId` is set once adopted; a restored-but-not-yet-
                 // adopted placeholder only has `pendingTmuxWindowId`. Fall back to
                 // it so an autosave during the reconnect window doesn't silently
                 // drop the placeholder (which would lose its tab position). Only
-                // persist placeholders owned by a resumable (trzsz) gateway.
+                // persist placeholders owned by a recoverable gateway.
                 guard let tmuxWindowId = tab.tmuxWindowId ?? tab.pendingTmuxWindowId,
                       let owner = tab.owningGatewayTerminalUUID,
                       resumableGatewayUUIDs.contains(owner) else { continue }
@@ -107,17 +100,16 @@ extension MainView {
                     windowId: windowId,
                     // A hidden GATEWAY tab persists its flag so the hide
                     // survives an app restart — but only when the gateway can
-                    // actually resume (trzsz, mirroring wasTmuxGateway at
-                    // SerializableSplitTree); otherwise the restored pending
-                    // flag could never be consumed. The pending-restore bit
+                    // actually recover (mirroring leaf serialization); otherwise
+                    // the restored pending flag could never be consumed. The pending-restore bit
                     // counts too: during the reconnect window (restored, not
                     // yet resumed) the live flags are still false, and an
                     // autosave must not drop the preference — the same
                     // live-OR-restored treatment wasTmuxGateway gets.
                     // (id=tmux-hidden-gateway)
-                    isHiddenTmuxWindow: (((tab.isTmuxGateway && tab.isHiddenTmuxWindow)
+                    isHiddenTmuxWindow: ((((tab.isTmuxGateway || tab.isHerdrGateway) && tab.isHiddenTmuxWindow)
                         || tab.pendingHiddenTmuxGatewayRestore)
-                        && tab.splitTree.contains { resumableGatewayUUIDs.contains($0.uuid) })
+                        && tab.splitTree.contains { resumableGatewayUUIDs.contains($0.uuid) || $0.asTerminal?.hasPersistableHerdrGateway == true })
                         ? true : nil
                 )))
             }
@@ -151,9 +143,17 @@ extension MainView {
             }
         }
 
-        // Remap the selected index into the persisted tab list (an excluded tab
-        // would otherwise leave the selection pointing at the wrong tab).
-        let selectedId = terminals.indices.contains(selectedTabIndex) ? terminals[selectedTabIndex].id : nil
+        // A projected herdr tab has no serializable session. Keep its server
+        // identity and select its owning gateway until the next attach, rather
+        // than falling back to the app's first tab. Autosaves during reconnect
+        // retain the pending server identity too.
+        let herdrSelection = tabsModel.herdrSelectionForPersistence.flatMap { selection in
+            persisted.contains { $0.serialized.splitTree.allTerminalIds.contains(selection.gatewayTerminalUUID) }
+                ? selection : nil
+        }
+        let selectedId = herdrSelection.flatMap { selection in
+            persisted.first { $0.serialized.splitTree.allTerminalIds.contains(selection.gatewayTerminalUUID) }?.tab.id
+        } ?? tabsModel.selectedTabID
         let remappedSelectedIndex = selectedId
             .flatMap { id in persisted.firstIndex(where: { $0.tab.id == id }) } ?? 0
 
@@ -176,6 +176,7 @@ extension MainView {
             id: windowId,
             tabs: serializedTabs,
             selectedTabIndex: remappedSelectedIndex,
+            herdrSelection: herdrSelection,
             themeOverride: windowTheme,
             tabThemeOverrides: tabThemes,
             tabGroupingEnabled: tabsModel.isGroupedModeEnabled ? true : nil,
@@ -196,6 +197,7 @@ extension MainView {
 
     /// Restore window state from saved data
     func restoreWindowState(_ state: SerializableWindow) {
+        tabsModel.pendingHerdrSelection = nil
         // Restore theme overrides first
         if let windowTheme = state.themeOverride {
             themeOverrideManager.setWindowTheme(windowId: windowId, themeName: windowTheme)
@@ -237,14 +239,8 @@ extension MainView {
         )
         tabsModel.clearStaleGroupOverrides()
 
-        // Safety net for state saved by older builds: drop restored tmux window
-        // placeholders whose owning gateway is NOT a resumable (trzsz/tssh) session.
-        // A local-shell or plain-SSH `tmux -CC` gateway is gone after the app quits,
-        // so its projected window tabs can never be re-adopted and would otherwise
-        // linger as empty, never-reconciled tabs the user must close by hand. Current
-        // serialization already omits them, so this fires at most once per upgraded
-        // install. Runs before the selected-index restore below so its bounds check
-        // (and fallback to the gateway / tab 0) absorbs the removals.
+        // Drop orphaned or unverifiable placeholders, but retain those whose
+        // verified gateway belongs to a scene that has not restored yet.
         let resumableOwnerUUIDs = resumableTmuxGatewayUUIDs()
         terminals.removeAll { tab in
             tab.awaitingTmuxReconcile &&
@@ -252,15 +248,27 @@ extension MainView {
         }
         tabsModel.clearStaleGroupOverrides()
 
-        // Restore selected tab index. Assignment is outside any
-        // `withAnimation`, so the restored index snaps in without animating
-        // from tab 0.
-        if state.selectedTabIndex >= 0 && state.selectedTabIndex < terminals.count {
-            selectedTabIndex = state.selectedTabIndex
+        // Resolve the saved selection by identity after filtering skipped
+        // tabs. The saved index indexes state.tabs, not the shorter live list.
+        if state.tabs.indices.contains(state.selectedTabIndex),
+           let restoredID = restoredTabIDsBySavedID[state.tabs[state.selectedTabIndex].id],
+           tabsModel.tab(withID: restoredID) != nil {
+            tabsModel.selectedTabID = restoredID
+        }
+        if let selection = state.herdrSelection,
+           let gatewayTab = terminals.first(where: { tab in
+               tab.splitTree.terminalLeaves.contains { $0.uuid == selection.gatewayTerminalUUID }
+           }) {
+            // Pending first: the selection's didSet keeps it (the gateway is in
+            // this tab) and holds the gateway off screen until its saved tab
+            // returns. Re-sync explicitly in case the saved index already
+            // chose the gateway and the didSet does not fire.
+            tabsModel.pendingHerdrSelection = selection
+            tabsModel.selectedTabID = gatewayTab.id
+            tabsModel.syncDisplayedTab()
         }
 
-        // The placeholder filtering above may have invalidated the saved
-        // index, leaving `selectedTabID` nil even though tabs exist. Repair
+        // The saved selected tab may no longer be restorable. Repair
         // so the displayed-tab reveal has a valid selection to follow
         // (a nil selection would keep every tab at opacity 0).
         tabsModel.repairSelectionIfNeeded()
@@ -280,9 +288,9 @@ extension MainView {
         }
 
         // Explicitly mark the focused terminal so didMoveToWindow() will grant focus.
-        // This is needed because onChange(of: selectedTabIndex) may not fire if the
-        // restored index equals the initial value (0), and even when it does fire,
-        // the views aren't in the window yet for becomeFirstResponder() to succeed.
+        // Seed this before the restored views join the window: the selection
+        // observer may not have run yet, and becomeFirstResponder() cannot
+        // succeed until the view is attached.
         if terminals.indices.contains(selectedTabIndex),
            let focusedPane = terminals[selectedTabIndex].focusedPane {
             focusedPane.isLogicallyFocused = true
@@ -412,7 +420,7 @@ extension MainView {
         )
 
         for pane in allPanes {
-            pane.retargetTab(to: tab.id)
+            pane.containingTabID = tab.id
         }
 
         // A saved hidden flag reaching the NORMAL path is necessarily a hidden
@@ -502,7 +510,13 @@ extension MainView {
             terminalView.restoredTrzszLastConnectedAt = leafData.trzszLastConnectedAt
             // Remember if this leaf was a live tmux -CC gateway so the session
             // resume path can re-enter control mode (maybeResumeTmuxControlMode).
-            terminalView.restoredWasTmuxGateway = leafData.wasTmuxGateway ?? false
+            terminalView.restoredWasTmuxGateway = (leafData.wasTmuxGateway ?? false) && connectionConfig.isTrzsz
+            #if targetEnvironment(macCatalyst)
+            if case .local = connectionConfig {
+                terminalView.restoredLocalMultiplexerAttachment = leafData.localMultiplexerAttachment
+                terminalView.skipLocalMultiplexerScrollback = leafData.localMultiplexerAttachment != nil
+            }
+            #endif
             terminalView.tmuxResumeCancelRequested = leafData.tmuxResumeCancelRequested ?? false
             terminalView.restorationState = Ghostty.TerminalView.RestorationState.pendingReconnection
             terminalView.onAgentApprovalRequired = { @MainActor @Sendable request in

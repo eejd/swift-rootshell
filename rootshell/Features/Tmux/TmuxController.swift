@@ -342,8 +342,8 @@ final class TmuxController {
     /// which a teardown/resume cycle can clear, and which is ambiguous when more
     /// than one `tmux -CC` gateway is open in the same window.
     private var gatewayTabID: UUID?
-    /// The first tmux focus op is part of initial attach and must still select
-    /// the tmux window, even if the app happened to activate at the same time.
+    /// Consume the initial attach focus once; it may select a window only
+    /// while this gateway is selected (or no valid selection exists).
     private var hasProcessedInitialFocus = false
 
     // MARK: - Session dashboard state (see TmuxController+Sessions.swift)
@@ -1213,11 +1213,7 @@ final class TmuxController {
                     viewerTerminal: viewerTerminal,
                     viewerPane: viewerPane)
                 let newTab = windowTabs[windowId]
-                SurfaceThemeRetargetCoordinator.retarget(
-                    existing,
-                    toWindowID: hostWindowId(forWindowId: windowId),
-                    tabID: newTab?.id
-                )
+                if let newTab { existing.containingTabID = newTab.id }
                 TmuxDebugLogger.shared.event("PANE", "re-bound pane=\(paneId) -> win=\(windowId)")
                 // The pane left its old window's tab, so prune it there NOW rather
                 // than waiting for that window's own %layout-change (which may fail
@@ -1307,7 +1303,7 @@ final class TmuxController {
             viewerTerminal: viewerTerminal,
             viewerPane: viewerPane)
         if let tab = windowTabs[windowId] {
-            view.retargetTab(to: tab.id)
+            view.containingTabID = tab.id
             view.setOcclusion(hostModel.selectedTabID == tab.id)
         } else {
             // A malformed/out-of-order batch must not leave an unattached pane
@@ -1440,6 +1436,13 @@ final class TmuxController {
     /// terminal. This routes keyboard input to this pane's surface, whose
     /// tmux backend emits `send-keys` for this pane id.
     private func focusPane(_ view: Ghostty.TerminalView, in tab: TabModel) {
+        // Background layouts also initialize their remembered focused pane.
+        // Do not clear the selected restored tab's focus while filling them.
+        let hostModel = modelContainingTab(id: tab.id) ?? tabsModel
+        guard hostModel.selectedTabID == tab.id else {
+            recordRemoteFocusPane(view, in: tab)
+            return
+        }
         let previous = tab.focusedTerminal
         for other in paneViews.values where other !== view {
             other.isLogicallyFocused = false
@@ -1462,15 +1465,10 @@ final class TmuxController {
         view.shouldBecomeFirstResponderWhenReady = true
         tab.focusedTerminal = view
 
-        // Active focus drive — mirrors MainView.setFocusedTerminal. Gated on
-        // the tab being the visible one: setLayout also routes here for
-        // background windows, and EVERY tab's panes are in the UIWindow (the
-        // tab ForEach renders them all at opacity 0), so an ungated
-        // becomeFirstResponder would steal the user's keyboard.
+        // Active focus drive — mirrors MainView.setFocusedTerminal. The
+        // selection guard above also protects logical focus from background
+        // layouts; every tab's panes can be attached to the same UIWindow.
         // ROOTSHELL-TMUX (id=tmux-focus-active)
-        let hostModel = modelContainingTab(id: tab.id) ?? tabsModel
-        guard hostModel.selectedTabID == tab.id else { return }
-
         var acquired = false
         if view.window != nil {
             // Existing pane (e.g. %window-pane-changed between attached
@@ -1840,7 +1838,11 @@ final class TmuxController {
         let isSessionSwitchFocus = pendingSessionSwitchWindowSelection == nil
             ? consumePendingSessionSwitch()
             : false
-        let isInitialFocus = !hasProcessedInitialFocus || isSessionSwitchFocus
+        // markGatewayTab runs after the first reconcile, so resolve the owner
+        // directly when its cached tab ID has not been stamped yet.
+        let isInitialFocus = !hasProcessedInitialFocus && hostModel.maySelectInitialMultiplexerTab(
+            gatewayTabID: gatewayTabID ?? ownGatewayTab()?.id
+        )
         hasProcessedInitialFocus = true
 
         // A HIDDEN window never takes selection — not even on initial attach
@@ -1865,7 +1867,8 @@ final class TmuxController {
         // tab jump on its own and chase the active window across other devices
         // attached to the same session. We honor a focus op for tab selection
         // only on:
-        //   - initial attach (land on the session's current window once), or
+        //   - initial attach from the selected gateway (or no selection), or
+        //   - a session switch THIS device requested, or
         //   - the target tab already being selected (an intra-tab pane focus
         //     change for the window the user is already viewing), or
         //   - a split THIS device just requested (pendingSplitFocus).
@@ -1876,7 +1879,7 @@ final class TmuxController {
             guard let pending = pendingSplitFocus[windowId] else { return false }
             return !pending.existingPaneIds.contains(paneId)
         }()
-        let mayChangeSelection = isInitialFocus || targetIsSelected || isLocalSplitFocus
+        let mayChangeSelection = isInitialFocus || isSessionSwitchFocus || targetIsSelected || isLocalSplitFocus
 
         if !mayChangeSelection {
             if let view = paneViews[paneId] {
@@ -4032,6 +4035,13 @@ extension Ghostty.TerminalView {
             TmuxDebugLogger.shared.marker("CONTROL MODE END gw=\(uuid.uuidString.prefix(8))")
         }
 
+        #if targetEnvironment(macCatalyst)
+        if createdController || controller.didEnd {
+            if controller.didEnd { localMultiplexerAttachment = nil }
+            LocalMultiplexerTracker.shared.refresh()
+        }
+        #endif
+
         // A fresh controller (initial attach OR a resume rebuild) starts with an
         // empty per-window size map, and the resync re-sends only the stale
         // gateway-grid global size (stream_handler re-inits the viewer from the
@@ -4244,6 +4254,12 @@ extension Ghostty.TerminalView {
     /// gateway and drops every still-awaiting projected window.
     @MainActor
     func cancelTmuxRestoreRecovery() {
+        #if targetEnvironment(macCatalyst)
+        if isRestoringLocalTmux {
+            cancelLocalMultiplexerRecovery()
+            return
+        }
+        #endif
         tmuxResumeCancelRequested = true
         if tmuxResumeRequested, let surface {
             TmuxDebugLogger.shared.event("RESUME", "cancelled by user gw=\(uuid.uuidString.prefix(8))")
@@ -4300,7 +4316,7 @@ extension Ghostty.TerminalView {
     /// bound pane surface and the native split. The new pane becomes focused
     /// (no `-d`); the reconcile's focus op moves first responder to it.
     @MainActor
-    func requestTmuxSplit(_ direction: SplitTree<SplitPaneView>.NewDirection) {
+    func requestTmuxSplit(_ direction: SplitTree<SplitPaneView>.NewDirection, startDirectory: String? = nil) {
         guard let binding = tmuxPaneBinding,
               let controller = TmuxController.controller(forOwnerSurface: binding.parentSurface),
               controller.isActive else { return }
@@ -4314,7 +4330,14 @@ extension Ghostty.TerminalView {
         case .down:  flags = "-v"
         case .up:    flags = "-v -b"
         }
-        sendTmuxCommand("split-window \(flags) -t %\(binding.paneId)\n", to: binding.parentSurface)
+        sendTmuxCommand("split-window \(flags)\(Self.tmuxStartDirectoryFlag(startDirectory)) -t %\(binding.paneId)\n",
+                        to: binding.parentSurface)
+    }
+
+    /// ` -c '<dir>'` for split-window / new-window, or nothing.
+    nonisolated static func tmuxStartDirectoryFlag(_ directory: String?) -> String {
+        guard let directory, InitialDirectoryCommand.isSupportedDirectory(directory) else { return "" }
+        return " -c " + TmuxCommandQuoting.quotedFormatLiteral(directory)
     }
 
     /// Tell tmux this pane is now the user's active pane. Called ONLY for
@@ -4423,13 +4446,14 @@ extension Ghostty.TerminalView {
     /// tab. The controller flag makes that tab open AND get selected (remote focus
     /// is otherwise ignored).
     @MainActor
-    func requestTmuxNewWindow() {
+    func requestTmuxNewWindow(startDirectory: String? = nil) {
         guard let binding = tmuxPaneBinding,
               let controller = TmuxController.controller(forOwnerSurface: binding.parentSurface),
               controller.isActive
         else { return }
         controller.noteNewWindowRequest()
-        sendTmuxCommand("new-window -a -t @\(binding.windowId)\n", to: binding.parentSurface)
+        sendTmuxCommand("new-window -a\(Self.tmuxStartDirectoryFlag(startDirectory)) -t @\(binding.windowId)\n",
+                        to: binding.parentSurface)
     }
 
     /// Request a new tmux window from the GATEWAY view (the tab running tmux -CC),
@@ -4441,11 +4465,11 @@ extension Ghostty.TerminalView {
     /// through to non-tmux handling when it isn't.
     @MainActor
     @discardableResult
-    func requestTmuxNewWindowFromGateway() -> Bool {
+    func requestTmuxNewWindowFromGateway(startDirectory: String? = nil) -> Bool {
         guard let surface, let controller = tmuxController, controller.isActive
         else { return false }
         controller.noteNewWindowRequest()
-        sendTmuxCommand("new-window -a\n", to: surface)
+        sendTmuxCommand("new-window -a\(Self.tmuxStartDirectoryFlag(startDirectory))\n", to: surface)
         return true
     }
 

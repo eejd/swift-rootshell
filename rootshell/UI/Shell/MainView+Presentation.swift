@@ -54,6 +54,7 @@ extension MainView {
             showYubiKeyPINPrompt ||
             showThemePickerOverlay ||
             showQuickSettingsOverlay ||
+            showOpenInFolderOverlay ||
             // The iPhone presentation is a sheet that owns the keyboard. On
             // regular width the clipboard manager is a passthrough glass HUD (like
             // the Find HUD, which is intentionally absent here) and must NOT count
@@ -65,6 +66,7 @@ extension MainView {
                 (UIDevice.current.userInterfaceIdiom == .phone || clipboardManagerKeyboardMode)) ||
             connectionInfoToShow != nil ||
             tmuxDashboardRequest != nil ||
+            herdrDashboardRequest != nil ||
             pendingNewTabRequest != nil ||
             unavailableNewTabRequest != nil ||
             trzszTransferOriginRequest != nil ||
@@ -115,9 +117,16 @@ extension MainView {
     // (Views/TabBar.swift) so per-tab title and roam-protocol mutations
     // do not invalidate `MainView.body`.
 
+    private func applyHerdrDashboard<V: View>(_ view: V) -> some View {
+        view.sheet(item: $herdrDashboardRequest) { request in
+            HerdrWorkspaceSheet(request: request)
+        }
+    }
+
     @ViewBuilder
     func applySheetModifiers<V: View>(_ view: V, sheetTheme: ResolvedSheetTheme) -> some View {
-        view
+        let dashboardHost = applyHerdrDashboard(view)
+        dashboardHost
             .modifier(SettingsSheetModifier(
                 showSettings: $showSettings,
                 settingsDestination: settingsDestination,
@@ -195,6 +204,12 @@ extension MainView {
             } message: {
                 Text("Choose what to do with this tmux control-mode tab.")
             }
+            // Kept as a modifier: inlining another dialog here pushes this
+            // chain past the type-checker's budget.
+            .modifier(HerdrCloseTabDialogModifier(
+                pendingTabID: $pendingHerdrCloseTabID,
+                run: { action in runPendingHerdrClose(action) }
+            ))
             .confirmationDialog(
                 "New Tab",
                 isPresented: Binding(
@@ -429,17 +444,26 @@ extension MainView {
             }
             #endif
             .onChange(of: showSettings) { _, presented in
-                if presented { showQuickSettingsOverlay = false }
+                if presented { showQuickSettingsOverlay = false; showOpenInFolderOverlay = false }
             }
             .onChange(of: showClipboardManager) { _, presented in
-                if presented { showQuickSettingsOverlay = false }
+                if presented { showQuickSettingsOverlay = false; showOpenInFolderOverlay = false }
             }
             .onChange(of: showConnectionSidebar) { _, presented in
-                if presented { showQuickSettingsOverlay = false }
+                if presented { showQuickSettingsOverlay = false; showOpenInFolderOverlay = false }
             }
             .onChange(of: showQuickSettingsOverlay) { _, presented in
                 setOverlayOwnsKeyboardForAllTerminals(isAnySheetPresented)
                 if !presented { restoreFirstResponderAfterSheetDismissal() }
+            }
+            .onChange(of: showOpenInFolderOverlay) { _, presented in
+                setOverlayOwnsKeyboardForAllTerminals(isAnySheetPresented)
+                if !presented {
+                    openInFolderModel?.end()
+                    openInFolderModel = nil
+                    openInFolderShortcut = nil
+                    restoreFirstResponderAfterSheetDismissal()
+                }
             }
             .onChange(of: showThemePickerOverlay) { _, newValue in
                 handleThemePickerOverlayChange(newValue)
@@ -453,4 +477,31 @@ extension MainView {
             }
     }
 
+}
+
+/// "Ask Each Time" close of a herdr control-mode tab: close on the host,
+/// detach, or detach and close the gateway.
+private struct HerdrCloseTabDialogModifier: ViewModifier {
+    @Binding var pendingTabID: UUID?
+    let run: (TmuxTabCloseAction) -> Void
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "Close herdr Tab",
+            isPresented: Binding(
+                get: { pendingTabID != nil },
+                set: { if !$0 { pendingTabID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Close herdr Tab") { run(.closeWindow) }
+                .keyboardShortcut(.defaultAction)
+            Button("Detach from herdr") { run(.detachSession) }
+            Button("Detach & Close Gateway") { run(.detachSessionAndCloseGateway) }
+            Button("Cancel", role: .cancel) { pendingTabID = nil }
+                .keyboardShortcut(.cancelAction)
+        } message: {
+            Text("Closing removes the tab from the herdr session on the host. Detaching leaves the session running and returns the gateway tab to its shell.")
+        }
+    }
 }

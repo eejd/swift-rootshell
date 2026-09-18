@@ -13,6 +13,7 @@ import Foundation
 @available(macCatalyst 14.0, *)
 class SocketHelperConnection {
 
+    private static let inspectionQueue = DispatchQueue(label: "com.rootshell.helper.inspection", qos: .utility)
     private static let ioQueue = DispatchQueue(label: "com.rootshell.helper.socket", qos: .userInitiated)
 
     // MARK: - Public Interface
@@ -26,8 +27,9 @@ class SocketHelperConnection {
         resourcesDir: String? = nil,
         enableShellIntegration: Bool = true,
         sshAuthSock: String? = nil,
-        paneToken: String? = nil
-    ) async throws -> (sessionID: UUID, socketPath: String) {
+        paneToken: String? = nil,
+        recoveryAttachment: LocalMultiplexerAttachment? = nil
+    ) async throws -> CreateShellResponse {
         let request = CreateShellRequest(
             rows: rows,
             cols: cols,
@@ -39,7 +41,8 @@ class SocketHelperConnection {
             appVersion: TerminalIdentity.shortVersion,
             appVersionWithBuild: TerminalIdentity.version,
             termType: TerminalTypeSettings.local,
-            paneToken: paneToken
+            paneToken: paneToken,
+            recoveryAttachment: recoveryAttachment
         )
         let payload = try JSONEncoder().encode(request)
 
@@ -50,7 +53,14 @@ class SocketHelperConnection {
         }
 
         let createResponse = try JSONDecoder().decode(CreateShellResponse.self, from: responsePayload)
-        return (createResponse.sessionID, createResponse.socketPath)
+        return createResponse
+    }
+
+    func inspectLocalMultiplexers(herdrTargets: [String: LocalHerdrControlTarget] = [:]) async throws -> [String: LocalMultiplexerAttachment?] {
+        let payload = herdrTargets.isEmpty ? nil : try JSONEncoder().encode(herdrTargets)
+        let response = try await sendCommand(.inspectLocalMultiplexers, payload: payload)
+        guard let payload = response.payload else { throw SocketHelperError.missingResponseData }
+        return try JSONDecoder().decode([String: LocalMultiplexerAttachment?].self, from: payload)
     }
 
     /// Resizes an existing shell session
@@ -67,6 +77,38 @@ class SocketHelperConnection {
         let payload = try JSONEncoder().encode(request)
 
         _ = try await sendCommand(.killShell, payload: payload)
+    }
+
+    /// Spawns a non-PTY command whose stdio is a socketpair; the app receives
+    /// its end at the returned socket path with `FDReceiver`.
+    func spawnPipedProcess(
+        command: String,
+        cwd: String?,
+        shell: String?,
+        paneToken: String?
+    ) async throws -> (processID: Int32, socketPath: String) {
+        let request = SpawnPipedProcessRequest(
+            command: command,
+            workingDirectory: cwd,
+            shell: shell,
+            resourcesDir: Bundle.main.resourceURL?.path,
+            paneToken: paneToken
+        )
+        let payload = try JSONEncoder().encode(request)
+        let response = try await sendCommand(.spawnPipedProcess, payload: payload)
+        guard response.success else {
+            throw SocketHelperError.commandFailed(response.error ?? "spawn failed")
+        }
+        guard let responsePayload = response.payload else {
+            throw SocketHelperError.missingResponseData
+        }
+        let spawned = try JSONDecoder().decode(SpawnPipedProcessResponse.self, from: responsePayload)
+        return (spawned.processID, spawned.socketPath)
+    }
+
+    func killPipedProcess(processID: Int32) async throws {
+        let payload = try JSONEncoder().encode(KillPipedProcessRequest(processID: processID))
+        _ = try await sendCommand(.killPipedProcess, payload: payload)
     }
 
     /// Checks if helper is available
@@ -220,7 +262,8 @@ class SocketHelperConnection {
 
         let payload = payload
         return try await withCheckedThrowingContinuation { continuation in
-            Self.ioQueue.async {
+            let queue = command == .inspectLocalMultiplexers ? Self.inspectionQueue : Self.ioQueue
+            queue.async {
             do {
                 let response = try Self.sendCommandSync(socketPath: socketPath, command: command, payload: payload)
                 if let helperPID = response.helperPID {
@@ -245,6 +288,15 @@ class SocketHelperConnection {
 
         defer {
             close(sock)
+        }
+
+        if command == .inspectLocalMultiplexers {
+            // A stalled census must not permanently stop attachment tracking.
+            // Allow headroom above the helper's shared six-second probe budget.
+            var timeout = timeval(tv_sec: 8, tv_usec: 0)
+            let size = socklen_t(MemoryLayout<timeval>.size)
+            setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, size)
+            setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, size)
         }
 
         // Connect to helper

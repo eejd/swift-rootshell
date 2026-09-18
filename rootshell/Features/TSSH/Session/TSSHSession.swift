@@ -22,6 +22,18 @@ import UIKit
 /// - Session persistence and resume
 /// - Network roaming support
 @MainActor
+private struct WeakTrzszSession {
+    weak var session: TrzszSession?
+}
+
+/// Completion count for the termination sweep, readable while the main run
+/// loop turns.
+@MainActor
+private final class TerminationProgress {
+    var finished = 0
+}
+
+@MainActor
 final class TrzszSession: TerminalSession {
 
     // MARK: - TerminalSession Protocol
@@ -284,6 +296,8 @@ final class TrzszSession: TerminalSession {
 
     /// Disconnects the transport (sends "close" to server)
     private func disconnectTransport() {
+        pendingRelay?.disconnect()
+        pendingRelay = nil
         goTransport?.disconnect()
         goTransport = nil
     }
@@ -291,6 +305,8 @@ final class TrzszSession: TerminalSession {
     /// Abandons the transport without sending "close" to server.
     /// Used when preserving the server session for future Attach().
     private func abandonTransport() {
+        pendingRelay?.abandon()
+        pendingRelay = nil
         goTransport?.abandon()
         goTransport = nil
     }
@@ -315,6 +331,37 @@ final class TrzszSession: TerminalSession {
             throw TrzszError.connectionFailed("No transport for probe command")
         }
         return try await goTransport.runRemoteCommand(command)
+    }
+
+    /// Opens a long-lived auxiliary exec channel on this session's transport.
+    /// Not subject to the one-probe slot: the channel streams for as long as
+    /// the caller keeps it, and dies with the transport.
+    func openExecChannel(_ command: String) async throws -> AsyncBytePipe {
+        guard let goTransport else {
+            throw TrzszError.connectionFailed("No transport for exec channel")
+        }
+        let pipe = try await goTransport.openExecChannel(command)
+        if let exec = pipe as? TrzszExecPipe, let id = exec.remoteSessionID {
+            noteAuxiliarySession(id: id)
+            exec.onRemoteSessionEnded = { [weak self] ended in
+                Task { @MainActor in self?.forgetAuxiliarySession(id: ended) }
+            }
+        }
+        return pipe
+    }
+
+    func openPTYChannel(_ command: String, cols: Int, rows: Int) async throws -> HerdrPTYChannel {
+        guard let goTransport else {
+            throw TrzszError.connectionFailed("No transport for auxiliary PTY")
+        }
+        let channel = try await goTransport.openPTYChannel(command, cols: cols, rows: rows)
+        if let pty = channel as? HerdrTSSHPTYChannel, let id = pty.remoteSessionID {
+            noteAuxiliarySession(id: id)
+            await pty.setRemoteSessionEndedHandler { [weak self] ended in
+                Task { @MainActor in self?.forgetAuxiliarySession(id: ended) }
+            }
+        }
+        return channel
     }
 
     /// SSH client kept alive during QUIC establishment
@@ -342,13 +389,65 @@ final class TrzszSession: TerminalSession {
 
     /// Optional deadline reference passed in via `start(...)` when this
     /// session is being restored from a saved window state. Used as the
-    /// "since last alive" anchor in `attemptResume`'s 24h check; falls
-    /// back to `credentials.createdAt` when absent (e.g. fresh install,
-    /// state file wiped).
+    /// "since last alive" anchor until a newer live heartbeat is available.
+    /// When neither exists, the retry loop starts its bounded window at now.
     private var restoredLastConnectedAt: Date?
 
     /// Session credentials for resume
     private var savedCredentials: TrzszSessionCredentials?
+    private var relayRebuildRequested = false
+    private var resumeLoopActive = false
+    private var relayRecoveryTask: Task<Void, Never>?
+    /// Retained across failed recovery attempts until each remote bind is acknowledged.
+    private var recoveringRemoteForwards: Set<UUID> = []
+
+    var canRebuildJumpConnection: Bool {
+        config.sshConfig.jumpHost?.tsshRelay != nil && savedCredentials?.relay != nil
+    }
+
+    /// Explicit action: authenticate only to the jump and keep the target PTY.
+    func rebuildJumpConnection() { recoverJumpConnection(rebuild: true) }
+
+    /// A receiver can replace the relay's active client before sending its ACK.
+    /// Reclaim our saved target session when the transfer fails or is cancelled.
+    func recoverAfterFailedRelayTransfer() { recoverJumpConnection(rebuild: false) }
+
+    private func recoverJumpConnection(rebuild: Bool) {
+        guard canRebuildJumpConnection, !didEndSession, !userInitiatedDisconnect else { return }
+        relayRebuildRequested = relayRebuildRequested || rebuild
+        guard !resumeLoopActive, relayRecoveryTask == nil, let terminalId else { return }
+        goTransport?.delegate = nil
+        isRunning = false
+        stopPeriodicStateUpdates()
+        let previousForwards = trzszPortForwardManager
+        trzszPortForwardManager = nil
+        relayRecoveryTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.relayRecoveryTask = nil }
+            if let remoteIDs = await previousForwards?.stopAllForwardsAndWait() {
+                self.recoveringRemoteForwards.formUnion(remoteIDs)
+            }
+            guard !Task.isCancelled, !self.didEndSession, !self.userInitiatedDisconnect else { return }
+            self.abandonTransport()
+            switch await self.attemptResume(terminalId: terminalId, preserveCredentialsOnFailure: true) {
+            case .resumed, .aborted:
+                break
+            case .fallback(let reason):
+                guard !Task.isCancelled, !self.didEndSession, !self.userInitiatedDisconnect else { return }
+                self.goTransport?.delegate = nil
+                self.abandonTransport()
+                self.isRunning = false
+                self.state = .failed
+                self.publishRoamBannerState(.connectionLost(
+                    reason: "Jump recovery failed: \(reason). Saved credentials were kept; you can retry Rebuild Jump Connection."
+                ))
+            }
+        }
+    }
+
+    private var pendingRelay: TrzszGoTransport?
+    private var relayCredentials: TrzszRelayCredentials?
+    private var effectiveTransportMTU: Int?
 
     /// Task for periodic credential state updates
     private var stateUpdateTask: Task<Void, Never>?
@@ -437,6 +536,7 @@ final class TrzszSession: TerminalSession {
         self.pty = pty
         self.terminalId = terminalId
         wireEscapeFilter()
+        Self.track(self)
     }
 
     private func wireEscapeFilter() {
@@ -501,7 +601,7 @@ final class TrzszSession: TerminalSession {
     ///   - restoredLastConnectedAt: For restored sessions, the autosaved
     ///     `lastConnectedAt` heartbeat from the previous run. Drives the
     ///     resume retry loop's 24h `AliveTimeout` deadline; defaults to
-    ///     `nil`, in which case the loop falls back to `credentials.createdAt`.
+    ///     `nil`, in which case the loop uses live activity or starts at now.
     func start(restoringFromTerminalId: UUID? = nil, restoredLastConnectedAt: Date? = nil) async throws {
         guard !isRunning else {
             throw TrzszError.sessionAlreadyStarted
@@ -546,9 +646,9 @@ final class TrzszSession: TerminalSession {
         try await spawnAndConnect()
     }
 
-    /// Outcome of `attemptResume` — drives whether `start()` falls back to a
-    /// fresh SSH spawn. Distinguishes deliberate aborts (tab close, task
-    /// cancellation) from "no resume possible, try a fresh spawn".
+    /// Outcome of `attemptResume`: restoration may spawn a fresh session;
+    /// explicit jump recovery keeps credentials and surfaces an unavailable
+    /// session as a retryable error instead.
     private enum ResumeOutcome {
         /// Successfully reattached to the server-side session.
         case resumed
@@ -556,8 +656,8 @@ final class TrzszSession: TerminalSession {
         /// the enclosing task being cancelled. Caller must NOT fall back.
         case aborted
         /// Resume isn't possible (no creds, expired creds, missing session
-        /// id, server gone for >24h). Caller should fall back to spawn.
-        case fallback
+        /// id, server gone for >24h). Caller decides whether to spawn or retry.
+        case fallback(reason: String)
     }
 
     /// Standard start() without restoration
@@ -576,21 +676,25 @@ final class TrzszSession: TerminalSession {
     /// - resume isn't possible — no creds, expired creds, missing session
     ///   id, or the gap since the last successful connection exceeds the
     ///   server's AliveTimeout (24h) (`.fallback`).
-    private func attemptResume(terminalId: UUID) async -> ResumeOutcome {
+    private func attemptResume(terminalId: UUID, preserveCredentialsOnFailure: Bool = false) async -> ResumeOutcome {
+        resumeLoopActive = true
+        defer { resumeLoopActive = false }
         Self.logger.info("Attempting to resume trzsz session for terminal \(terminalId.uuidString)")
         ResumeDebugLogger.shared.log("[\(debugPrefix)] attemptResume: keychain lookup uuid=\(terminalId.uuidString)")
 
         // Load credentials from keychain (one-shot — no retry on missing creds)
-        let credentials: TrzszSessionCredentials
+        var credentials: TrzszSessionCredentials
         do {
             credentials = try KeychainManager.shared.loadTrzszSessionCredentials(terminalId: terminalId)
             Self.logger.info("Found saved credentials for terminal \(terminalId.uuidString): \(credentials.displayName), age=\(credentials.age)")
         } catch {
             Self.logger.info("No saved credentials for terminal \(terminalId.uuidString): \(error.localizedDescription)")
             ResumeDebugLogger.shared.log("[\(debugPrefix)] NO CREDENTIALS FOUND: \(error.localizedDescription)")
-            return .fallback
+            return .fallback(reason: "Saved session credentials could not be loaded")
         }
 
+        relayCredentials = credentials.relay
+        effectiveTransportMTU = credentials.transportMTU ?? credentials.relay?.targetMTU
         let credHost = credentials.host
         let credPort = credentials.udpPort
         let credMode = credentials.mode.rawValue
@@ -601,15 +705,20 @@ final class TrzszSession: TerminalSession {
         ResumeDebugLogger.shared.log("[\(debugPrefix)] Credentials loaded: host=\(credHost), port=\(credPort), mode=\(credMode), age=\(credAge), hasProxyKey=\(credHasProxyKey), clientId=\(credClientId), serverId=\(credServerId)")
 
         // Reference time for the 24h server-side AliveTimeout window.
-        // Prefer the autosaved heartbeat (accurate — survives long-running
-        // sessions). When absent (first launch after upgrade, or app was
+        // Prefer the latest confirmed heartbeat, including activity since
+        // restoration. When absent (first launch after upgrade, or app was
         // killed before the first window-state autosave), treat it as
         // "unknown" and anchor on `now` so the retry loop gets a fair
         // shot at confirming the server's liveness instead of evicting a
         // long-lived session purely on `credentials.createdAt`. Falsely
         // assuming alive for at most 24h is bounded; falsely declaring
         // dead is irreversible (credentials get deleted).
-        let lastAlive = restoredLastConnectedAt ?? Date()
+        var lastAlive = TrzszResumeActivity.latestConfirmedActivity(
+            restored: restoredLastConnectedAt,
+            connected: lastConnectedAt,
+            heartbeat: lastPositiveHeartbeatAt,
+            fallback: Date()
+        )
 
         // Up-front expiry check: if the server's AliveTimeout window is
         // already blown, the attachable server has exited — don't bother.
@@ -617,8 +726,10 @@ final class TrzszSession: TerminalSession {
             Self.logger.info("Resume failed: server AliveTimeout window elapsed before retry")
             ResumeDebugLogger.shared.log("[\(debugPrefix)] EXPIRED up-front: age=\(credAge), lastAlive=\(lastAlive)")
             state = .resumeFallback(reason: "Session credentials expired")
-            try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
-            return .fallback
+            if !preserveCredentialsOnFailure {
+                try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
+            }
+            return .fallback(reason: "Session credentials expired")
         }
 
         // Require saved sessionID for attach (no point retrying — it'll never appear)
@@ -626,8 +737,10 @@ final class TrzszSession: TerminalSession {
             Self.logger.warning("Resume failed: no saved sessionID")
             ResumeDebugLogger.shared.log("[\(debugPrefix)] NO SESSION ID in credentials")
             state = .resumeFallback(reason: "No saved session ID")
-            try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
-            return .fallback
+            if !preserveCredentialsOnFailure {
+                try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
+            }
+            return .fallback(reason: "No saved session ID")
         }
 
         // Restore bootstrap SSH algorithms from credentials (once — they don't change between retries)
@@ -651,12 +764,50 @@ final class TrzszSession: TerminalSession {
                 return .aborted
             }
 
+            lastAlive = TrzszResumeActivity.latestConfirmedActivity(
+                restored: restoredLastConnectedAt,
+                connected: lastConnectedAt,
+                heartbeat: lastPositiveHeartbeatAt,
+                fallback: lastAlive
+            )
             if Date().timeIntervalSince(lastAlive) > TrzszSessionCredentials.maxAge {
                 Self.logger.info("Resume retry loop: server AliveTimeout window elapsed, giving up")
                 ResumeDebugLogger.shared.log("[\(debugPrefix)] EXPIRED during retry loop (>24h since last connection)")
-                try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
+                if !preserveCredentialsOnFailure {
+                    try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
+                }
                 state = .resumeFallback(reason: "Saved session expired")
-                return .fallback
+                return .fallback(reason: "Saved session expired")
+            }
+
+            if relayRebuildRequested {
+                relayRebuildRequested = false
+                do {
+                    let rebuilt = try await TrzszSpawnHelper.rebuildRelay(
+                        config: config, onHostKeyValidation: onHostKeyValidation,
+                        onKeyboardInteractiveChallenge: onKeyboardInteractiveChallenge)
+                    let requiredMTU = credentials.transportMTU ?? credentials.relay?.targetMTU ?? config.mtu
+                    guard rebuilt.credentials.targetMTU >= requiredMTU else {
+                        rebuilt.transport.disconnect()
+                        throw TrzszError.connectionFailed("The new jump connection cannot carry this session's saved packet size.")
+                    }
+                    if userInitiatedDisconnect || Task.isCancelled {
+                        rebuilt.transport.disconnect()
+                        return .aborted
+                    }
+                    var relay = rebuilt.credentials
+                    relay = TrzszRelayCredentials(host: relay.host, serverInfo: relay.serverInfo,
+                                                  mtu: relay.mtu, targetMTU: requiredMTU, connectTimeoutSec: relay.connectTimeoutSec)
+                    pendingRelay = rebuilt.transport
+                    relayCredentials = relay
+                    credentials.relay = relay
+                    credentials.transportMTU = requiredMTU
+                    effectiveTransportMTU = requiredMTU
+                } catch {
+                    publishRoamBannerState(.connectionLost(reason: error.localizedDescription))
+                    await sleepCancellable(seconds: backoff)
+                    continue
+                }
             }
 
             // Each new connection must use a different ClientID (per upstream guidance).
@@ -711,11 +862,13 @@ final class TrzszSession: TerminalSession {
 
             if !persisted {
                 let errDesc = lastPersistError?.localizedDescription ?? "unknown error"
-                Self.logger.error("Refusing to send clientId=\(effectiveClientId) to server — Keychain persist failed 3x: \(errDesc). Falling back to fresh bootstrap.")
+                Self.logger.error("Refusing to send clientId=\(effectiveClientId) to server — Keychain persist failed 3x: \(errDesc)")
                 ResumeDebugLogger.shared.log("[\(debugPrefix)] FALLBACK: cannot persist clientId, refusing to advance server serial")
-                try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
+                if !preserveCredentialsOnFailure {
+                    try? KeychainManager.shared.deleteTrzszSessionCredentials(terminalId: terminalId)
+                }
                 state = .resumeFallback(reason: "Cannot persist session state")
-                return .fallback
+                return .fallback(reason: "Cannot persist session state")
             }
 
             // Save committed — safe to advance the in-memory tracker and let
@@ -758,6 +911,8 @@ final class TrzszSession: TerminalSession {
                     cols: cols,
                     rows: rows
                 )
+                try Task.checkCancellation()
+                guard !userInitiatedDisconnect, !didEndSession else { return .aborted }
                 pendingResize = nil
 
                 // Force a full screen redraw by sending a resize "jiggle".
@@ -797,6 +952,15 @@ final class TrzszSession: TerminalSession {
                 )
                 savedCredentials = updatedCredentials
 
+                // Whatever this session's previous run left running: the
+                // shell came back through Attach above, but an auxiliary
+                // channel has no such path and would linger for the life of
+                // the server.
+                await reapAbandonedAuxiliarySessions()
+
+                await startConfiguredPortForwards(on: transport)
+                try Task.checkCancellation()
+                guard !userInitiatedDisconnect, !didEndSession else { return .aborted }
                 startPeriodicStateUpdates()
                 onReady?()
 
@@ -808,7 +972,10 @@ final class TrzszSession: TerminalSession {
                 wasResumed = false
                 Self.logger.warning("Resume attempt failed (will retry): \(error.localizedDescription)")
                 ResumeDebugLogger.shared.log("[\(debugPrefix)] RETRY after failure: \(error.localizedDescription), backoff=\(backoff)s")
-                disconnectTransport()
+                abandonTransport()
+                if credentials.relay != nil {
+                    publishRoamBannerState(.connectionLost(reason: "Jump relay unavailable. Retry or rebuild the jump connection."))
+                }
                 // Keep credentials and stay in .resumingSession — server may still be alive.
 
                 await sleepCancellable(seconds: backoff)
@@ -837,12 +1004,7 @@ final class TrzszSession: TerminalSession {
     private func spawnAndConnect() async throws {
         do {
             // Phase 1: Resolve hostname
-            let resolved = try await DualStackResolver.resolve(
-                host: config.sshConfig.host,
-                port: 0
-            )
-
-            let connectionHost = resolved.preferredAddress ?? config.sshConfig.host
+            let connectionHost = try await TrzszSpawnHelper.connectionHost(for: config)
 
             Self.logger.info("Resolved address: \(connectionHost)")
 
@@ -907,11 +1069,16 @@ final class TrzszSession: TerminalSession {
         // Capture server auth banners for inline display at `.running`.
         self.authBanners = result.authBanners
 
+        pendingRelay = result.relayTransport
+        relayCredentials = result.relayCredentials
+        effectiveTransportMTU = result.targetMTU
         return (result.serverInfo, result.sshClient, result.jumpClient)
     }
 
     /// Closes the SSH clients used for spawning
     private func closeSpawnSSHClients() async {
+        pendingRelay?.disconnect()
+        pendingRelay = nil
         if let client = spawnSSHClient {
             Self.logger.debug("Closing spawn SSH client")
             try? await client.close()
@@ -1016,15 +1183,23 @@ final class TrzszSession: TerminalSession {
         // config cannot see), and the auto-start config — the last suppressed once
         // control mode has ended, since a rebuilt transport does not relaunch tmux.
         // ROOTSHELL-TMUX (id=tmux-keep-pending-rebind)
+        if pendingRelay == nil, let relayCredentials {
+            pendingRelay = try await TrzszSpawnHelper.resumeRelay(relayCredentials)
+        }
+        if config.sshConfig.jumpHost?.tsshRelay != nil && pendingRelay == nil {
+            throw TrzszError.connectionFailed("Jump relay credentials are missing; direct fallback is disabled.")
+        }
         let transport = try TrzszGoTransport(
             host: host,
             port: serverInfo.port,
             serverInfo: serverInfo,
-            mtu: config.mtu,
+            mtu: effectiveTransportMTU ?? config.mtu,
+            connectTimeoutSec: config.connectTimeoutSec,
             keepPendingInput: effectiveKeepPendingInput,
             displayName: config.sshConfig.displayName,
             terminalUUID: terminalId,
-            terminalType: config.sshConfig.effectiveTerminalType
+            terminalType: config.sshConfig.effectiveTerminalType,
+            relayTransport: pendingRelay
         )
         transport.delegate = self
         // Wire the byte path before connect() so any output from a fast
@@ -1033,7 +1208,16 @@ final class TrzszSession: TerminalSession {
         self.goTransport = transport
         self.sessionDebugLabel = transport.debugLabel
 
-        try await transport.connect()
+        do {
+            try await transport.connect()
+            try Task.checkCancellation()
+            pendingRelay = nil // gate now owns the target → relay lifetime
+        } catch {
+            transport.abandon()
+            pendingRelay?.abandon()
+            pendingRelay = nil
+            throw error
+        }
 
         // Transport connected - safe to close SSH
         Self.logger.info("Go \(modeStr) connected, closing SSH session")
@@ -1211,14 +1395,31 @@ final class TrzszSession: TerminalSession {
         startPeriodicStateUpdates()
         onReady?()
 
-        // Start port forwards if configured
+        await startConfiguredPortForwards(on: transport)
+    }
+
+    /// Run after either opening a new PTY or attaching an existing one.
+    private func startConfiguredPortForwards(on transport: TrzszGoTransport) async {
+        guard !Task.isCancelled, !userInitiatedDisconnect, !didEndSession,
+              goTransport === transport else { return }
         if config.sshConfig.portForwardConfig.hasActiveForwards,
-           let pfManager = transport.makePortForwardManager(config: config.sshConfig.portForwardConfig) {
+           let pfManager = transport.makePortForwardManager(
+               config: config.sshConfig.portForwardConfig,
+               recoveringRemoteForwards: recoveringRemoteForwards
+           ) {
             pfManager.onForwardError = { forward, error in
                 Self.logger.error("Port forward \(forward.displayString) failed: \(error.localizedDescription)")
             }
+            pfManager.onForwardStatusChange = { [weak self, weak pfManager] forward, status in
+                guard let self, let pfManager, self.trzszPortForwardManager === pfManager else { return }
+                if status == .active { self.recoveringRemoteForwards.remove(forward.id) }
+            }
             self.trzszPortForwardManager = pfManager
             await pfManager.startAllForwards()
+            if Task.isCancelled || userInitiatedDisconnect || didEndSession || goTransport !== transport {
+                pfManager.stopAllForwards()
+                if trzszPortForwardManager === pfManager { trzszPortForwardManager = nil }
+            }
         }
     }
 
@@ -1238,6 +1439,8 @@ final class TrzszSession: TerminalSession {
         )
         // Save the session ID for future Attach() after app restart
         credentials.sessionID = goTransport?.sessionID
+        credentials.relay = relayCredentials
+        credentials.transportMTU = effectiveTransportMTU ?? config.mtu
         self.savedCredentials = credentials
 
         ResumeDebugLogger.shared.log("[\(debugPrefix)] saveCredentials: uuid=\(terminalId.uuidString.prefix(8)), host=\(host), port=\(serverInfo.port)")
@@ -1671,6 +1874,8 @@ final class TrzszSession: TerminalSession {
     ) {
         guard !didEndSession else { return }
         didEndSession = true
+        relayRecoveryTask?.cancel()
+        relayRecoveryTask = nil
 
         stopPeriodicStateUpdates()
         removeNetworkChangeObserver()
@@ -2033,6 +2238,108 @@ extension TrzszSession {
         savedCredentials?.sessionID
     }
 
+    /// Backstop against a record growing forever because closes stopped
+    /// arriving. Ids are pruned as their channels close, so reaching this
+    /// means something is already wrong.
+    private static let maxAuxiliarySessionIDs = 256
+
+    /// Remembers an auxiliary session so a later run can end it. Persisted at
+    /// once: a force quit gives no chance to write anything.
+    private func noteAuxiliarySession(id: UInt64) {
+        guard var credentials = savedCredentials else { return }
+        var ids = credentials.auxiliarySessionIDs ?? []
+        guard !ids.contains(id) else { return }
+        ids.append(id)
+        if ids.count > Self.maxAuxiliarySessionIDs {
+            ids.removeFirst(ids.count - Self.maxAuxiliarySessionIDs)
+        }
+        credentials.auxiliarySessionIDs = ids
+        persist(credentials, reason: "aux session \(id)")
+    }
+
+    /// The channel closed, so its process went with it.
+    private func forgetAuxiliarySession(id: UInt64) {
+        guard var credentials = savedCredentials,
+              let ids = credentials.auxiliarySessionIDs, ids.contains(id) else { return }
+        credentials.auxiliarySessionIDs = ids.filter { $0 != id }
+        persist(credentials, reason: "aux session \(id) closed")
+    }
+
+    /// Asks the server to end the auxiliary sessions recorded here. An exit is
+    /// never acknowledged, so this forgets nothing: ids leave the record when
+    /// a channel reports a real exit, or when a new server replaces them.
+    private func endAuxiliarySessions(reason: String) async {
+        guard let ids = savedCredentials?.auxiliarySessionIDs, !ids.isEmpty,
+              let goTransport else { return }
+        for id in ids {
+            do {
+                try await goTransport.exitSession(sessionID: id)
+                ResumeDebugLogger.shared.log("[\(debugPrefix)] asked to end aux session \(id) (\(reason))")
+            } catch {
+                ResumeDebugLogger.shared.log(
+                    "[\(debugPrefix)] could not end aux session \(id): \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    /// Called once the transport is up, before anything new is opened.
+    private func reapAbandonedAuxiliarySessions() async {
+        await endAuxiliarySessions(reason: "abandoned by an earlier run")
+    }
+
+    // MARK: - Auxiliary channels at termination
+
+    /// Live sessions, so a quit can end their auxiliary channels.
+    private static var liveSessions: [WeakTrzszSession] = []
+    private static var terminateObserver: NSObjectProtocol?
+
+    private static func track(_ session: TrzszSession) {
+        liveSessions.removeAll { $0.session == nil }
+        liveSessions.append(WeakTrzszSession(session: session))
+        guard terminateObserver == nil else { return }
+        terminateObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.willTerminateNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { endAuxiliaryChannelsForTermination() }
+        }
+    }
+
+    /// An attachable server keeps a departed client's sessions running, so
+    /// end ours on the way out. Ids stay recorded, leaving the reap on the
+    /// next resume as the backstop for whatever this misses.
+    static func endAuxiliaryChannelsForTermination() {
+        let sessions = liveSessions.compactMap(\.session).filter {
+            $0.savedCredentials?.auxiliarySessionIDs?.isEmpty == false
+        }
+        guard !sessions.isEmpty else { return }
+        let progress = TerminationProgress()
+        for session in sessions {
+            Task { @MainActor in
+                await session.endAuxiliarySessions(reason: "app terminating")
+                progress.finished += 1
+            }
+        }
+        // Run the loop rather than block it: the work ahead of these calls is
+        // main-actor bound. Quitting never waits longer than this.
+        let deadline = Date().addingTimeInterval(1.5)
+        while progress.finished < sessions.count, Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+    }
+
+    private func persist(_ credentials: TrzszSessionCredentials, reason: String) {
+        savedCredentials = credentials
+        // The session's own terminal id is the persistence key: after a
+        // Continuity transfer the credentials still carry the sender's.
+        guard let key = terminalId else { return }
+        do {
+            try KeychainManager.shared.saveTrzszSessionCredentials(credentials, terminalId: key)
+        } catch {
+            Self.logger.warning("Failed to persist credentials (\(reason)): \(error.localizedDescription)")
+        }
+    }
+
     /// Constructs a TrzszSession by attaching directly to a server-side PTY
     /// using credentials handed off from another device via Continuity. No
     /// SSH spawn happens — the previous device already did that work, and
@@ -2052,7 +2359,8 @@ extension TrzszSession {
 
         let trzszConfig = TrzszConfig(
             sshConfig: payload.sshConfig,
-            transportMode: payload.transportMode
+            transportMode: payload.transportMode,
+            connectTimeoutSec: payload.connectTimeoutSec
         )
         let session = TrzszSession(config: trzszConfig, pty: pty, terminalId: terminalId)
         try await session.attachFromTransferPayload(payload)
@@ -2074,6 +2382,8 @@ extension TrzszSession {
         try Task.checkCancellation()
 
         var credentials = payload.credentials
+        relayCredentials = credentials.relay
+        effectiveTransportMTU = credentials.transportMTU ?? credentials.relay?.targetMTU
         guard let savedSessionID = credentials.sessionID else {
             throw TrzszTransferError.noSessionID
         }
@@ -2157,6 +2467,9 @@ extension TrzszSession {
             )
         }
 
+        await startConfiguredPortForwards(on: transport)
+        try Task.checkCancellation()
+        guard !userInitiatedDisconnect, !didEndSession else { throw CancellationError() }
         startPeriodicStateUpdates()
         onReady?()
     }

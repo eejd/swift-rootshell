@@ -828,7 +828,7 @@ final class GhosttyConfigImporter {
             )
         }
 
-        _ = manager.saveTheme(theme)
+        manager.saveTheme(theme)
     }
 
     // MARK: - Helpers

@@ -33,6 +33,7 @@ enum TrzszHeadlessConnector {
         udpPortMin: Int,
         udpPortMax: Int,
         mtu: Int,
+        connectTimeoutSec: Int? = nil,
         serverPath: String? = nil,
         displayName: String,
         onHostKeyValidation: ((HostKeyValidationRequest) async -> HostKeyValidationResult)?
@@ -43,12 +44,12 @@ enum TrzszHeadlessConnector {
             udpPortMin: udpPortMin,
             udpPortMax: udpPortMax,
             serverPath: serverPath,
-            mtu: mtu
+            mtu: mtu,
+            connectTimeoutSec: connectTimeoutSec
         )
 
         // Resolve hostname
-        let resolved = try await DualStackResolver.resolve(host: sshConfig.host, port: 0)
-        let connectionHost = resolved.preferredAddress ?? sshConfig.host
+        let connectionHost = try await TrzszSpawnHelper.connectionHost(for: trzszConfig)
         logger.info("TSSH: Resolved address: \(connectionHost)")
 
         // Spawn tsshd via SSH
@@ -62,18 +63,25 @@ enum TrzszHeadlessConnector {
 
         // Connect Go transport (no session stream needed for headless use)
         // Use do/catch to ensure SSH clients are closed even if transport setup fails
+        var connectingTransport: TrzszGoTransport?
         let transport: TrzszGoTransport
         do {
             transport = try TrzszGoTransport(
                 host: connectionHost,
                 port: spawnResult.serverInfo.port,
                 serverInfo: spawnResult.serverInfo,
-                mtu: trzszConfig.mtu,
+                mtu: spawnResult.targetMTU,
+                connectTimeoutSec: trzszConfig.connectTimeoutSec,
                 displayName: displayName,
-                terminalType: trzszConfig.sshConfig.effectiveTerminalType
+                terminalType: trzszConfig.sshConfig.effectiveTerminalType,
+                relayTransport: spawnResult.relayTransport
             )
+            connectingTransport = transport
             try await transport.connect()
+            try Task.checkCancellation()
         } catch {
+            connectingTransport?.disconnect()
+            spawnResult.relayTransport?.disconnect()
             try? await spawnResult.sshClient.close()
             if let jumpClient = spawnResult.jumpClient {
                 try? await jumpClient.close()
