@@ -14,7 +14,7 @@
 
 ## About
 
-rootshell is an MIT-licensed open source terminal emulator built for Apple platforms. It features GPU-accelerated rendering powered by libghostty, native SSH with post-quantum key exchange, Secure Enclave key storage, VPN tunneling, high performance HEVC screen sharing, an agent inbox that tracks coding agents and long-running commands across sessions, end-to-end encrypted push notifications and coding-agent hooks, a built-in file browser and native git client, a voice-controlled AI agent, cloud provider integration (AWS, Azure, Linode, DigitalOcean), Kubernetes node debugging, native tmux control mode, and Rootshell Roam, a mosh-compatible and tssh (QUIC+KCP) mobile terminal protocol with seamless network roaming and session persistence.
+rootshell is an MIT-licensed open source terminal emulator built for Apple platforms. It features GPU-accelerated rendering powered by libghostty, native SSH with post-quantum key exchange, Secure Enclave key storage, VPN tunneling, high performance HEVC screen sharing, an agent inbox that tracks coding agents and long-running commands across sessions, end-to-end encrypted push notifications and coding-agent hooks, a built-in file browser and native git client, a voice-controlled AI agent, cloud provider integration (AWS, Azure, Linode, DigitalOcean), Kubernetes node debugging, native tmux and herdr control modes, and Rootshell Roam, a mosh-compatible and tssh (QUIC+KCP) mobile terminal protocol with seamless network roaming and session persistence.
 
 For full feature details, screenshots, and documentation, visit **[www.rootshell.com](https://www.rootshell.com)**.
 
@@ -98,6 +98,18 @@ brew install --cask rootshell
 - **Inline Graphics in Panes** - Kitty graphics and iTerm2 inline images render inside panes, with OSC 52 clipboard, OSC 9;4 progress, and notification passthrough
 - **Auto-Start Modes** - Off, tmux, or tmux control mode per connection, with configurable tab-close and new-tab actions
 
+### herdr Control Mode
+
+Requires **rootshell 1.0.12-147 or newer** and **herdr 0.9.0 or newer** on the host.
+
+- **Native Tabs & Panes** - herdr tabs and splits become native rootshell tabs and panes, with sidebar navigation, keyboard shortcuts, Tab Exposé, and native management controls
+- **Workspaces & Worktrees** - Manage workspaces and Git worktrees from the workspace dashboard, and move panes between tabs or workspaces
+- **Agent Activity** - herdr's agent detection takes priority, with per-pane status and notifications that return to the matching pane
+- **Flexible Connections** - Enable Control Mode in the session picker, select **herdr (control)** for auto-start, or use `--herdr-control` in Quick Connect. Supports SSH, tssh, and local macOS sessions
+- **Optional Fork** - Regular upstream herdr supports most features through fallback mode, including native selection and automatic scrolling while selecting. The experimental rootshell fork adds pixel-smooth native scrolling, global scrollback search, and shared viewing on capable servers
+
+See the [herdr control mode guide](docs/herdr-control-mode.md) for setup, the fork and fallback comparison, installation, returning to upstream herdr, and protocol details.
+
 ### Visual Effects
 - **Custom Shaders** - Import shaders directly from Shadertoy with full uniform support
 - **Cursor Effects** - Warp, Sweep, Tail, and Blaze cursor animations
@@ -130,6 +142,7 @@ brew install --cask rootshell
 - **Host Shorthand (HSS)** - Pattern-based hostname expansion with YAML configuration
 - **Connection Health** - Real-time RTT and packet loss tracking with time series chart and negotiated cryptographic algorithm details
 - **Transfer to Nearby Device** - Hand off a live tssh session to another iCloud-paired device; the receiver reattaches to the same tsshd PTY with recent scrollback intact
+- **No SSH Compression** - The transport only ever negotiates `none`, with no zlib codec linked. Compression side channels do not apply, including the shared-context attack across multiplexed channels ([arXiv:2609.07709](https://arxiv.org/abs/2609.07709), CCS 2026) and compression-bomb DoS
 - **Login Banners** - Server banners shown inline, sanitized against control-sequence injection
 - **Scrollback Encryption** - Persisted scrollback encrypted at rest with AES-256-GCM and restored on session reconnect with full ANSI colors
 
@@ -282,18 +295,6 @@ xcodebuild -project rootshell.xcodeproj \
   -configuration DebugAppStore \
   -sdk iphonesimulator -arch arm64 build
 ```
-
-### Appearance and Terminal Color Scheme
-
-The app resolves one appearance state: the iOS/macOS system setting when the
-Appearance setting is Automatic, or the explicit Light/Dark override otherwise.
-That state drives the window chrome and, with Match System Theme enabled, the
-Day/Night terminal theme pair. Each terminal surface then reports the semantic
-light/dark scheme of the theme it is actually drawing (tab > window > global)
-to Ghostty, so shells and TUIs that query `CSI ?996n` or subscribe with mode
-2031 receive the same answer as the visible colors. Run
-`scripts/test-theme-delivery.sh` to exercise the appearance resolver and the
-theme delivery planner outside Xcode.
 
 ### macOS Local Shells
 

@@ -91,7 +91,35 @@
 		47AABB012FF40000AABB0001 /* rootshell-helper.app in Embed Helper */ = {isa = PBXBuildFile; fileRef = 47AABB072FF40000AABB0007 /* rootshell-helper.app */; platformFilter = maccatalyst; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		47ABC10F2FF50000AABB000F /* rootshell-helper/Sources/PTYManagerImpl.m in Sources */ = {isa = PBXBuildFile; fileRef = 47ABC10D2FF50000AABB000D /* rootshell-helper/Sources/PTYManagerImpl.m */; };
 		47ABC1102FF50000AABB0010 /* rootshell-helper/Sources/ProcessSpawner.m in Sources */ = {isa = PBXBuildFile; fileRef = 47ABC10E2FF50000AABB000E /* rootshell-helper/Sources/ProcessSpawner.m */; };
+		47AC7E570000000000000001 /* rootshell/Core/Terminal/TerminalCorrectionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E570000000000000010 /* rootshell/Core/Terminal/TerminalCorrectionContext.swift */; };
+		47AC7E5700000000000000A1 /* rootshell/Features/Herdr/HerdrVersionRequirement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B1 /* rootshell/Features/Herdr/HerdrVersionRequirement.swift */; };
+		47AC7E5700000000000000A2 /* rootshell/Features/Herdr/HerdrGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B2 /* rootshell/Features/Herdr/HerdrGeometry.swift */; };
+		47AC7E5700000000000000A3 /* rootshell/Features/Herdr/HerdrControlProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B3 /* rootshell/Features/Herdr/HerdrControlProtocol.swift */; };
+		47AC7E5700000000000000A4 /* rootshell/Features/Herdr/HerdrServerCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B4 /* rootshell/Features/Herdr/HerdrServerCapabilities.swift */; };
+		47AC7E5700000000000000A5 /* rootshell/Features/Herdr/HerdrUpgradePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B5 /* rootshell/Features/Herdr/HerdrUpgradePrompt.swift */; };
+		47AC7E5700000000000000A6 /* rootshell/Features/Herdr/HerdrManagementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B6 /* rootshell/Features/Herdr/HerdrManagementModels.swift */; };
+		47AC7E5700000000000000A7 /* rootshell/Features/Herdr/HerdrReplyFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B7 /* rootshell/Features/Herdr/HerdrReplyFilter.swift */; };
+		47AC7E5700000000000000A8 /* rootshell/Core/Terminal/TerminalGridReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E5700000000000000B8 /* rootshell/Core/Terminal/TerminalGridReports.swift */; };
+		47AC7E57000000000000CB01 /* rootshell/UI/Keyboard/TerminalTouchKeyboardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E57000000000000CB02 /* rootshell/UI/Keyboard/TerminalTouchKeyboardModel.swift */; };
+		47AC7E57000000000000CD01 /* rootshell/UI/Overlays/SessionPickerGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E57000000000000CD02 /* rootshell/UI/Overlays/SessionPickerGeometry.swift */; };
+		47AC7E57000000000000DA01 /* rootshell/Features/Transfer/Attachments/PasteAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AC7E57000000000000DA02 /* rootshell/Features/Transfer/Attachments/PasteAttachment.swift */; };
 		47AE8FBE2F4BBBAA0032A651 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 47AE8FBD2F4BBBAA0032A651 /* Localizable.xcstrings */; };
+		47AEC0010000000000000001 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0010000000000000010 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift */; };
+		47AEC0010000000000000002 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0010000000000000010 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift */; };
+		47AEC0010000000000000003 /* rootshell-helper/Sources/LocalMultiplexerRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0010000000000000011 /* rootshell-helper/Sources/LocalMultiplexerRecovery.swift */; };
+		47AEC0010000000000000004 /* rootshell-helper/Sources/EnvironmentBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0010000000000000014 /* rootshell-helper/Sources/EnvironmentBuilder.swift */; };
+		47AEC0010000000000000005 /* rootshell-helper/Sources/LocaleHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0010000000000000015 /* rootshell-helper/Sources/LocaleHelper.swift */; };
+		47AEC0020000000000000001 /* rootshell/Core/Shell/LoginShellCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0020000000000000010 /* rootshell/Core/Shell/LoginShellCommand.swift */; };
+		47AEC0020000000000000002 /* rootshell/Core/Shell/LoginShellCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0020000000000000010 /* rootshell/Core/Shell/LoginShellCommand.swift */; };
+		47AEC0020000000000000003 /* rootshell/Core/Shell/LoginShellCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AEC0020000000000000010 /* rootshell/Core/Shell/LoginShellCommand.swift */; };
+		47AF0F1D0000000000000B01 /* rootshell/Core/Shell/InitialDirectoryCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A01 /* rootshell/Core/Shell/InitialDirectoryCommand.swift */; };
+		47AF0F1D0000000000000B02 /* rootshell/Core/Terminal/TerminalTargetKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A02 /* rootshell/Core/Terminal/TerminalTargetKey.swift */; };
+		47AF0F1D0000000000000B03 /* rootshell/Features/Tmux/TmuxCommandQuoting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A03 /* rootshell/Features/Tmux/TmuxCommandQuoting.swift */; };
+		47AF0F1D0000000000000B04 /* rootshell/Features/OpenInFolder/DirectoryListingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A04 /* rootshell/Features/OpenInFolder/DirectoryListingProbe.swift */; };
+		47AF0F1D0000000000000B05 /* rootshell/Features/OpenInFolder/DirectoryListingCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A05 /* rootshell/Features/OpenInFolder/DirectoryListingCache.swift */; };
+		47AF0F1D0000000000000B06 /* rootshell/Features/OpenInFolder/PathCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A06 /* rootshell/Features/OpenInFolder/PathCompletion.swift */; };
+		47AF0F1D0000000000000B07 /* rootshell/Features/OpenInFolder/OpenInFolderPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A07 /* rootshell/Features/OpenInFolder/OpenInFolderPlacement.swift */; };
+		47AF0F1D0000000000000B08 /* rootshell/Features/OpenInFolder/OpenInFolderRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AF0F1D0000000000000A08 /* rootshell/Features/OpenInFolder/OpenInFolderRecents.swift */; };
 		47B9B9322F996A6D003FFF58 /* AppIconUnderscore.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47B9B9312F996A6D003FFF58 /* AppIconUnderscore.icon */; };
 		47CD00000E00000000000000 /* SwiftkubeClient in Frameworks */ = {isa = PBXBuildFile; productRef = 477408A42ED5F6B60035CE92 /* SwiftkubeClient */; };
 		47CD00001000000000000000 /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 47D8B28A2ECAC24B00CA99EC /* libc++.tbd */; };
@@ -488,7 +516,34 @@
 		47ABC10E2FF50000AABB000E /* rootshell-helper/Sources/ProcessSpawner.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "rootshell-helper/Sources/ProcessSpawner.m"; sourceTree = SOURCE_ROOT; };
 		47ABC1172FF50000AABB0017 /* Helper.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Helper.xcconfig; sourceTree = "<group>"; };
 		47ABC1182FF50000AABB0018 /* HelperTests.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = HelperTests.xcconfig; sourceTree = "<group>"; };
+		47AC7E570000000000000010 /* rootshell/Core/Terminal/TerminalCorrectionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Core/Terminal/TerminalCorrectionContext.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E570000000000000011 /* AppTests.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppTests.xcconfig; sourceTree = "<group>"; };
+		47AC7E570000000000000012 /* rootshellTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = rootshellTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		47AC7E5700000000000000B1 /* rootshell/Features/Herdr/HerdrVersionRequirement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrVersionRequirement.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B2 /* rootshell/Features/Herdr/HerdrGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrGeometry.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B3 /* rootshell/Features/Herdr/HerdrControlProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrControlProtocol.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B4 /* rootshell/Features/Herdr/HerdrServerCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrServerCapabilities.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B5 /* rootshell/Features/Herdr/HerdrUpgradePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrUpgradePrompt.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B6 /* rootshell/Features/Herdr/HerdrManagementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrManagementModels.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B7 /* rootshell/Features/Herdr/HerdrReplyFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Herdr/HerdrReplyFilter.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E5700000000000000B8 /* rootshell/Core/Terminal/TerminalGridReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Core/Terminal/TerminalGridReports.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E57000000000000CB02 /* rootshell/UI/Keyboard/TerminalTouchKeyboardModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/UI/Keyboard/TerminalTouchKeyboardModel.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E57000000000000CD02 /* rootshell/UI/Overlays/SessionPickerGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/UI/Overlays/SessionPickerGeometry.swift; sourceTree = SOURCE_ROOT; };
+		47AC7E57000000000000DA02 /* rootshell/Features/Transfer/Attachments/PasteAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Transfer/Attachments/PasteAttachment.swift; sourceTree = SOURCE_ROOT; };
 		47AE8FBD2F4BBBAA0032A651 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		47AEC0010000000000000010 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Core/Persistence/LocalMultiplexerAttachment.swift; sourceTree = SOURCE_ROOT; };
+		47AEC0010000000000000011 /* rootshell-helper/Sources/LocalMultiplexerRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "rootshell-helper/Sources/LocalMultiplexerRecovery.swift"; sourceTree = SOURCE_ROOT; };
+		47AEC0010000000000000014 /* rootshell-helper/Sources/EnvironmentBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "rootshell-helper/Sources/EnvironmentBuilder.swift"; sourceTree = SOURCE_ROOT; };
+		47AEC0010000000000000015 /* rootshell-helper/Sources/LocaleHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "rootshell-helper/Sources/LocaleHelper.swift"; sourceTree = SOURCE_ROOT; };
+		47AEC0020000000000000010 /* rootshell/Core/Shell/LoginShellCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Core/Shell/LoginShellCommand.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A01 /* rootshell/Core/Shell/InitialDirectoryCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Core/Shell/InitialDirectoryCommand.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A02 /* rootshell/Core/Terminal/TerminalTargetKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Core/Terminal/TerminalTargetKey.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A03 /* rootshell/Features/Tmux/TmuxCommandQuoting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/Tmux/TmuxCommandQuoting.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A04 /* rootshell/Features/OpenInFolder/DirectoryListingProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/OpenInFolder/DirectoryListingProbe.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A05 /* rootshell/Features/OpenInFolder/DirectoryListingCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/OpenInFolder/DirectoryListingCache.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A06 /* rootshell/Features/OpenInFolder/PathCompletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/OpenInFolder/PathCompletion.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A07 /* rootshell/Features/OpenInFolder/OpenInFolderPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/OpenInFolder/OpenInFolderPlacement.swift; sourceTree = SOURCE_ROOT; };
+		47AF0F1D0000000000000A08 /* rootshell/Features/OpenInFolder/OpenInFolderRecents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rootshell/Features/OpenInFolder/OpenInFolderRecents.swift; sourceTree = SOURCE_ROOT; };
 		47B9B9312F996A6D003FFF58 /* AppIconUnderscore.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIconUnderscore.icon; sourceTree = "<group>"; };
 		47C100012F990000BBCC0001 /* Debug-China.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Debug-China.xcconfig"; sourceTree = "<group>"; };
 		47C100022F990000BBCC0002 /* Release-China.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Release-China.xcconfig"; sourceTree = "<group>"; };
@@ -552,6 +607,7 @@
 				Core/Security/AppIdentifiers.swift,
 				Features/LiveActivity/LiveActivityFaviconStore.swift,
 				Features/LiveActivity/SessionActivityAttributes.swift,
+				Features/TSSH/Config/TSSHRelaySettings.swift,
 				Features/VPN/VPNConnectionPoller.swift,
 				Features/VPN/VPNSharedProfileStore.swift,
 				Features/VPN/VPNStartController.swift,
@@ -583,6 +639,7 @@
 				Features/SSH/HostTrust/SSHHostKeyFormatter.swift,
 				Features/SSH/HostTrust/SSHHostPatternMatcher.swift,
 				Features/TSSH/Config/TsshdServerCommand.swift,
+				Features/TSSH/Config/TSSHRelaySettings.swift,
 				Features/VPN/VPNError.swift,
 				Features/VPN/VPNEvent.swift,
 				Features/VPN/VPNSharedProfileStore.swift,
@@ -612,6 +669,7 @@
 				Features/SSH/HostTrust/SSHHostKeyFormatter.swift,
 				Features/SSH/HostTrust/SSHHostPatternMatcher.swift,
 				Features/TSSH/Config/TsshdServerCommand.swift,
+				Features/TSSH/Config/TSSHRelaySettings.swift,
 				Features/VPN/VPNAgentBrokerProtocol.swift,
 				Features/VPN/VPNError.swift,
 				Features/VPN/VPNEvent.swift,
@@ -703,6 +761,11 @@
 		47ABC1042FF50000AABB0004 /* Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests;
+			sourceTree = "<group>";
+		};
+		47AC7E570000000000000020 /* rootshellTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = rootshellTests;
 			sourceTree = "<group>";
 		};
 		47CWP0062F560000DDEE0006 /* CoreWLANPlugin */ = {
@@ -820,6 +883,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		47AC7E570000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47CD00000600000000000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -895,6 +965,7 @@
 			isa = PBXGroup;
 			children = (
 				47511AC92EDF598900696C18 /* AppStore.xcconfig */,
+				47AC7E570000000000000011 /* AppTests.xcconfig */,
 				47511ACA2EDF598900696C18 /* Base.xcconfig */,
 				47C100032F990000BBCC0003 /* China.xcconfig */,
 				47511ACB2EDF598900696C18 /* Debug.xcconfig */,
@@ -974,6 +1045,7 @@
 				47CWP0062F560000DDEE0006 /* CoreWLANPlugin */,
 				473118C02FFC2B1500FB3C83 /* rootshellvpn */,
 				473118CE2FFC2B1600FB3C83 /* rootshellvpnTests */,
+				47AC7E570000000000000020 /* rootshellTests */,
 				473118D82FFC2B1700FB3C83 /* rootshellvpnUITests */,
 				473118FF2FFC2B4D00FB3C83 /* tunnel */,
 				47D8B26C2ECABBD200CA99EC /* Frameworks */,
@@ -999,6 +1071,7 @@
 				473118BF2FFC2B1500FB3C83 /* rootshellvpn.app */,
 				473118CB2FFC2B1600FB3C83 /* rootshellvpnTests.xctest */,
 				473118D52FFC2B1600FB3C83 /* rootshellvpnUITests.xctest */,
+				47AC7E570000000000000012 /* rootshellTests.xctest */,
 				473118FC2FFC2B4D00FB3C83 /* com.kk2.rootshellvpn.tunnel.systemextension */,
 				DD1249A5776E91521A4BEA8A /* rootshell.app */,
 			);
@@ -1020,6 +1093,31 @@
 			children = (
 				47ABC10D2FF50000AABB000D /* rootshell-helper/Sources/PTYManagerImpl.m */,
 				47ABC10E2FF50000AABB000E /* rootshell-helper/Sources/ProcessSpawner.m */,
+				47AEC0020000000000000010 /* rootshell/Core/Shell/LoginShellCommand.swift */,
+				47AEC0010000000000000010 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift */,
+				47AC7E570000000000000010 /* rootshell/Core/Terminal/TerminalCorrectionContext.swift */,
+				47AC7E57000000000000DA02 /* rootshell/Features/Transfer/Attachments/PasteAttachment.swift */,
+				47AC7E57000000000000CB02 /* rootshell/UI/Keyboard/TerminalTouchKeyboardModel.swift */,
+				47AC7E57000000000000CD02 /* rootshell/UI/Overlays/SessionPickerGeometry.swift */,
+				47AC7E5700000000000000B1 /* rootshell/Features/Herdr/HerdrVersionRequirement.swift */,
+				47AC7E5700000000000000B2 /* rootshell/Features/Herdr/HerdrGeometry.swift */,
+				47AC7E5700000000000000B3 /* rootshell/Features/Herdr/HerdrControlProtocol.swift */,
+				47AC7E5700000000000000B4 /* rootshell/Features/Herdr/HerdrServerCapabilities.swift */,
+				47AC7E5700000000000000B5 /* rootshell/Features/Herdr/HerdrUpgradePrompt.swift */,
+				47AC7E5700000000000000B6 /* rootshell/Features/Herdr/HerdrManagementModels.swift */,
+				47AC7E5700000000000000B7 /* rootshell/Features/Herdr/HerdrReplyFilter.swift */,
+				47AC7E5700000000000000B8 /* rootshell/Core/Terminal/TerminalGridReports.swift */,
+				47AF0F1D0000000000000A01 /* rootshell/Core/Shell/InitialDirectoryCommand.swift */,
+				47AF0F1D0000000000000A02 /* rootshell/Core/Terminal/TerminalTargetKey.swift */,
+				47AF0F1D0000000000000A03 /* rootshell/Features/Tmux/TmuxCommandQuoting.swift */,
+				47AF0F1D0000000000000A04 /* rootshell/Features/OpenInFolder/DirectoryListingProbe.swift */,
+				47AF0F1D0000000000000A05 /* rootshell/Features/OpenInFolder/DirectoryListingCache.swift */,
+				47AF0F1D0000000000000A06 /* rootshell/Features/OpenInFolder/PathCompletion.swift */,
+				47AF0F1D0000000000000A07 /* rootshell/Features/OpenInFolder/OpenInFolderPlacement.swift */,
+				47AF0F1D0000000000000A08 /* rootshell/Features/OpenInFolder/OpenInFolderRecents.swift */,
+				47AEC0010000000000000011 /* rootshell-helper/Sources/LocalMultiplexerRecovery.swift */,
+				47AEC0010000000000000015 /* rootshell-helper/Sources/LocaleHelper.swift */,
+				47AEC0010000000000000014 /* rootshell-helper/Sources/EnvironmentBuilder.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -1152,6 +1250,26 @@
 			name = "rootshell-helperTests";
 			productName = "rootshell-helperTests";
 			productReference = 47ABC1022FF50000AABB0002 /* rootshell-helperTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		47AC7E570000000000000040 /* rootshellTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 47AC7E570000000000000050 /* Build configuration list for PBXNativeTarget "rootshellTests" */;
+			buildPhases = (
+				47AC7E570000000000000030 /* Sources */,
+				47AC7E570000000000000031 /* Frameworks */,
+				47AC7E570000000000000032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				47AC7E570000000000000020 /* rootshellTests */,
+			);
+			name = rootshellTests;
+			productName = rootshellTests;
+			productReference = 47AC7E570000000000000012 /* rootshellTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		47CD00000100000000000000 /* rootshell-china */ = {
@@ -1404,6 +1522,9 @@
 						CreatedOnToolsVersion = 26.1.1;
 						TestTargetID = 47ABC1002FF50000AABB0000;
 					};
+					47AC7E570000000000000040 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 					47CWP0102F560000DDEE0010 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
@@ -1481,6 +1602,7 @@
 				47ABC1002FF50000AABB0000 /* rootshell-helper */,
 				47ABC1012FF50000AABB0001 /* rootshell-helperTests */,
 				47D8B2412ECAAE7F00CA99EC /* rootshell */,
+				47AC7E570000000000000040 /* rootshellTests */,
 				47LA00012F360000AABB0001 /* SessionActivityWidgetExtension */,
 				47PSH0012F900000AABB0001 /* PushNotificationService */,
 				47VPN0102F460000BBCC0010 /* VPNTunnelExtension */,
@@ -1533,6 +1655,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		47ABC1162FF50000AABB0016 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		47AC7E570000000000000032 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -1863,6 +1992,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				47AEC0010000000000000001 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift in Sources */,
+				47AEC0020000000000000001 /* rootshell/Core/Shell/LoginShellCommand.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1870,8 +2001,41 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				47AEC0010000000000000005 /* rootshell-helper/Sources/LocaleHelper.swift in Sources */,
+				47AEC0010000000000000004 /* rootshell-helper/Sources/EnvironmentBuilder.swift in Sources */,
+				47AEC0010000000000000002 /* rootshell/Core/Persistence/LocalMultiplexerAttachment.swift in Sources */,
+				47AEC0020000000000000002 /* rootshell/Core/Shell/LoginShellCommand.swift in Sources */,
+				47AEC0010000000000000003 /* rootshell-helper/Sources/LocalMultiplexerRecovery.swift in Sources */,
 				47ABC10F2FF50000AABB000F /* rootshell-helper/Sources/PTYManagerImpl.m in Sources */,
 				47ABC1102FF50000AABB0010 /* rootshell-helper/Sources/ProcessSpawner.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		47AC7E570000000000000030 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				47AC7E570000000000000001 /* rootshell/Core/Terminal/TerminalCorrectionContext.swift in Sources */,
+				47AC7E57000000000000DA01 /* rootshell/Features/Transfer/Attachments/PasteAttachment.swift in Sources */,
+				47AC7E57000000000000CB01 /* rootshell/UI/Keyboard/TerminalTouchKeyboardModel.swift in Sources */,
+				47AC7E57000000000000CD01 /* rootshell/UI/Overlays/SessionPickerGeometry.swift in Sources */,
+				47AC7E5700000000000000A1 /* rootshell/Features/Herdr/HerdrVersionRequirement.swift in Sources */,
+				47AC7E5700000000000000A2 /* rootshell/Features/Herdr/HerdrGeometry.swift in Sources */,
+				47AC7E5700000000000000A3 /* rootshell/Features/Herdr/HerdrControlProtocol.swift in Sources */,
+				47AC7E5700000000000000A4 /* rootshell/Features/Herdr/HerdrServerCapabilities.swift in Sources */,
+				47AC7E5700000000000000A5 /* rootshell/Features/Herdr/HerdrUpgradePrompt.swift in Sources */,
+				47AC7E5700000000000000A6 /* rootshell/Features/Herdr/HerdrManagementModels.swift in Sources */,
+				47AC7E5700000000000000A7 /* rootshell/Features/Herdr/HerdrReplyFilter.swift in Sources */,
+				47AC7E5700000000000000A8 /* rootshell/Core/Terminal/TerminalGridReports.swift in Sources */,
+				47AEC0020000000000000003 /* rootshell/Core/Shell/LoginShellCommand.swift in Sources */,
+				47AF0F1D0000000000000B01 /* rootshell/Core/Shell/InitialDirectoryCommand.swift in Sources */,
+				47AF0F1D0000000000000B02 /* rootshell/Core/Terminal/TerminalTargetKey.swift in Sources */,
+				47AF0F1D0000000000000B03 /* rootshell/Features/Tmux/TmuxCommandQuoting.swift in Sources */,
+				47AF0F1D0000000000000B04 /* rootshell/Features/OpenInFolder/DirectoryListingProbe.swift in Sources */,
+				47AF0F1D0000000000000B05 /* rootshell/Features/OpenInFolder/DirectoryListingCache.swift in Sources */,
+				47AF0F1D0000000000000B06 /* rootshell/Features/OpenInFolder/PathCompletion.swift in Sources */,
+				47AF0F1D0000000000000B07 /* rootshell/Features/OpenInFolder/OpenInFolderPlacement.swift in Sources */,
+				47AF0F1D0000000000000B08 /* rootshell/Features/OpenInFolder/OpenInFolderRecents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2049,19 +2213,24 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -2072,7 +2241,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn";
 				PRODUCT_NAME = rootshell;
 				REGISTER_APP_GROUPS = YES;
@@ -2104,7 +2273,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -2112,13 +2281,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -2129,7 +2303,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
@@ -2161,7 +2335,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -2169,13 +2343,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -2186,7 +2365,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -3281,7 +3460,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -3289,13 +3468,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -3306,7 +3490,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -3393,7 +3577,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -3401,13 +3585,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -3418,7 +3607,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -3513,7 +3702,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -3524,13 +3713,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -3541,7 +3735,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -3638,7 +3832,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -3649,13 +3843,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -3666,7 +3865,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -3796,6 +3995,62 @@
 		47ABC12A2FF50000AABB002A /* ReleaseChina */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47ABC1182FF50000AABB0018 /* HelperTests.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseChina;
+		};
+		47AC7E570000000000000061 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		47AC7E570000000000000062 /* DebugStandalone */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugStandalone;
+		};
+		47AC7E570000000000000063 /* DebugAppStore */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugAppStore;
+		};
+		47AC7E570000000000000064 /* DebugChina */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugChina;
+		};
+		47AC7E570000000000000065 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		47AC7E570000000000000066 /* ReleaseStandalone */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseStandalone;
+		};
+		47AC7E570000000000000067 /* ReleaseAppStore */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseAppStore;
+		};
+		47AC7E570000000000000068 /* ReleaseChina */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
 			buildSettings = {
 			};
 			name = ReleaseChina;
@@ -3932,19 +4187,24 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -3955,7 +4215,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn";
 				PRODUCT_NAME = "rootshell-unused-china";
 				REGISTER_APP_GROUPS = YES;
@@ -3986,19 +4246,24 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4009,7 +4274,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn";
 				PRODUCT_NAME = "rootshell-unused-china";
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -4034,11 +4299,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4058,11 +4323,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4082,7 +4347,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				EXCLUDED_SOURCE_FILE_NAMES = "VPN*.swift";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
@@ -4093,7 +4358,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4114,7 +4379,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				EXCLUDED_SOURCE_FILE_NAMES = "VPN*.swift";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
@@ -4125,7 +4390,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4146,7 +4411,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -4157,7 +4422,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4178,7 +4443,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -4189,7 +4454,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4213,7 +4478,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -4224,13 +4489,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4241,7 +4511,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
@@ -4274,7 +4544,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -4285,13 +4555,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4302,7 +4577,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				REGISTER_APP_GROUPS = YES;
@@ -4334,7 +4609,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -4345,13 +4620,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4362,7 +4642,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				REGISTER_APP_GROUPS = YES;
@@ -4394,19 +4674,24 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4417,7 +4702,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn";
 				PRODUCT_NAME = rootshell;
 				REGISTER_APP_GROUPS = YES;
@@ -4447,7 +4732,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -4455,13 +4740,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4472,7 +4762,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
@@ -4503,7 +4793,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -4511,13 +4801,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4528,7 +4823,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -4558,7 +4853,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -4566,13 +4861,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4583,7 +4883,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -4613,19 +4913,24 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4636,7 +4941,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn";
 				PRODUCT_NAME = rootshell;
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -4661,11 +4966,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4685,11 +4990,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4709,11 +5014,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4733,11 +5038,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4757,11 +5062,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4781,11 +5086,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -4934,7 +5239,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -4945,13 +5250,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -4962,7 +5272,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -4997,7 +5307,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -5005,13 +5315,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -5022,7 +5337,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -5050,7 +5365,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
@@ -5060,7 +5375,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5080,7 +5395,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
@@ -5090,7 +5405,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5110,7 +5425,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
@@ -5120,7 +5435,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5140,7 +5455,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
@@ -5150,7 +5465,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5170,7 +5485,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
@@ -5180,7 +5495,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5200,7 +5515,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
@@ -5210,7 +5525,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5231,7 +5546,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5241,7 +5556,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -5265,7 +5580,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5275,7 +5590,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -5299,7 +5614,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5309,7 +5624,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -5333,7 +5648,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5343,7 +5658,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -5367,7 +5682,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5377,7 +5692,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -5401,7 +5716,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5411,7 +5726,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -5434,7 +5749,7 @@
 				CODE_SIGN_ENTITLEMENTS = "PushNotificationService/PushNotificationService-China.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-China-MacCatalyst.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5444,7 +5759,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				ROOTSHELL_PUSH_SERVER = "https://push.rootshell.com";
@@ -5467,7 +5782,7 @@
 				CODE_SIGN_ENTITLEMENTS = "PushNotificationService/PushNotificationService-China.entitlements";
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-China-MacCatalyst.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PushNotificationService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
@@ -5477,7 +5792,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn.PushNotificationService";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				ROOTSHELL_PUSH_SERVER = "https://push.rootshell.com";
@@ -5500,7 +5815,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -5511,7 +5826,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5533,7 +5848,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -5544,7 +5859,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5566,7 +5881,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -5577,7 +5892,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5599,7 +5914,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -5610,7 +5925,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5632,7 +5947,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -5643,7 +5958,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5665,7 +5980,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
@@ -5676,7 +5991,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -5702,7 +6017,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -5713,13 +6028,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -5730,7 +6050,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				REGISTER_APP_GROUPS = YES;
@@ -5763,7 +6083,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -5774,13 +6094,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -5791,7 +6116,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				OTHER_SWIFT_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
@@ -5825,7 +6150,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -5836,13 +6161,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -5853,7 +6183,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				REGISTER_APP_GROUPS = YES;
@@ -5885,7 +6215,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -5893,13 +6223,18 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -5910,7 +6245,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
 				PRODUCT_NAME = rootshell;
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -5940,19 +6275,24 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 144;
+				CURRENT_PROJECT_VERSION = 151;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = rootshell/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses local network access to discover SSH servers on your network for quick connection suggestions.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -5963,7 +6303,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.cn";
 				PRODUCT_NAME = rootshell;
 				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
@@ -6071,6 +6411,21 @@
 				47ABC1282FF50000AABB0028 /* ReleaseStandalone */,
 				47ABC1292FF50000AABB0029 /* ReleaseAppStore */,
 				47ABC12A2FF50000AABB002A /* ReleaseChina */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		47AC7E570000000000000050 /* Build configuration list for PBXNativeTarget "rootshellTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47AC7E570000000000000061 /* Debug */,
+				47AC7E570000000000000062 /* DebugStandalone */,
+				47AC7E570000000000000063 /* DebugAppStore */,
+				47AC7E570000000000000064 /* DebugChina */,
+				47AC7E570000000000000065 /* Release */,
+				47AC7E570000000000000066 /* ReleaseStandalone */,
+				47AC7E570000000000000067 /* ReleaseAppStore */,
+				47AC7E570000000000000068 /* ReleaseChina */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6238,7 +6593,7 @@
 			repositoryURL = "https://github.com/kitknox/Citadel-rootshell.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.12.4;
+				version = 0.12.6;
 			};
 		};
 		4747A1092F2ADF800080DE63 /* XCRemoteSwiftPackageReference "yubikit-swift-rootshell" */ = {
@@ -6253,8 +6608,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kitknox/rootshell-vnc.git";
 			requirement = {
-				kind = revision;
-				revision = f202e3990bf4ed952fe806937ff419440cb7f961;
+				kind = exactVersion;
+				version = 0.1.4;
 			};
 		};
 		477408912ED51B9F0035CE92 /* XCRemoteSwiftPackageReference "Yams-rootshell" */ = {

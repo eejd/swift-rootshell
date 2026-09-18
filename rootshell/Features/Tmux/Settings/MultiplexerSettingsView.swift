@@ -41,9 +41,9 @@ struct MultiplexerSettingsView: View {
     }
 
     private var discoveryFooterText: String {
-        let base = "Checks for active sessions after an SSH connection. Skipped for connections with multiplexer auto-start enabled."
+        let base = "Automatically Discover Remote Sessions checks after an SSH connection, unless it has multiplexer auto-start, a launch command or a remote command, or is resuming a session. Manual discovery always checks the enabled multiplexers, even when automatic discovery is off."
         #if targetEnvironment(macCatalyst)
-        return base + " Discover Local Sessions also scans when opening a local macOS shell tab."
+        return base + " Automatically Discover Local Sessions checks when opening a local macOS shell tab."
         #else
         return base
         #endif
@@ -64,8 +64,11 @@ struct MultiplexerSettingsView: View {
                 SettingToggle(Settings.Multiplexer.zmxSessionDiscovery, title: "Discover zmx Sessions", icon: MultiplexerType.zmx.iconName)
                     .themedRow()
 
+                SettingToggle(Settings.Multiplexer.remoteSessionDiscovery, title: "Automatically Discover Remote Sessions", icon: "network")
+                    .themedRow()
+
                 #if targetEnvironment(macCatalyst)
-                SettingToggle(Settings.Multiplexer.localSessionDiscovery, title: "Discover Local Sessions", icon: "desktopcomputer")
+                SettingToggle(Settings.Multiplexer.localSessionDiscovery, title: "Automatically Discover Local Sessions", icon: "desktopcomputer")
                     .themedRow()
                 #endif
 
@@ -119,6 +122,15 @@ struct MultiplexerSettingsView: View {
                 SettingGroupHeader("tmux Control Mode", group: .multiplexer)
             } footer: {
                 Text("These settings apply while attached with tmux -CC control mode, where each tmux window is its own tab.")
+            }
+
+            Section {
+                SettingToggle(Settings.Multiplexer.herdrAutoHideGatewayOnAttach, title: "Auto-hide Gateway on Attach", icon: "eye.slash")
+                    .themedRow()
+            } header: {
+                SettingGroupHeader("herdr Control Mode", group: .multiplexer)
+            } footer: {
+                Text("Control mode keeps your shell in the gateway tab and projects every herdr tab and pane onto native tabs and splits, with herdr's agent status in the sidebar. Needs a herdr build with control stream support on the host.")
             }
 
             Section {

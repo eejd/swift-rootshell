@@ -25,19 +25,45 @@ extension TmuxAutoMode {
     }
 }
 
+/// Which flavor of herdr to launch when auto-start is enabled.
+/// Only meaningful when `SSHConfig.herdrAutoEnable` is true.
+nonisolated enum HerdrAutoMode: String, Codable, CaseIterable, Hashable, Sendable {
+    /// Plain interactive session: `herdr --session NAME` in the pty.
+    case regular
+
+    /// Control mode: the pty keeps the user's shell and rootshell drives
+    /// herdr over a `herdr control` exec channel, projecting every pane onto
+    /// its own surface. Needs a raw byte transport (SSH / trzsz-tssh / local
+    /// Catalyst shell); not usable over Mosh.
+    case control
+}
+
+extension HerdrAutoMode {
+    static var persistedDiscoveryAttachMode: HerdrAutoMode {
+        get {
+            SettingsStore.shared.value(Settings.Multiplexer.herdrDiscoveryAttachMode)
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: "herdrDiscoveryAttachMode")
+        }
+    }
+}
+
 /// UI-facing selection for the mutually exclusive auto-start options.
 enum TmuxLaunchSelection: Hashable, CaseIterable {
     case off
     case regular
     case control
     case herdr
+    case herdrControl
     case zmx
 
-    init(tmuxEnabled: Bool, mode: TmuxAutoMode, herdrEnabled: Bool, zmxEnabled: Bool) {
+    init(tmuxEnabled: Bool, mode: TmuxAutoMode, herdrEnabled: Bool, zmxEnabled: Bool,
+         herdrMode: HerdrAutoMode = .regular) {
         if tmuxEnabled {
             self = (mode == .control) ? .control : .regular
         } else if herdrEnabled {
-            self = .herdr
+            self = (herdrMode == .control) ? .herdrControl : .herdr
         } else if zmxEnabled {
             self = .zmx
         } else {
@@ -49,7 +75,7 @@ enum TmuxLaunchSelection: Hashable, CaseIterable {
     var tmuxEnabled: Bool { self == .regular || self == .control }
 
     /// Whether herdr auto-start is on.
-    var herdrEnabled: Bool { self == .herdr }
+    var herdrEnabled: Bool { self == .herdr || self == .herdrControl }
 
     /// Whether zmx auto-start is on.
     var zmxEnabled: Bool { self == .zmx }
@@ -57,6 +83,9 @@ enum TmuxLaunchSelection: Hashable, CaseIterable {
     /// The persisted tmux launch mode (regular when tmux is off, which is
     /// irrelevant then).
     var mode: TmuxAutoMode { self == .control ? .control : .regular }
+
+    /// The persisted herdr launch mode (regular when herdr is off).
+    var herdrMode: HerdrAutoMode { self == .herdrControl ? .control : .regular }
 }
 
 /// Configuration for an SSH connection
@@ -132,7 +161,16 @@ struct SSHConfig: Codable, Hashable {
     /// connect. Mutually exclusive with `tmuxAutoEnable` in the UI; when both
     /// are somehow set, tmux wins.
     var herdrAutoEnable: Bool = false
+    /// Regular attach in the pty, or control mode over an exec channel.
+    /// Only meaningful when `herdrAutoEnable` is true.
+    var herdrAutoMode: HerdrAutoMode = .regular
     var zmxAutoEnable: Bool = false
+
+    /// herdr control mode wanted and possible: the pty must be a raw byte
+    /// transport (Mosh cannot carry the exec channel).
+    var herdrControlModeEnabled: Bool {
+        herdrAutoEnable && herdrAutoMode == .control
+    }
 
     /// Session name for whichever multiplexer the auto-start picker selects.
     /// nil or empty falls back to the global default, which is how every
@@ -167,6 +205,11 @@ struct SSHConfig: Codable, Hashable {
     /// Controls how `remoteCommand` is emitted over SSH exec.
     /// Not persisted — this is chosen by the call site at runtime.
     var remoteCommandPolicy: RemoteCommandPolicy = .verbatim
+
+    /// Absolute directory the remote shell (or exec command) starts in.
+    /// Not in CodingKeys: profiles never store it, but tab restore carries it
+    /// through SerializableConnectionConfig. nil = the account's login directory.
+    var initialDirectory: String? = nil
 
     /// Tracks if the password was loaded from Keychain (for history recording)
     /// Not persisted - only used at runtime to determine auth type for connection history
@@ -366,8 +409,10 @@ struct SSHConfig: Codable, Hashable {
 
         // MARK: - Codable (backward-compatible)
 
+        var tsshRelay: TSSHRelaySettings? = nil
+
         private enum CodingKeys: String, CodingKey {
-            case host, port, username, authMethod, fallbackKeyIDs, keyResolutionHints
+            case host, port, username, authMethod, fallbackKeyIDs, keyResolutionHints, tsshRelay
         }
 
         init(host: String, port: Int = 22, username: String, authMethod: AuthMethod, fallbackKeyIDs: [UUID]? = nil, keyResolutionHints: [String: KeyResolutionHint]? = nil) {
@@ -387,6 +432,7 @@ struct SSHConfig: Codable, Hashable {
             authMethod = try container.decode(AuthMethod.self, forKey: .authMethod)
             fallbackKeyIDs = try container.decodeIfPresent([UUID].self, forKey: .fallbackKeyIDs)
             keyResolutionHints = try container.decodeIfPresent([String: KeyResolutionHint].self, forKey: .keyResolutionHints)
+            tsshRelay = try container.decodeIfPresent(TSSHRelaySettings.self, forKey: .tsshRelay)
         }
 
         /// Display name for the jump host
@@ -533,7 +579,7 @@ struct SSHConfig: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case host, port, username, authMethod, cachedIP, jumpHost
         case hssShorthand, cloudInstanceLabel, agentConfig, gpgAgentConfig, portForwardConfig
-        case tmuxAutoEnable, tmuxAutoMode, herdrAutoEnable, zmxAutoEnable, launchCommand, launchCommandMode, fallbackKeyIDs, keyResolutionHints
+        case tmuxAutoEnable, tmuxAutoMode, herdrAutoEnable, herdrAutoMode, zmxAutoEnable, launchCommand, launchCommandMode, fallbackKeyIDs, keyResolutionHints
         case terminalType, multiplexerSessionName
     }
 
@@ -554,6 +600,7 @@ struct SSHConfig: Codable, Hashable {
         tmuxAutoEnable = try container.decodeIfPresent(Bool.self, forKey: .tmuxAutoEnable) ?? false
         tmuxAutoMode = try container.decodeIfPresent(TmuxAutoMode.self, forKey: .tmuxAutoMode) ?? .regular
         herdrAutoEnable = try container.decodeIfPresent(Bool.self, forKey: .herdrAutoEnable) ?? false
+        herdrAutoMode = try container.decodeIfPresent(HerdrAutoMode.self, forKey: .herdrAutoMode) ?? .regular
         zmxAutoEnable = try container.decodeIfPresent(Bool.self, forKey: .zmxAutoEnable) ?? false
         launchCommand = try container.decodeIfPresent(String.self, forKey: .launchCommand)
         launchCommandMode = try container.decodeIfPresent(LaunchCommandMode.self, forKey: .launchCommandMode) ?? .afterConnect
@@ -735,11 +782,55 @@ struct SSHConfig: Codable, Hashable {
         return "sh -c '\(remoteExecPathPrefix)command -v herdr >/dev/null && exec herdr\(arg) || exec $SHELL'"
     }
 
+    /// Builds the `sh -c '...'` line a control-mode exec channel runs: the
+    /// `herdr control` stdio bridge for a session. A missing herdr answers
+    /// with a control error line instead of a bare non-zero exit so the
+    /// client can tell "not installed" from "connection dropped".
+    static func herdrControlCommandLine(sessionName: String?, localAttachment: LocalMultiplexerAttachment? = nil) -> String {
+        let executable = localAttachment.map { LoginShellCommand.singleQuoted($0.launchExecutable) } ?? "herdr"
+        let bridge = localAttachment?.command(arguments: ["control"]) ?? "herdr\(herdrSessionArgument(sessionName)) control"
+        // Identity rides in the environment: a flag would make an older
+        // binary exit 2, which reads as "no control stream".
+        let command = "\(herdrControlClientEnvironment) \(bridge)"
+        let notFound = "printf '%s\\n' '{\"type\":\"control.error\",\"code\":\"not_found\",\"message\":\"herdr not found on host\"}'; exit 127"
+        // A herdr without the subcommand exits 2 ("unknown command"); say
+        // so on stdout so the client falls back instead of retrying.
+        let unsupported = "printf '%s\\n' '{\"type\":\"control.error\",\"code\":\"unsupported\",\"message\":\"herdr on the host has no control stream\"}'"
+        return LoginShellCommand.runInPOSIXShell("\(remoteExecPathPrefix)command -v \(executable) >/dev/null || { \(notFound); }; \(command); _rc=$?; [ \"$_rc\" = 2 ] && { \(unsupported); }; exit $_rc")
+    }
+
+    /// `HERDR_CONTROL_CLIENT=name/version HERDR_CONTROL_PROTOCOL=n`, read by
+    /// the fork's `herdr control` and echoed in `control.list`.
+    static var herdrControlClientEnvironment: String {
+        let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0")
+            .filter { $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" }
+        return "HERDR_CONTROL_CLIENT=rootshell/\(version) HERDR_CONTROL_PROTOCOL=\(HerdrControl.preferredStreamProtocol)"
+    }
+
+    /// One-shot herdr CLI invocation for the degraded control mode
+    /// (`api snapshot`, `pane split`, ...). `args` are shell words.
+    static func herdrCommandLine(sessionName: String?, args: String, localAttachment: LocalMultiplexerAttachment? = nil) -> String {
+        let command = herdrCommandPrefix(sessionName: sessionName, localAttachment: localAttachment)
+        return LoginShellCommand.runInPOSIXShell(
+            "\(remoteExecPathPrefix)exec \(command) \(args)"
+        )
+    }
+
+    /// Shared by endpoint commands and read-only preview batches. An explicit
+    /// session argument takes precedence over an inherited HERDR_SOCKET_PATH.
+    static func herdrCommandPrefix(sessionName: String?, localAttachment: LocalMultiplexerAttachment? = nil) -> String {
+        localAttachment?.command(arguments: []) ?? "herdr\(herdrSessionArgument(sessionName))"
+    }
+
+    private static func herdrSessionArgument(_ sessionName: String?) -> String {
+        sessionName.flatMap { isEmbeddableHerdrSessionName($0) ? " --session \($0)" : nil } ?? ""
+    }
+
     /// Shared herdr exec command used by all session types.
     /// Reads "herdrCustomCommand" and "herdrSessionName" from UserDefaults.
     static var herdrExecCommand: String {
         if let custom = herdrGlobalCustomCommand {
-            return custom
+            return LoginShellCommand.runInLoginShell(custom, prependPATH: true)
         }
         return herdrExecCommandLine(sessionName: herdrGlobalSessionName)
     }
@@ -769,7 +860,7 @@ struct SSHConfig: Codable, Hashable {
     /// "herdrCustomCommand" still wins.
     var herdrExecCommandForConnection: String {
         if let custom = Self.herdrGlobalCustomCommand {
-            return custom
+            return LoginShellCommand.runInLoginShell(custom, prependPATH: true)
         }
         return Self.herdrExecCommandLine(sessionName: herdrRawSessionNameForConnection)
     }
@@ -847,8 +938,8 @@ struct SSHConfig: Codable, Hashable {
                 return pinned
             }
             return tmuxGlobalSessionName
-        case .herdr:
-            if herdrGlobalCustomCommand != nil {
+        case .herdr, .herdrControl:
+            if herdrGlobalCustomCommand != nil, selection == .herdr {
                 return "custom"
             }
             let raw = pinned ?? herdrGlobalSessionName
@@ -888,16 +979,33 @@ struct SSHConfig: Codable, Hashable {
             hasRemoteCommand: !(remoteCommand?.isEmpty ?? true),
             hasInitialCommandLaunch: initialLaunchCommand != nil,
             tmuxAutoEnable: tmuxAutoEnable,
-            herdrAutoEnable: herdrAutoEnable,
+            // Control mode keeps the interactive shell; herdr runs out of band.
+            herdrAutoEnable: herdrAutoEnable && !herdrControlModeEnabled,
             zmxAutoEnable: zmxAutoEnable
         )
     }
 
-    /// Returns the exec command to use, if any.
+    /// Returns the exec command to use, if any. An initial directory wraps the
+    /// base command (or the login shell) in a `cd`.
+    var effectiveExecCommand: String? {
+        guard let initialDirectory, InitialDirectoryCommand.isSupportedDirectory(initialDirectory) else {
+            return baseExecCommand
+        }
+        return InitialDirectoryCommand.execCommand(directory: initialDirectory, wrapping: baseExecCommand)
+    }
+
+    /// Returns the command mosh-server should run inside the mosh session.
+    var effectiveMoshSessionCommand: String {
+        guard let initialDirectory, InitialDirectoryCommand.isSupportedDirectory(initialDirectory) else {
+            return baseMoshSessionCommand
+        }
+        return InitialDirectoryCommand.moshSessionCommand(directory: initialDirectory, wrapping: baseMoshSessionCommand)
+    }
+
     /// Remote command takes precedence over profile launch command and
     /// multiplexer auto-start; precedence among multiplexers is tmux, then
     /// herdr, then zmx.
-    var effectiveExecCommand: String? {
+    private var baseExecCommand: String? {
         if let remoteCommand, !remoteCommand.isEmpty {
             return Self.command(remoteCommand, applying: remoteCommandPolicy)
         }
@@ -908,6 +1016,11 @@ struct SSHConfig: Codable, Hashable {
             return tmuxExecCommandForConnection
         }
         if herdrAutoEnable {
+            // Control mode leaves the pty on the user's shell; the control
+            // channel is opened separately once the session is ready.
+            if herdrControlModeEnabled {
+                return nil
+            }
             return herdrExecCommandForConnection
         }
         if zmxAutoEnable {
@@ -916,8 +1029,7 @@ struct SSHConfig: Codable, Hashable {
         return nil
     }
 
-    /// Returns the command mosh-server should run inside the mosh session.
-    var effectiveMoshSessionCommand: String {
+    private var baseMoshSessionCommand: String {
         if let remoteCommand, !remoteCommand.isEmpty {
             let script = remoteCommandPolicy == .prependPATH ? Self.remoteExecPathPrefix + remoteCommand : remoteCommand
             return LoginShellCommand.runInPOSIXShell(script, login: true)

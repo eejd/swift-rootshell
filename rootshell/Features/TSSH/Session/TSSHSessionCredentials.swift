@@ -80,6 +80,16 @@ struct TrzszSessionCredentials: Codable, Sendable {
     /// Session ID for Attach() — saved after Shell() succeeds
     var sessionID: UInt64?
 
+    /// Auxiliary exec sessions opened on this connection (a herdr control
+    /// bridge, an auxiliary PTY). Nothing ever reattaches one, but an
+    /// attachable tsshd keeps a departed client's sessions running, so a run
+    /// that ends abruptly leaves them with nobody reading their output. The
+    /// next run ends them by id. Absent in records written before this.
+    var auxiliarySessionIDs: [UInt64]?
+
+    var relay: TrzszRelayCredentials? = nil
+    var transportMTU: Int? = nil
+
     // MARK: - TTL Configuration
 
     /// Maximum gap since the last successful connection before credentials
@@ -283,4 +293,13 @@ private extension Data {
     var hexString: String {
         map { String(format: "%02x", $0) }.joined()
     }
+}
+
+/// The outer server has no PTY; reconnect it with a fresh attachable client ID.
+struct TrzszRelayCredentials: Codable, Sendable {
+    let host: String
+    var serverInfo: TrzszServerInfo
+    let mtu: Int
+    let targetMTU: Int
+    var connectTimeoutSec: Int? = nil
 }

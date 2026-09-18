@@ -102,6 +102,7 @@ final class KeybindManager: ObservableObject {
             Keybind(key: .leftBrace, modifiers: .command, action: .previous_tab),
             Keybind(key: .rightBrace, modifiers: .command, action: .next_tab),
             Keybind(key: .s, modifiers: [.command, .shift], action: .show_tmux_sessions),
+            Keybind(key: .s, modifiers: [.command, .control], action: .discover_sessions),
             Keybind(key: .x, modifiers: [.command, .shift], action: .detach_other_clients),
 
             // Tab Selection
@@ -165,6 +166,7 @@ final class KeybindManager: ObservableObject {
             // Shell Operations
             Keybind(key: .comma, modifiers: .command, action: .open_settings),
             Keybind(key: .comma, modifiers: [.command, .shift], action: .toggle_quick_settings),
+            Keybind(key: .j, modifiers: [.command, .shift], action: .open_in_folder),
             Keybind(key: .b, modifiers: .command, action: .browse_hosts),
             Keybind(key: .p, modifiers: [.command, .shift], action: .browse_profiles),
             Keybind(key: .i, modifiers: .command, action: .toggle_ai_agent),
@@ -244,6 +246,21 @@ final class KeybindManager: ObservableObject {
         activeBindings.first { $0.action == action }
     }
 
+    /// Get the keybind for a parameterized action (e.g. open_profile:<uuid>)
+    func keybind(for action: KeybindAction, parameter: String) -> Keybind? {
+        activeBindings.first { $0.action == action && $0.actionParameter == parameter }
+    }
+
+    /// Shortcut sequence currently bound to a connection profile, if any
+    func keybind(forProfileID profileID: UUID) -> Keybind? {
+        keybind(for: .open_profile, parameter: profileID.uuidString)
+    }
+
+    /// Human-readable shortcut glyphs for a profile (e.g. "⌘⇧1"), or nil when unbound
+    func shortcutDescription(forProfileID profileID: UUID) -> String? {
+        keybind(forProfileID: profileID)?.sequence.symbolDescription
+    }
+
     /// Get the keybind for a given sequence (includes action parameter)
     func keybind(for sequence: KeySequence) -> Keybind? {
         activeBindings.first { $0.sequence == sequence && $0.action.isAvailableForVisorDispatch }
@@ -257,8 +274,14 @@ final class KeybindManager: ObservableObject {
     // MARK: - User Overrides
 
     /// Set a user override for an action
-    func setOverride(sequence: KeySequence, action: KeybindAction) {
-        Self.logger.info("Setting override: \(sequence.ghosttyFormat) -> \(action.rawValue)")
+    func setOverride(sequence: KeySequence, action: KeybindAction, parameter: String? = nil) {
+        let paramLabel = parameter.map { ":\($0)" } ?? ""
+        Self.logger.info("Setting override: \(sequence.ghosttyFormat) -> \(action.rawValue)\(paramLabel)")
+
+        // Snapshot who we are about to displace, before userOverrides change.
+        let victims = action == .unbind
+            ? []
+            : conflicts(for: sequence, excluding: action, excludingParameter: parameter)
 
         if action == .unbind {
             // Unbind is special: multiple actions can be unbound simultaneously.
@@ -266,6 +289,12 @@ final class KeybindManager: ObservableObject {
             // overrides (e.g., custom remaps) — reloadBindings() processes them in
             // order, so the later unbind suppresses the earlier remap.
             userOverrides.removeAll { $0.action == .unbind && $0.sequence == sequence }
+        } else if action.isParameterized, let parameter {
+            // Parameterized actions (open_profile, send_text, …) can have many
+            // bindings that share the same action with different params.
+            userOverrides.removeAll {
+                $0.action == action && $0.actionParameter == parameter
+            }
         } else {
             // Normal action: one key per action, remove old override for this action
             userOverrides.removeAll { $0.action == action }
@@ -275,10 +304,31 @@ final class KeybindManager: ObservableObject {
             }
         }
 
-        // Add new override
+        if action != .unbind {
+            // Unbind the previous owners so they stay empty instead of
+            // falling back to a free default. Applied before the new
+            // binding so the new chord is not stripped.
+            for victim in victims {
+                let unbind = Keybind(
+                    sequence: victim.sequence,
+                    action: .unbind,
+                    actionParameter: victim.action.rawValue,
+                    unboundActionParameter: victim.action.isParameterized ? victim.actionParameter : nil,
+                    isUserOverride: true,
+                    source: .userOverride
+                )
+                userOverrides.removeAll {
+                    unbind.unbinds($0) || $0.unbinds(victim)
+                }
+                userOverrides.append(unbind)
+            }
+        }
+
+        // New binding last so it wins over any victim unbind for this sequence.
         let override = Keybind(
             sequence: sequence,
             action: action,
+            actionParameter: parameter,
             isUserOverride: true,
             source: .userOverride
         )
@@ -289,8 +339,18 @@ final class KeybindManager: ObservableObject {
     }
 
     /// Set a user override from a single trigger
-    func setOverride(trigger: KeyTrigger, action: KeybindAction) {
-        setOverride(sequence: KeySequence(trigger: trigger), action: action)
+    func setOverride(trigger: KeyTrigger, action: KeybindAction, parameter: String? = nil) {
+        setOverride(sequence: KeySequence(trigger: trigger), action: action, parameter: parameter)
+    }
+
+    /// Bind or replace the keyboard shortcut for a connection profile
+    func setProfileShortcut(sequence: KeySequence, profileID: UUID) {
+        setOverride(sequence: sequence, action: .open_profile, parameter: profileID.uuidString)
+    }
+
+    /// Remove the keyboard shortcut for a connection profile (default: none)
+    func clearProfileShortcut(profileID: UUID) {
+        removeOverride(for: .open_profile, parameter: profileID.uuidString)
     }
 
     /// Explicitly unbind an action (removes its shortcut entirely)
@@ -332,6 +392,16 @@ final class KeybindManager: ObservableObject {
         // Also remove any unbind override targeting this action
         userOverrides.removeAll {
             $0.action == .unbind && $0.actionParameter == action.rawValue
+        }
+        saveUserOverrides()
+        reloadBindings()
+    }
+
+    /// Remove a parameterized user override (e.g. a single profile shortcut)
+    func removeOverride(for action: KeybindAction, parameter: String) {
+        Self.logger.info("Removing override for: \(action.rawValue):\(parameter)")
+        userOverrides.removeAll {
+            $0.action == action && $0.actionParameter == parameter
         }
         saveUserOverrides()
         reloadBindings()
@@ -600,6 +670,14 @@ final class KeybindManager: ObservableObject {
 
         // Apply user overrides (highest priority)
         for override in userOverrides {
+            if override.action == .unbind {
+                // Match the displaced owner, not every binding using its
+                // sequence. Parameterized owners also match their parameter
+                // and sequence so sibling bindings remain available.
+                bindings.removeAll { override.unbinds($0) }
+                continue
+            }
+
             // Remove any existing binding for this action (skip parameterized)
             if !override.action.isParameterized {
                 bindings.removeAll { $0.action == override.action }
@@ -607,9 +685,7 @@ final class KeybindManager: ObservableObject {
             // Remove any existing binding for this sequence (handle conflicts)
             bindings.removeAll { $0.sequence == override.sequence }
 
-            if override.action != .unbind {
-                bindings.append(override)
-            }
+            bindings.append(override)
         }
 
         // Sort by category and name for consistent ordering
@@ -754,10 +830,17 @@ final class KeybindManager: ObservableObject {
     // MARK: - Conflict Detection
 
     /// Check if a sequence would conflict with existing bindings
-    func conflicts(for sequence: KeySequence, excluding action: KeybindAction? = nil) -> [Keybind] {
+    func conflicts(
+        for sequence: KeySequence,
+        excluding action: KeybindAction? = nil,
+        excludingParameter parameter: String? = nil
+    ) -> [Keybind] {
         activeBindings.filter { binding in
-            // Skip the action we're checking for
-            if let excludedAction = action, binding.action == excludedAction {
+            // A parameterized editor owns only its matching parameter. A new
+            // profile has no parameter yet, so all existing profiles conflict.
+            if let excludedAction = action, binding.action == excludedAction,
+               !excludedAction.isParameterized
+                || (parameter != nil && binding.actionParameter == parameter) {
                 return false
             }
 

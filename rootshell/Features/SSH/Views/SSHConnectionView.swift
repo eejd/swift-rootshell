@@ -55,6 +55,7 @@ struct SSHConnectionView: View {
     @State private var isTerminalOptionsExpanded: Bool = false
     
     // Jump host fields
+    @State private var tsshRelay: TSSHRelaySettings?
     @State private var useJumpHost: Bool = false
     @State private var jumpHostname: String = ""
     @State private var jumpPort: String = "22"
@@ -87,6 +88,7 @@ struct SSHConnectionView: View {
 
     // tmux launch mode (regular vs control/-CC), meaningful when enableTmux is on
     @State private var tmuxAutoMode: TmuxAutoMode = .regular
+    @State private var herdrAutoMode: HerdrAutoMode = .regular
 
     // herdr auto-attach (mutually exclusive with enableTmux via the picker)
     @State private var enableHerdr: Bool = false
@@ -431,6 +433,7 @@ struct SSHConnectionView: View {
         NavigationStack(path: $inlineProfilesPath) {
             navigationStackContent
         }
+        .profileShortcutEditorHost()
         .overlay {
             // Single Esc handler for the entire connection view.
             // Navigates back through profile folders first, then closes.
@@ -812,6 +815,10 @@ struct SSHConnectionView: View {
                 savePassword: $saveJumpPassword,
                 selectedKeyID: $jumpSelectedKeyID
             )
+            if useJumpHost && connectionProtocol == .trzsz {
+                TSSHRelayForm(settings: $tsshRelay)
+                TSSHRelayAdvancedForm(settings: $tsshRelay)
+            }
         } label: {
             advancedSectionLabel(
                 title: String(localized: "Jump Host"),
@@ -1104,14 +1111,21 @@ struct SSHConnectionView: View {
     private var tmuxLaunchSelection: Binding<TmuxLaunchSelection> {
         Binding(
             get: { TmuxLaunchSelection(tmuxEnabled: enableTmux, mode: effectiveTmuxAutoMode,
-                                       herdrEnabled: enableHerdr, zmxEnabled: enableZmx) },
+                                       herdrEnabled: enableHerdr, zmxEnabled: enableZmx,
+                                       herdrMode: effectiveHerdrAutoMode) },
             set: { sel in
                 enableTmux = sel.tmuxEnabled
                 enableHerdr = sel.herdrEnabled
                 enableZmx = sel.zmxEnabled
                 if sel.tmuxEnabled { tmuxAutoMode = sel.mode }
+                if sel.herdrEnabled { herdrAutoMode = sel.herdrMode }
             }
         )
+    }
+
+    /// herdr control mode needs the exec channel Mosh cannot carry.
+    private var effectiveHerdrAutoMode: HerdrAutoMode {
+        connectionProtocol == .mosh ? .regular : herdrAutoMode
     }
 
     private var terminalOptionsDisclosure: some View {
@@ -1123,6 +1137,9 @@ struct SSHConnectionView: View {
                     Text("tmux -CC (control)").tag(TmuxLaunchSelection.control)
                 }
                 Text("herdr").tag(TmuxLaunchSelection.herdr)
+                if connectionProtocol != .mosh {
+                    Text("herdr (control)").tag(TmuxLaunchSelection.herdrControl)
+                }
                 Text("zmx").tag(TmuxLaunchSelection.zmx)
             }
             .pickerStyle(.menu)
@@ -1257,28 +1274,7 @@ struct SSHConnectionView: View {
         }
     }
     
-    @ViewBuilder
     private var connectionTypeSwitcher: some View {
-#if os(visionOS)
-        swiftUIConnectionTypeSwitcher
-#else
-        if needsIOS27ConnectionTypeTapWorkaround {
-            ConnectionTypeIOS27ScrollHost(
-                types: visibleConnectionTypes,
-                selection: connectionType,
-                selectedBackgroundColor: connectionTypeSelectedBackgroundColor,
-                accentColor: sheetThemeColors?.accentColor ?? .accentColor,
-                colorScheme: colorScheme,
-                onSelect: selectConnectionType
-            )
-            .background(sheetThemeColors?.background ?? Color(.systemGroupedBackground))
-        } else {
-            swiftUIConnectionTypeSwitcher
-        }
-#endif
-    }
-
-    private var swiftUIConnectionTypeSwitcher: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -1305,16 +1301,6 @@ struct SSHConnectionView: View {
 
     private var connectionTypeSelectedBackgroundColor: Color {
         sheetThemeColors?.rowBackground ?? Color(uiColor: .secondarySystemBackground)
-    }
-
-    /// The iOS 27 SDK is not required to build this project yet, so gate the
-    /// temporary forward-compatibility workaround using the runtime version.
-    private var needsIOS27ConnectionTypeTapWorkaround: Bool {
-#if os(visionOS) || targetEnvironment(macCatalyst)
-        false
-#else
-        ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27
-#endif
     }
 
     private func connectionTypeTabButton(for type: ConnectionType) -> some View {
@@ -1692,6 +1678,7 @@ struct SSHConnectionView: View {
             enableTmux = config.tmuxAutoEnable
             tmuxAutoMode = config.tmuxAutoMode
             enableHerdr = config.herdrAutoEnable
+            herdrAutoMode = config.herdrAutoMode
             enableZmx = config.zmxAutoEnable
             launchCommand = config.launchCommand ?? ""
             launchCommandMode = config.launchCommandMode
@@ -1891,7 +1878,7 @@ struct SSHConnectionView: View {
         if let jumpKeyID = jumpAuthType?.keyID { keyIDs.append(jumpKeyID) }
         let hints = keyIDs.isEmpty ? nil : KeyResolutionHint.hintsDict(forKeyIDs: keyIDs)
 
-        return SSHConnectionHistoryEntry(
+        var entry = SSHConnectionHistoryEntry(
             username: username.trimmingCharacters(in: .whitespacesAndNewlines),
             host: hostname.trimmingCharacters(in: .whitespacesAndNewlines),
             port: Int(port) ?? 22,
@@ -1908,6 +1895,7 @@ struct SSHConnectionView: View {
             tmuxAutoEnable: enableTmux ? true : nil,
             tmuxAutoMode: enableTmux ? effectiveTmuxAutoMode : nil,
             herdrAutoEnable: enableHerdr ? true : nil,
+            herdrAutoMode: enableHerdr ? effectiveHerdrAutoMode : nil,
             zmxAutoEnable: enableZmx ? true : nil,
             launchCommand: launchCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : launchCommand.trimmingCharacters(in: .whitespacesAndNewlines),
             launchCommandMode: launchCommandMode,
@@ -1921,6 +1909,8 @@ struct SSHConnectionView: View {
                 port: Int(port) ?? 22),
             keyResolutionHints: hints
         )
+        entry.tsshRelay = useJumpHost && connectionProtocol == .trzsz ? tsshRelay : nil
+        return entry
     }
     
     // MARK: - Actions
@@ -1994,7 +1984,7 @@ struct SSHConnectionView: View {
         
         // Build jump host config if enabled (shared builder — same fields
         // and validation messages as the extracted jump form section)
-        let jumpConfig: SSHConfig.JumpHostConfig?
+        var jumpConfig: SSHConfig.JumpHostConfig?
         do {
             jumpConfig = try JumpHostFormSection.buildJumpHostConfig(
                 useJumpHost: useJumpHost,
@@ -2006,6 +1996,13 @@ struct SSHConnectionView: View {
                 selectedKeyID: jumpSelectedKeyID,
                 sshKeyManager: sshKeyManager
             )
+            if connectionProtocol == .trzsz, let jump = jumpConfig {
+                var relay = tsshRelay
+                relay?.boundJump = TSSHRelayIdentity(host: jump.host, port: jump.port, username: jump.username)
+                try relay?.validate(host: jump.host, port: jump.port, username: jump.username,
+                    defaultPortMin: TrzszConfig.preferredUDPPortMin, defaultPortMax: TrzszConfig.preferredUDPPortMax)
+                jumpConfig?.tsshRelay = relay
+            }
         } catch {
             errorMessage = (error as? JumpHostFormSection.BuildError)?.message ?? error.localizedDescription
             return
@@ -2099,6 +2096,7 @@ struct SSHConnectionView: View {
         )
         config.fallbackKeyIDs = fallbackKeyIDs
         config.herdrAutoEnable = enableHerdr
+        config.herdrAutoMode = effectiveHerdrAutoMode
         config.zmxAutoEnable = enableZmx
 
         // Apply the GPG agent config after the SSHConfig is built —
@@ -2511,6 +2509,7 @@ struct SSHConnectionView: View {
             jumpUsername = entry.jumpUsername ?? ""
             
             // Restore jump host auth method
+            tsshRelay = entry.tsshRelay
             if let jumpAuth = entry.jumpAuthType {
                 switch jumpAuth {
                 case .password, .savedPassword:
@@ -2595,6 +2594,7 @@ struct SSHConnectionView: View {
         enableTmux = entry.tmuxAutoEnable ?? false
         tmuxAutoMode = entry.tmuxAutoMode ?? .regular
         enableHerdr = entry.herdrAutoEnable ?? false
+        herdrAutoMode = entry.herdrAutoMode ?? .regular
         enableZmx = entry.zmxAutoEnable ?? false
 
         // Restore launch command if present
@@ -2661,6 +2661,7 @@ struct SSHConnectionView: View {
         }
         
         // Set jump host settings if present
+        tsshRelay = config.jumpHost?.tsshRelay
         if let jumpConfig = config.jumpHost {
             useJumpHost = true
             jumpHostname = jumpConfig.host
@@ -2728,6 +2729,7 @@ struct SSHConnectionView: View {
         enableTmux = config.tmuxAutoEnable
         tmuxAutoMode = config.tmuxAutoMode
         enableHerdr = config.herdrAutoEnable
+        herdrAutoMode = config.herdrAutoMode
         enableZmx = config.zmxAutoEnable
 
         // Set launch command
@@ -4338,370 +4340,6 @@ extension SSHConnectionView {
         }
     }
 }
-
-#if !os(visionOS)
-/// iOS/iPadOS 27-only host. UIKit owns the horizontal scroll recognizer (the
-/// part that is regressed), while its stable UIHostingController renders the
-/// original SwiftUI Liquid Glass strip pixel-for-pixel.
-private struct ConnectionTypeIOS27ScrollHost: UIViewControllerRepresentable {
-    let types: [SSHConnectionView.ConnectionType]
-    let selection: SSHConnectionView.ConnectionType
-    let selectedBackgroundColor: Color
-    let accentColor: Color
-    let colorScheme: ColorScheme
-    let onSelect: (SSHConnectionView.ConnectionType) -> Void
-
-    func makeUIViewController(context: Context) -> ConnectionTypeIOS27ScrollController {
-        ConnectionTypeIOS27ScrollController(
-            types: types,
-            selection: selection,
-            selectedBackgroundColor: selectedBackgroundColor,
-            accentColor: accentColor,
-            colorScheme: colorScheme,
-            onSelect: onSelect
-        )
-    }
-
-    func updateUIViewController(
-        _ controller: ConnectionTypeIOS27ScrollController,
-        context: Context
-    ) {
-        controller.update(
-            types: types,
-            selection: selection,
-            selectedBackgroundColor: selectedBackgroundColor,
-            accentColor: accentColor,
-            colorScheme: colorScheme,
-            onSelect: onSelect
-        )
-    }
-
-    func sizeThatFits(
-        _ proposal: ProposedViewSize,
-        uiViewController: ConnectionTypeIOS27ScrollController,
-        context: Context
-    ) -> CGSize? {
-        guard let width = proposal.width else { return nil }
-        return CGSize(width: width, height: uiViewController.fittingHeight)
-    }
-}
-
-@MainActor @Observable
-private final class ConnectionTypeIOS27Model {
-    var types: [SSHConnectionView.ConnectionType]
-    var selection: SSHConnectionView.ConnectionType
-    var selectedBackgroundColor: Color
-    var accentColor: Color
-    var colorScheme: ColorScheme
-    @ObservationIgnored var onSelect: (SSHConnectionView.ConnectionType) -> Void
-
-    init(
-        types: [SSHConnectionView.ConnectionType],
-        selection: SSHConnectionView.ConnectionType,
-        selectedBackgroundColor: Color,
-        accentColor: Color,
-        colorScheme: ColorScheme,
-        onSelect: @escaping (SSHConnectionView.ConnectionType) -> Void
-    ) {
-        self.types = types
-        self.selection = selection
-        self.selectedBackgroundColor = selectedBackgroundColor
-        self.accentColor = accentColor
-        self.colorScheme = colorScheme
-        self.onSelect = onSelect
-    }
-}
-
-private struct ConnectionTypeIOS27GlassStrip: View {
-    let model: ConnectionTypeIOS27Model
-    @Namespace private var namespace
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(model.types, id: \.self) { type in
-                let isSelected = model.selection == type
-
-                Label(type.displayName, systemImage: type.iconName)
-                    .font(.subheadline.weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .modifier(
-                        GlassTabBackgroundModifier(
-                            isSelected: isSelected,
-                            selectedBackgroundColor: model.selectedBackgroundColor,
-                            unselectedBackgroundColor: .clear,
-                            id: Self.tabID(for: type),
-                            namespace: namespace,
-                            isLightTheme: model.colorScheme == .light,
-                            isHovered: false
-                        )
-                    )
-                    .foregroundStyle(isSelected ? model.accentColor : Color.primary)
-                    .clipShape(Capsule())
-                    .accessibilityHidden(true)
-                    .overlay {
-                        ConnectionTypeUIKitTapTarget(
-                            type: type,
-                            isSelected: isSelected,
-                            onSelect: model.onSelect
-                        )
-                    }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .fixedSize(horizontal: true, vertical: false)
-        .modifier(GlassEffectContainerModifier())
-        .tint(model.accentColor)
-        .environment(\.colorScheme, model.colorScheme)
-    }
-
-    private static func tabID(for type: SSHConnectionView.ConnectionType) -> UUID {
-        switch type {
-        case .profiles: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA001")!
-        case .ssh: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA002")!
-        case .local: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA003")!
-        case .browse: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA004")!
-        case .kubernetes: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA005")!
-        case .console: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA006")!
-        case .vnc: return UUID(uuidString: "8B4B6A50-9128-4D16-B90D-4A2E221AA007")!
-        }
-    }
-}
-
-private final class ConnectionTypeIOS27ScrollController: UIViewController {
-    private final class ImmediateControlScrollView: UIScrollView {
-        override func touchesShouldCancel(in view: UIView) -> Bool {
-            // The transparent hit targets cover the entire rendered tab. Once
-            // a touch moves, cancel the button press so this scroll view owns
-            // the drag; a stationary touch still delivers touchUpInside.
-            view is UIControl || super.touchesShouldCancel(in: view)
-        }
-    }
-
-    private let model: ConnectionTypeIOS27Model
-    private let scrollView = ImmediateControlScrollView()
-    private let hostingController: UIHostingController<ConnectionTypeIOS27GlassStrip>
-
-    var fittingHeight: CGFloat {
-        hostingController.sizeThatFits(
-            in: CGSize(width: 10_000, height: 1_000)
-        ).height
-    }
-
-    init(
-        types: [SSHConnectionView.ConnectionType],
-        selection: SSHConnectionView.ConnectionType,
-        selectedBackgroundColor: Color,
-        accentColor: Color,
-        colorScheme: ColorScheme,
-        onSelect: @escaping (SSHConnectionView.ConnectionType) -> Void
-    ) {
-        let model = ConnectionTypeIOS27Model(
-            types: types,
-            selection: selection,
-            selectedBackgroundColor: selectedBackgroundColor,
-            accentColor: accentColor,
-            colorScheme: colorScheme,
-            onSelect: onSelect
-        )
-        self.model = model
-        self.hostingController = UIHostingController(
-            rootView: ConnectionTypeIOS27GlassStrip(model: model)
-        )
-        super.init(nibName: nil, bundle: nil)
-        self.hostingController.sizingOptions = .intrinsicContentSize
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        view.backgroundColor = .clear
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.backgroundColor = .clear
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.alwaysBounceHorizontal = false
-        scrollView.alwaysBounceVertical = false
-        scrollView.isDirectionalLockEnabled = true
-        scrollView.delaysContentTouches = false
-        scrollView.canCancelContentTouches = true
-        scrollView.contentInsetAdjustmentBehavior = .never
-        view.addSubview(scrollView)
-
-        addChild(hostingController)
-        let hostedView = hostingController.view!
-        hostedView.translatesAutoresizingMaskIntoConstraints = false
-        hostedView.backgroundColor = .clear
-        scrollView.addSubview(hostedView)
-        hostingController.didMove(toParent: self)
-
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            hostedView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-            hostedView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-            hostedView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-            hostedView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-            hostedView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
-        ])
-
-        scheduleScrollToSelection(animated: false)
-    }
-
-    func update(
-        types: [SSHConnectionView.ConnectionType],
-        selection: SSHConnectionView.ConnectionType,
-        selectedBackgroundColor: Color,
-        accentColor: Color,
-        colorScheme: ColorScheme,
-        onSelect: @escaping (SSHConnectionView.ConnectionType) -> Void
-    ) {
-        let selectionChanged = model.selection != selection
-        let typesChanged = model.types != types
-
-        if typesChanged { model.types = types }
-        if selectionChanged {
-            withAnimation(TabAnimation.selection) {
-                model.selection = selection
-            }
-        }
-        if model.selectedBackgroundColor != selectedBackgroundColor {
-            model.selectedBackgroundColor = selectedBackgroundColor
-        }
-        if model.accentColor != accentColor {
-            model.accentColor = accentColor
-        }
-        if model.colorScheme != colorScheme {
-            model.colorScheme = colorScheme
-        }
-        model.onSelect = onSelect
-
-        if selectionChanged || typesChanged {
-            scheduleScrollToSelection(animated: true)
-        }
-    }
-
-    private func scheduleScrollToSelection(animated: Bool) {
-        let rawValue = model.selection.rawValue
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.view.layoutIfNeeded()
-            guard let button = self.findButton(
-                accessibilityIdentifier: "connection-type-\(rawValue)",
-                in: self.hostingController.view
-            ) else { return }
-            let rect = button.convert(button.bounds, to: self.scrollView).insetBy(dx: -16, dy: 0)
-            self.scrollView.scrollRectToVisible(rect, animated: animated)
-        }
-    }
-
-    private func findButton(
-        accessibilityIdentifier: String,
-        in view: UIView
-    ) -> UIButton? {
-        if let button = view as? UIButton,
-           button.accessibilityIdentifier == accessibilityIdentifier {
-            return button
-        }
-        for subview in view.subviews {
-            if let result = findButton(
-                accessibilityIdentifier: accessibilityIdentifier,
-                in: subview
-            ) {
-                return result
-            }
-        }
-        return nil
-    }
-}
-
-/// Invisible UIKit hit target placed directly over one unchanged SwiftUI glass
-/// tab on iOS/iPadOS 27. Remove this when Apple fixes the beta ScrollView tap
-/// regression; iOS/iPadOS 26 and earlier continue to use a normal SwiftUI Button.
-private struct ConnectionTypeUIKitTapTarget: UIViewRepresentable {
-    let type: SSHConnectionView.ConnectionType
-    let isSelected: Bool
-    let onSelect: (SSHConnectionView.ConnectionType) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> ConnectionTypeTapButton {
-        let button = ConnectionTypeTapButton(type: type)
-        button.addTarget(
-            context.coordinator,
-            action: #selector(Coordinator.didTapButton),
-            for: .touchUpInside
-        )
-        return button
-    }
-
-    func updateUIView(_ button: ConnectionTypeTapButton, context: Context) {
-        context.coordinator.parent = self
-        button.accessibilityLabel = type.displayName
-        button.accessibilityTraits = isSelected ? [.button, .selected] : [.button]
-        button.installImmediateTouchBehaviorIfNeeded()
-    }
-
-    final class Coordinator: NSObject {
-        var parent: ConnectionTypeUIKitTapTarget
-
-        init(parent: ConnectionTypeUIKitTapTarget) {
-            self.parent = parent
-        }
-
-        @objc func didTapButton() {
-            parent.onSelect(parent.type)
-        }
-    }
-}
-
-private final class ConnectionTypeTapButton: UIButton {
-    init(type: SSHConnectionView.ConnectionType) {
-        super.init(frame: .zero)
-        backgroundColor = .clear
-        accessibilityIdentifier = "connection-type-\(type.rawValue)"
-        accessibilityLabel = type.displayName
-        accessibilityTraits = .button
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        backgroundColor = .clear
-        accessibilityTraits = .button
-    }
-
-    override var intrinsicContentSize: CGSize {
-        .zero
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        installImmediateTouchBehaviorIfNeeded()
-    }
-
-    func installImmediateTouchBehaviorIfNeeded() {
-        var ancestor = superview
-        while let view = ancestor {
-            if let scrollView = view as? UIScrollView {
-                scrollView.delaysContentTouches = false
-                scrollView.canCancelContentTouches = true
-                return
-            }
-            ancestor = view.superview
-        }
-    }
-}
-#endif
 
 #Preview {
     SSHConnectionView(initialConfig: nil) { config, splitOption in

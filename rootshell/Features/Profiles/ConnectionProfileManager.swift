@@ -237,6 +237,7 @@ final class ConnectionProfileManager {
                 authMethod: jumpAuthMethod,
                 fallbackKeyIDs: jumpFallbackIDs?.isEmpty == true ? nil : jumpFallbackIDs
             )
+            jumpHostConfig?.tsshRelay = historyEntry.tsshRelay
         }
 
         var sshConfig = SSHConfig(
@@ -253,6 +254,7 @@ final class ConnectionProfileManager {
         sshConfig.tmuxAutoEnable = historyEntry.tmuxAutoEnable ?? false
         sshConfig.tmuxAutoMode = historyEntry.tmuxAutoMode ?? .regular
         sshConfig.herdrAutoEnable = historyEntry.herdrAutoEnable ?? false
+        sshConfig.herdrAutoMode = historyEntry.herdrAutoMode ?? .regular
         sshConfig.zmxAutoEnable = historyEntry.zmxAutoEnable ?? false
         sshConfig.launchCommand = historyEntry.launchCommand
         sshConfig.launchCommandMode = historyEntry.launchCommandMode ?? .afterConnect
@@ -292,6 +294,7 @@ final class ConnectionProfileManager {
     /// Delete a profile (soft delete for sync)
     func deleteProfile(id: UUID) throws {
         try store.softDelete(id: id)
+        KeybindManager.shared.clearProfileShortcut(profileID: id)
         updateProfilesFromStore()
 
         Self.logger.info("Deleted profile \(id.uuidString)")
@@ -611,6 +614,13 @@ final class ConnectionProfileManager {
         var failures: [(id: UUID, error: Error)] = []
 
         for remote in remoteProfiles {
+            do {
+                try TSSHRelayStore.shared.seed(owner: .profile, key: remote.id.uuidString,
+                    settings: remote.sshConfig.jumpHost?.tsshRelay, modifiedAt: remote.modifiedAt)
+            } catch {
+                failures.append((id: remote.id, error: error))
+                continue
+            }
             if let theme = ProfileThemeRecord(profile: remote) {
                 do {
                     try applyRemoteTheme(theme)
@@ -629,6 +639,9 @@ final class ConnectionProfileManager {
 
             do {
                 try persistProfile(remote, updateTimestamp: false, notifySync: false)
+                if remote.isDeleted {
+                    KeybindManager.shared.clearProfileShortcut(profileID: remote.id)
+                }
                 applied += 1
             } catch {
                 failures.append((id: remote.id, error: error))
@@ -660,8 +673,15 @@ final class ConnectionProfileManager {
                 var deleted = profile
                 deleted.isDeleted = true
                 deleted.modifiedAt = Date()
-                try? persistProfile(deleted, updateTimestamp: false, notifySync: false)
-                deletedCount += 1
+                do {
+                    try persistProfile(deleted, updateTimestamp: false, notifySync: false)
+                    KeybindManager.shared.clearProfileShortcut(profileID: profile.id)
+                    deletedCount += 1
+                } catch {
+                    let idString = profile.id.uuidString
+                    let desc = error.localizedDescription
+                    Self.logger.error("Failed to persist remote profile deletion \(idString): \(desc)")
+                }
             }
         }
 
@@ -759,8 +779,9 @@ final class ConnectionProfileManager {
     // MARK: - Private Helpers
 
     private func profileWithTheme(_ profile: ConnectionProfile) -> ConnectionProfile {
-        guard let theme = themeStore.record(for: profile.id) else { return profile }
-        return theme.applying(to: profile)
+        let routed = TSSHRelayStore.shared.applying(to: profile)
+        guard let theme = themeStore.record(for: profile.id) else { return routed }
+        return theme.applying(to: routed)
     }
 
     /// Seed the companion cache from local JSON/backups made before companion
@@ -778,6 +799,8 @@ final class ConnectionProfileManager {
     }
 
     /// Update the profiles array from the store
+    func refreshRelaySettings() { updateProfilesFromStore() }
+
     private func updateProfilesFromStore() {
         profiles = store.activeRecords
             .map(profileWithTheme)
@@ -791,6 +814,14 @@ final class ConnectionProfileManager {
         notifySync: Bool = true
     ) throws {
         var sanitized = sanitizeProfileForPersistence(profile)
+        if notifySync {
+            var relay = sanitized.sshConfig.jumpHost?.tsshRelay
+            if let jump = sanitized.sshConfig.jumpHost, relay != nil, relay?.boundJump == nil {
+                relay?.boundJump = TSSHRelayIdentity(host: jump.host, port: jump.port, username: jump.username)
+            }
+            try TSSHRelayStore.shared.update(owner: .profile, key: profile.id.uuidString, settings: relay)
+        }
+        sanitized = TSSHRelayStore.shared.applying(to: sanitized)
         if notifySync {
             let existing = store.record(for: profile.id).map(profileWithTheme)
             if sanitized.themeName != existing?.themeName {
@@ -920,7 +951,14 @@ final class ConnectionProfileManager {
         )
 
         let jumpHost = profile.sshConfig.jumpHost.map { jumpHost in
-            VPNSharedJumpHostSnapshot(
+            var relay = jumpHost.tsshRelay
+            if var resolved = relay {
+                resolved.udpPortMin = resolved.udpPortMin ?? TrzszConfig.preferredUDPPortMin
+                resolved.udpPortMax = resolved.udpPortMax ?? TrzszConfig.preferredUDPPortMax
+                relay = resolved
+            }
+            return VPNSharedJumpHostSnapshot(
+                tsshRelay: relay,
                 host: jumpHost.host,
                 port: jumpHost.port,
                 username: jumpHost.username,
@@ -951,6 +989,7 @@ final class ConnectionProfileManager {
             trzszUDPPortMin: profile.connectionProtocol == .trzsz ? (profile.trzszPortMin ?? TrzszConfig.preferredUDPPortMin) : nil,
             trzszUDPPortMax: profile.connectionProtocol == .trzsz ? (profile.trzszPortMax ?? TrzszConfig.preferredUDPPortMax) : nil,
             trzszMTU: profile.connectionProtocol == .trzsz ? profile.trzszMTU : nil,
+            trzszConnectTimeoutSec: profile.connectionProtocol == .trzsz ? profile.trzszConnectTimeoutSec : nil,
             trzszServerPath: profile.connectionProtocol == .trzsz ? profile.trzszServerPath : nil,
             dnsServers: profile.vpnDNSServers,
             excludedRoutes: profile.vpnExcludedRoutes,

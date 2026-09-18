@@ -22,6 +22,8 @@ protocol TerminalSurfaceHost: AnyObject {
     var surfaceConnectionConfig: ConnectionConfig { get }
     var surfaceTmuxPaneBinding: Ghostty.TerminalView.TmuxPaneBinding? { get }
     var surfaceIsTmuxPane: Bool { get }
+    var surfaceRequiresHerdrFirstFrameGeometry: Bool { get }
+    var surfaceFirstFrameGeometryIsReady: Bool { get }
     var surfaceTmuxPaneContainerLaidOut: Bool { get }
     var surfaceTmuxPaneRetired: Bool { get }
     var surfaceTmuxDetachInProgress: Bool { get }
@@ -153,11 +155,21 @@ final class TerminalSurfaceController: NSObject {
             suspendFirstFramePolling()
             return
         }
-        if rendererLayer()?.contents != nil {
+        if host.surfaceFirstFrameGeometryIsReady, firstFrameHasCurrentGeometry() {
             markFirstFrameRendered()
         } else if CACurrentMediaTime() - firstFramePollStart > 2.0 {
             markFirstFrameRendered(failOpen: true)
         }
+    }
+
+    private func firstFrameHasCurrentGeometry() -> Bool {
+        guard let contents = rendererLayer()?.contents else { return false }
+        guard host.surfaceRequiresHerdrFirstFrameGeometry else { return true }
+        // A parser acknowledgement can beat the renderer. An IOSurface from
+        // the provisional grid must not reveal the tab stretched to the new
+        // bounds; wait for a frame with the final framebuffer dimensions.
+        guard let expected = lastFramebufferSize else { return false }
+        return HerdrGeometry.frameMatches(contents, width: expected.width, height: expected.height)
     }
 
     private func markFirstFrameRendered(failOpen: Bool = false) {
@@ -308,9 +320,9 @@ final class TerminalSurfaceController: NSObject {
         self.surface = surface
         host.surfaceControllerDidSetSurface(surface)
 
-        // Establish ownership before registerSurface seeds Ghostty's effective
-        // color scheme. This makes the first terminal response honor tab >
-        // window > global precedence, including for restored/tmux panes.
+        host.surfaceGhosttyApp?.registerSurface(surface)
+        Ghostty.logger.info("Surface registered for config updates")
+
         host.surfaceGhosttyApp?.registerSurfaceWindow(surface, windowId: host.surfaceWindowID)
         let windowID = host.surfaceWindowID
         Ghostty.logger.info("Surface registered to window \(windowID)")
@@ -320,15 +332,16 @@ final class TerminalSurfaceController: NSObject {
             Ghostty.logger.info("Surface registered to tab \(tabId)")
         }
 
-        host.surfaceGhosttyApp?.registerSurface(surface)
-        Ghostty.logger.info("Surface registered for config updates")
-
-        host.surfaceSetupThemeOverrideSubscription()
-
         if let delegate = host.surfaceUserdata as? GhosttyActionDelegate {
             host.surfaceGhosttyApp?.registerSurfaceDelegate(surface, delegate: delegate)
             Ghostty.logger.info("Surface delegate registered")
         }
+        host.surfaceSetupThemeOverrideSubscription()
+        host.surfaceGhosttyApp?.refreshSurfaceTheme(
+            surface,
+            tabId: host.surfaceContainingTabID,
+            windowId: host.surfaceWindowID
+        )
     }
 
     private func logSurfaceConfiguration() {
@@ -422,10 +435,14 @@ final class TerminalSurfaceController: NSObject {
         let insetPx = host.surfaceCurrentBottomInsetPixels
         if abs(insetPx - lastBottomInsetPx) < 0.5 { return }
         lastBottomInsetPx = insetPx
+        #if targetEnvironment(macCatalyst)
+        ghostty_surface_set_bottom_inset(surface, insetPx)
+        #else
         nonisolated(unsafe) let surfacePtr = surface
         Ghostty.TerminalView.ghosttyAPIQueue.async {
             ghostty_surface_set_bottom_inset(surfacePtr, insetPx)
         }
+        #endif
     }
 
     func sizeDidChange(_ size: CGSize) {
@@ -815,6 +832,12 @@ extension Ghostty.TerminalView: TerminalSurfaceHost {
     var surfaceConnectionConfig: ConnectionConfig { connectionConfig }
     var surfaceTmuxPaneBinding: TmuxPaneBinding? { tmuxPaneBinding }
     var surfaceIsTmuxPane: Bool { isTmuxPane }
+    var surfaceRequiresHerdrFirstFrameGeometry: Bool { isHerdrPane && !usesHerdrFallbackScrolling }
+    var surfaceFirstFrameGeometryIsReady: Bool {
+        guard surfaceRequiresHerdrFirstFrameGeometry, let binding = herdrPaneBinding else { return true }
+        return HerdrController.controller(forGateway: binding.gatewayUUID)?
+            .paneGeometryIsReady(binding.terminalId) == true
+    }
     var surfaceTmuxPaneContainerLaidOut: Bool { tmuxPaneContainerLaidOut }
     var surfaceTmuxPaneRetired: Bool { tmuxPaneRetired }
     var surfaceTmuxDetachInProgress: Bool { isTmuxDetachInProgress }

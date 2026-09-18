@@ -319,6 +319,13 @@ extension MainView {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
+            if showOpenInFolderOverlay, let model = openInFolderModel {
+                OpenInFolderHUD(isPresented: $showOpenInFolderOverlay, model: model, shortcut: openInFolderShortcut) { directory, placement in
+                    openInFolder(model.target, directory: directory, placement: placement)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
             // Theme picker overlay
             themePickerOverlayView(isPresented: $showThemePickerOverlay)
 
@@ -563,38 +570,72 @@ extension MainView {
         if terminals.indices.contains(selectedTabIndex),
            let focusedTerminal = terminals[selectedTabIndex].focusedTerminal,
            let sessions = focusedTerminal.discoveredSessions,
-           !sessions.isEmpty {
-            SessionPickerOverlay(
-                sessions: sessions,
-                sessionTypes: focusedTerminal.discoveredSessionTypes,
-                selectedIndex: focusedTerminal.sessionSelectionIndex,
-                hasUserTyped: focusedTerminal.hasUserTyped,
-                tmuxAttachMode: Binding(
-                    get: { focusedTerminal.tmuxDiscoveryAttachMode },
-                    set: { newValue in
-                        let resolvedValue = focusedTerminal.allowsTmuxControlDiscoveryAttach
-                            ? newValue
-                            : .regular
-                        focusedTerminal.tmuxDiscoveryAttachMode = resolvedValue
-                        if focusedTerminal.allowsTmuxControlDiscoveryAttach {
-                            TmuxAutoMode.persistedDiscoveryAttachMode = resolvedValue
+           // A manual run keeps the card for an empty result, so it can report back.
+           !sessions.isEmpty || focusedTerminal.sessionDiscoveryIsManual {
+            GeometryReader { geometry in
+                // This overlay shares the terminal's keyboard-ignoring host,
+                // but does not make the terminal's bottom safe-area escape.
+                let _ = effectManager.keyboardStateVersion
+                let bottomClearance = terminalBottomPadding(
+                    geometry: geometry,
+                    keyboardFrame: effectManager.keyboardFrame,
+                    keyboardHeight: effectManager.keyboardHeight,
+                    reservedBottomToolbarHeight: focusedTerminal.reservedKeyboardToolbarHeightAtBottom,
+                    accessoryFrame: focusedTerminal.keyboardAccessoryFrameInScreen,
+                    touchKeyboardFrame: focusedTerminal.dockedTouchKeyboardFrameInScreen,
+                    containerBottomSafeAreaExpansion: 0,
+                    terminalEffectsEnabled: false
+                ).padding
+                SessionPickerOverlay(
+                    sessions: sessions,
+                    sessionTypes: focusedTerminal.discoveredSessionTypes,
+                    selectedIndex: focusedTerminal.sessionSelectionIndex,
+                    // The user invoking the command IS the intent, so skip the
+                    // "you've already typed" confirmation on a manual run.
+                    hasUserTyped: focusedTerminal.hasUserTyped && !focusedTerminal.sessionDiscoveryIsManual,
+                    placeholder: focusedTerminal.sessionDiscoveryPlaceholder,
+                    bottomClearance: bottomClearance,
+                    tmuxAttachMode: Binding(
+                        get: { focusedTerminal.tmuxDiscoveryAttachMode },
+                        set: { newValue in
+                            let resolvedValue = focusedTerminal.allowsTmuxControlDiscoveryAttach
+                                ? newValue
+                                : .regular
+                            focusedTerminal.tmuxDiscoveryAttachMode = resolvedValue
+                            if focusedTerminal.allowsTmuxControlDiscoveryAttach {
+                                TmuxAutoMode.persistedDiscoveryAttachMode = resolvedValue
+                            }
+                            NotificationCenter.default.post(name: .ghosttySessionDiscoveryChanged, object: focusedTerminal)
                         }
+                    ),
+                    allowsTmuxControlAttach: focusedTerminal.allowsTmuxControlDiscoveryAttach,
+                    herdrAttachMode: Binding(
+                        get: { focusedTerminal.herdrDiscoveryAttachMode },
+                        set: { newValue in
+                            let resolvedValue = focusedTerminal.allowsHerdrControlDiscoveryAttach
+                                ? newValue
+                                : .regular
+                            focusedTerminal.herdrDiscoveryAttachMode = resolvedValue
+                            if focusedTerminal.allowsHerdrControlDiscoveryAttach {
+                                HerdrAutoMode.persistedDiscoveryAttachMode = resolvedValue
+                            }
+                            NotificationCenter.default.post(name: .ghosttySessionDiscoveryChanged, object: focusedTerminal)
+                        }
+                    ),
+                    allowsHerdrControlAttach: focusedTerminal.allowsHerdrControlDiscoveryAttach,
+                    onSelect: { session in
+                        focusedTerminal.attachToSession(session)
+                    },
+                    onChangeSelection: { index in
+                        focusedTerminal.sessionSelectionIndex = index
                         NotificationCenter.default.post(name: .ghosttySessionDiscoveryChanged, object: focusedTerminal)
+                    },
+                    onDismiss: {
+                        focusedTerminal.dismissSessionDiscovery()
+                        focusedTerminal.becomeFirstResponder()
                     }
-                ),
-                allowsTmuxControlAttach: focusedTerminal.allowsTmuxControlDiscoveryAttach,
-                onSelect: { session in
-                    focusedTerminal.attachToSession(session)
-                },
-                onChangeSelection: { index in
-                    focusedTerminal.sessionSelectionIndex = index
-                    NotificationCenter.default.post(name: .ghosttySessionDiscoveryChanged, object: focusedTerminal)
-                },
-                onDismiss: {
-                    focusedTerminal.dismissSessionDiscovery()
-                    focusedTerminal.becomeFirstResponder()
-                }
-            )
+                )
+            }
         }
     }
 
@@ -676,20 +717,29 @@ extension MainView {
     ///   - keyboardFrame: The current keyboard frame (passed explicitly to ensure SwiftUI dependency tracking)
     ///   - keyboardHeight: The current keyboard height (passed explicitly to ensure SwiftUI dependency tracking)
     ///   - reservedBottomToolbarHeight: Actual toolbar/accessory height reserved by the selected focused terminal.
+    ///   - accessoryFrame: Visible terminal toolbar in screen coordinates, when available.
+    ///   - touchKeyboardFrame: Requested docked custom-keyboard frame, independent of system notifications.
     ///   - containerBottomSafeAreaExpansion: Height the container safe-area escape actually gained
     ///     this layout pass, measured by the reader pair in `terminalTabsView`.
     func terminalBottomPadding(
         geometry: GeometryProxy,
-        keyboardFrame: CGRect,
+        keyboardFrame reportedKeyboardFrame: CGRect,
         keyboardHeight: CGFloat,
         reservedBottomToolbarHeight: CGFloat,
+        accessoryFrame: CGRect?,
+        touchKeyboardFrame: CGRect?,
         containerBottomSafeAreaExpansion: CGFloat,
         terminalEffectsEnabled: Bool
     ) -> (padding: CGFloat, gridAlignsToToolbar: Bool) {
         #if !os(visionOS) && !targetEnvironment(macCatalyst)
-        let isDocked = effectManager.isKeyboardDocked
+        let isDocked = touchKeyboardFrame != nil || effectManager.isKeyboardDocked
+        let keyboardHeight = touchKeyboardFrame?.height ?? keyboardHeight
         let containerFrame = geometry.frame(in: .global)
         let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+        let keyboardFrame = touchKeyboardFrame ?? (isPhone && accessoryFrame != nil
+            ? TerminalKeyboardGeometry.includingAccessory(
+                keyboard: reportedKeyboardFrame, accessory: accessoryFrame, container: containerFrame)
+            : reportedKeyboardFrame)
         let visibleKeyboardFrameHeight: CGFloat = {
             guard !keyboardFrame.isNull, !keyboardFrame.isEmpty else { return 0 }
             let bounds = isPhone ? containerFrame : UIScreen.main.bounds
@@ -793,6 +843,7 @@ extension MainView {
         }
 
         #else
+        let keyboardFrame = reportedKeyboardFrame
         let keyboardOffset = effectManager.keyboardOverlapHeight(in: geometry.frame(in: .global), keyboardFrame: keyboardFrame)
         let rawKeyboardCoverage = keyboardOffset
         #endif
@@ -986,12 +1037,28 @@ extension MainView {
         keyboardHeight: CGFloat,
         containerBottomSafeAreaExpansion: CGFloat
     ) -> some View {
+        // One measurement of the active pane's accessory for this layout pass;
+        // existing keyboard notifications already invalidate the shared view.
+        let accessoryFrame = terminals.indices.contains(selectedTabIndex)
+            ? terminals[selectedTabIndex].focusedPane?.keyboardAccessoryFrameInScreen : nil
+        let touchKeyboardFrame = terminals.indices.contains(selectedTabIndex)
+            ? terminals[selectedTabIndex].focusedPane?.dockedTouchKeyboardFrameInScreen : nil
+        let selectedBottomToolbarHeight = terminals.indices.contains(selectedTabIndex)
+            ? (terminals[selectedTabIndex].focusedPane?.reservedKeyboardToolbarHeightAtBottom ?? 0)
+            : 0
         ZStack {
             ForEach(Array(terminals.enumerated()), id: \.element.id) { index, tab in
                 if !tab.splitTree.isEmpty {
                     let terminalEffectsEnabled = tabAllowsTerminalEffects(tab)
                     let visualMetrics = appTabSwipeVisualMetrics(for: tab.id, width: width)
                     let liveBottomToolbarHeight = tab.focusedPane?.reservedKeyboardToolbarHeightAtBottom ?? 0
+                    // A herdr tab can be claimed while it is not showing (Take
+                    // Control), and the size claimed is the size it lays out
+                    // at. Its own pane is not first responder, so borrow the
+                    // selected tab's reservation rather than reserving nothing,
+                    // or it claims several rows too tall and reflows twice.
+                    let hiddenBottomToolbarHeight: CGFloat =
+                        (tab.isHerdrWindow || tab.isHerdrGateway) ? selectedBottomToolbarHeight : 0
                     // During an app-tab swipe both visible tabs must use the
                     // same reservation. The target is not first responder yet,
                     // so its live value is otherwise 0 and its viewport appears
@@ -1000,12 +1067,14 @@ extension MainView {
                         .reservedBottomToolbarHeight(for: tab.id)
                         ?? ((index == selectedTabIndex || tab.id == tabsModel.displayedTabID)
                             ? liveBottomToolbarHeight
-                            : 0)
+                            : hiddenBottomToolbarHeight)
                     let bottomPadding = terminalBottomPadding(
                         geometry: geometry,
                         keyboardFrame: keyboardFrame,
                         keyboardHeight: keyboardHeight,
                         reservedBottomToolbarHeight: reservedBottomToolbarHeight,
+                        accessoryFrame: accessoryFrame,
+                        touchKeyboardFrame: touchKeyboardFrame,
                         containerBottomSafeAreaExpansion: containerBottomSafeAreaExpansion,
                         terminalEffectsEnabled: terminalEffectsEnabled
                     )
@@ -1257,6 +1326,7 @@ extension MainView {
                 geometry: geometry,
                 width: terminalWidth,
                 effectLeadingExtension: backgroundEffectIncludesPinnedSidebar
+                    && backgroundSidebarEffectID == BackgroundEffectSelection.followTerminalID
                     ? dockedWidth
                     : 0
             )
@@ -1268,14 +1338,23 @@ extension MainView {
             #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The docked sidebar's theme fill sits below the shared effect canvas;
-        // its controls remain in the HStack above it. This makes the effect
-        // full-strength in the column without duplicating animated state or
-        // video playback.
+        // The sidebar fill sits below its controls. Linked effects span in from
+        // the terminal; independently selected effects draw inside this column.
         .background(alignment: .leading) {
             if let dockedSidebarTheme {
                 dockedTabSidebarBackground(theme: dockedSidebarTheme)
+                    .overlay {
+                        if backgroundSidebarEffectID != BackgroundEffectSelection.followTerminalID,
+                           let effect = effectManager.effect(withId: backgroundSidebarEffectID) {
+                            effect.createEffectView()
+                                .id(effect.id)
+                                .blendMode(effectManager.isLightTheme ? .multiply : .plusLighter)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .frame(width: dockedWidth)
+                    .clipped()
                     .ignoresSafeArea(.container, edges: .bottom)
             }
         }
@@ -1386,11 +1465,14 @@ extension MainView {
         // collapse, and drawer-height changes re-evaluate this (same
         // mechanism terminalTabsView uses for the terminal's own padding).
         let _ = effectManager.keyboardStateVersion
-        let keyboardFrame = effectManager.keyboardFrame
+        let touchKeyboardFrame = terminals.indices.contains(selectedTabIndex)
+            ? terminals[selectedTabIndex].focusedPane?.dockedTouchKeyboardFrameInScreen : nil
+        let keyboardFrame = touchKeyboardFrame ?? effectManager.keyboardFrame
+        let keyboardHeight = touchKeyboardFrame?.height ?? effectManager.keyboardHeight
         let hasSoftwareKeyboard =
             KeyboardTracker.shared.isSoftwareKeyboardVisible ||
-            effectManager.keyboardHeight > 0
-        if effectManager.isKeyboardDocked && hasSoftwareKeyboard {
+            keyboardHeight > 0
+        if (touchKeyboardFrame != nil || effectManager.isKeyboardDocked) && hasSoftwareKeyboard {
             let visibleKeyboardFrameHeight: CGFloat = {
                 guard !keyboardFrame.isNull, !keyboardFrame.isEmpty else { return 0 }
                 // Same narrow-HUD exclusion as terminalBottomPadding.
@@ -1400,7 +1482,7 @@ extension MainView {
                 return intersection.height
             }()
             let coverage = max(
-                effectManager.keyboardHeight,
+                keyboardHeight,
                 visibleKeyboardFrameHeight,
                 keyboardFrame.height
             )
