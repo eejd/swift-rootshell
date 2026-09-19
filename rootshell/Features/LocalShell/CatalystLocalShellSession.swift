@@ -24,6 +24,10 @@ public class CatalystLocalShellSession: TerminalSession {
     private let masterFD: Int32
     private let connectionStartedAt = Date()
     private let requestedShell: String?
+    #if NATIVE
+    /// login(1) process started by NativeLocalShellSpawner; 0 until spawned.
+    private var nativeShellPID: pid_t = 0
+    #endif
 
     var connectionInfo: ConnectionInfo? {
         .local(shell: requestedShell ?? String(localized: "Login shell"),
@@ -105,6 +109,17 @@ public class CatalystLocalShellSession: TerminalSession {
     ) {
         let size = TerminalPTY.TerminalSize(rows: rows, cols: cols)
 
+        #if NATIVE
+        // NATIVE spawns the shell itself; the helper is not involved.
+        createNatively(
+            size: size,
+            workingDirectory: workingDirectory,
+            shell: shell,
+            enableShellIntegration: enableShellIntegration,
+            paneToken: paneToken,
+            completion: completion
+        )
+        #else
         // Request shell from helper
         HelperConnection.shared.createShell(
             rows: rows,
@@ -177,7 +192,52 @@ public class CatalystLocalShellSession: TerminalSession {
                 completion(.failure(error))
             }
         }
+        #endif
     }
+
+    #if NATIVE
+    private static func createNatively(
+        size: TerminalPTY.TerminalSize,
+        workingDirectory: String?,
+        shell: String?,
+        enableShellIntegration: Bool,
+        paneToken: String?,
+        completion: @escaping (Result<CatalystLocalShellSession, Error>) -> Void
+    ) {
+        let request = NativeLocalShellSpawner.Request(
+            rows: size.rows,
+            cols: size.cols,
+            workingDirectory: workingDirectory,
+            shell: shell,
+            enableShellIntegration: enableShellIntegration,
+            paneToken: paneToken,
+            resourcesDir: Bundle.main.resourceURL?.path,
+            sshAuthSock: LocalSSHAgentManager.activeSocketPathForShells,
+            termType: TerminalTypeSettings.local,
+            version: TerminalIdentity.shortVersion,
+            versionWithBuild: TerminalIdentity.version
+        )
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try NativeLocalShellSpawner.spawn(request) }
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let spawned):
+                    let session = CatalystLocalShellSession(
+                        sessionID: UUID(),
+                        masterFD: spawned.masterFD,
+                        size: size,
+                        shell: shell
+                    )
+                    session.nativeShellPID = spawned.pid
+                    completion(.success(session))
+                case .failure(let error):
+                    Ghostty.logger.error("Failed to start local shell: \(error.localizedDescription)")
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
+    #endif
 
     private init(sessionID: UUID, masterFD: Int32, size: TerminalPTY.TerminalSize, shell: String?) {
         self.requestedShell = shell
@@ -434,11 +494,19 @@ public class CatalystLocalShellSession: TerminalSession {
                             let cols = pending.cols
                             Ghostty.logger.debug("Resizing session \(sessionID) to \(rows)x\(cols)")
                         }
+                        #if NATIVE
+                        let success = NativeLocalShellSpawner.resize(
+                            masterFD: self.masterFD,
+                            rows: pending.rows,
+                            cols: pending.cols
+                        )
+                        #else
                         let success = await HelperConnection.shared.resizeShell(
                             sessionID: self.sessionID,
                             rows: pending.rows,
                             cols: pending.cols
                         )
+                        #endif
                         if success {
                             // Re-apply ioctl(TIOCSWINSZ) with pixel dimensions after the
                             // helper's resize. The helper only receives rows/cols, so its
@@ -465,11 +533,15 @@ public class CatalystLocalShellSession: TerminalSession {
 
         Ghostty.logger.info("Terminating session \(self.sessionID) with signal \(signal)")
 
+        #if NATIVE
+        NativeLocalShellSpawner.terminate(pid: nativeShellPID, signal: signal)
+        #else
         HelperConnection.shared.killShell(sessionID: sessionID, signal: signal) { success in
             if !success {
                 Ghostty.logger.error("Failed to kill session \(self.sessionID)")
             }
         }
+        #endif
 
         cleanup()
     }
@@ -480,6 +552,14 @@ public class CatalystLocalShellSession: TerminalSession {
 
         Ghostty.logger.info("Session \(self.sessionID) exited, querying status")
 
+        #if NATIVE
+        let sessionID = self.sessionID
+        NativeLocalShellSpawner.reap(pid: nativeShellPID) { exitStatus in
+            Ghostty.logger.info("Session \(sessionID) exited with status \(exitStatus)")
+        }
+        onSessionEnd?()
+        cleanup()
+        #else
         // Query exit status from helper
         HelperConnection.shared.getSessionInfo(sessionID: sessionID) { [weak self] info in
             guard let self = self else { return }
@@ -490,6 +570,7 @@ public class CatalystLocalShellSession: TerminalSession {
             self.onSessionEnd?()
             self.cleanup()
         }
+        #endif
     }
 
     private func cleanup() {

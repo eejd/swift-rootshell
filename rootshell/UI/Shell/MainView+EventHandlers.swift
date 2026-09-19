@@ -228,7 +228,7 @@ extension MainView {
             } else if pendingState == nil, adoptPendingIntentRequestsAsFirstContent() {
                 // A folder/URL open that landed before this window appeared is
                 // this window's content.
-            } else if pendingState == nil, HelperConnection.shared.isKnownRunning {
+            } else if pendingState == nil, HelperConnection.shared.localShellsKnownAvailable {
                 // createLocalShellTab() runs synchronously now: performLocalShellAction()
                 // takes its fast path when the helper is already confirmed up.
                 createLocalShellTab()
@@ -237,7 +237,7 @@ extension MainView {
             } else {
                 restorationInFlight = pendingState != nil
                 Task { @MainActor in
-                    _ = await HelperConnection.shared.ensureHelperRunning()
+                    _ = await HelperConnection.shared.ensureLocalShellsAvailable()
 
                     if let savedState = pendingState {
                         // Mark restoration in-progress for crash detection
