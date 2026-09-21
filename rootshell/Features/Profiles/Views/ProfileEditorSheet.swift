@@ -7,10 +7,84 @@
 
 import SwiftUI
 
+struct ProfileShortcutEditorRequest: Identifiable {
+    let id = UUID()
+    let actionParameter: String?
+    let title: String
+    let draftSequence: KeySequence?
+    let onOutcome: (KeybindEditorOutcome) -> Void
+}
+
+struct ProfileShortcutEditorPresenter {
+    let present: (ProfileShortcutEditorRequest) -> Void
+
+    func callAsFunction(_ request: ProfileShortcutEditorRequest) {
+        present(request)
+    }
+}
+
+private struct ProfileShortcutEditorPresenterKey: EnvironmentKey {
+    static let defaultValue: ProfileShortcutEditorPresenter? = nil
+}
+
+extension EnvironmentValues {
+    var profileShortcutEditorPresenter: ProfileShortcutEditorPresenter? {
+        get { self[ProfileShortcutEditorPresenterKey.self] }
+        set { self[ProfileShortcutEditorPresenterKey.self] = newValue }
+    }
+}
+
+/// Owns the shortcut sheet above profile navigation destinations. Catalyst
+/// then gives it the same responder isolation as the Settings shortcut sheet.
+private struct ProfileShortcutEditorHostModifier: ViewModifier {
+    @Environment(\.sheetThemeColors) private var sheetThemeColors
+    @State private var request: ProfileShortcutEditorRequest?
+    @State private var pendingOutcome: KeybindEditorOutcome?
+    @State private var outcomeHandler: ((KeybindEditorOutcome) -> Void)?
+
+    func body(content: Content) -> some View {
+        content
+            .environment(
+                \.profileShortcutEditorPresenter,
+                ProfileShortcutEditorPresenter { newRequest in
+                    pendingOutcome = nil
+                    outcomeHandler = newRequest.onOutcome
+                    request = newRequest
+                }
+            )
+            .sheet(item: $request, onDismiss: applyPendingOutcome) { request in
+                KeybindEditorView(
+                    action: .open_profile,
+                    actionParameter: request.actionParameter,
+                    titleOverride: request.title,
+                    allowsRestoreDefault: false,
+                    draftSequence: .some(request.draftSequence),
+                    onOutcome: { pendingOutcome = $0 }
+                )
+                .themedSubSheet(sheetThemeColors)
+            }
+    }
+
+    private func applyPendingOutcome() {
+        if let pendingOutcome {
+            outcomeHandler?(pendingOutcome)
+        }
+        pendingOutcome = nil
+        outcomeHandler = nil
+    }
+}
+
+extension View {
+    func profileShortcutEditorHost() -> some View {
+        modifier(ProfileShortcutEditorHostModifier())
+    }
+}
+
 /// Sheet for creating or editing a connection profile
 struct ProfileEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.sheetThemeColors) private var sheetThemeColors
+    @Environment(\.profileShortcutEditorPresenter) private var shortcutEditorPresenter
 
     // Manager
     private var profileManager: ConnectionProfileManager { ConnectionProfileManager.shared }
@@ -40,6 +114,7 @@ struct ProfileEditorSheet: View {
     @State private var hasExistingVNCPassword: Bool = false
     @State private var trzszTransportMode: ProfileTransportMode = .default
     @State private var trzszMTU: String = ""
+    @State private var trzszConnectTimeoutSec: String = ""
     @State private var trzszPortMin: String = ""
     @State private var trzszPortMax: String = ""
     @State private var trzszServerPath: String = ""
@@ -56,6 +131,7 @@ struct ProfileEditorSheet: View {
     @State private var newPassword: String = ""
 
     // Jump host state
+    @State private var tsshRelay: TSSHRelaySettings?
     @State private var useJumpHost: Bool = false
     @State private var jumpHost: String = ""
     @State private var jumpPort: String = "22"
@@ -91,6 +167,7 @@ struct ProfileEditorSheet: View {
 
     // tmux launch mode (regular vs control/-CC), meaningful when enableTmux is on
     @State private var tmuxAutoMode: TmuxAutoMode = .regular
+    @State private var herdrAutoMode: HerdrAutoMode = .regular
 
     // herdr auto-attach (mutually exclusive with enableTmux via the picker)
     @State private var enableHerdr: Bool = false
@@ -130,7 +207,13 @@ struct ProfileEditorSheet: View {
     // UI state
     @State private var showingIconPicker: Bool = false
     @State private var showingFolderPicker: Bool = false
+    @State private var showingShortcutEditor: Bool = false
     @State private var errorMessage: String?
+
+    /// Draft keyboard shortcut for this profile. nil = no shortcut (the default).
+    /// Applied to KeybindManager only when the profile is saved.
+    @State private var draftShortcut: KeySequence?
+    @State private var pendingShortcutOutcome: KeybindEditorOutcome?
 
     // Existing profile (nil for new)
     private let existingProfile: ConnectionProfile?
@@ -320,6 +403,21 @@ struct ProfileEditorSheet: View {
             FolderPickerSheet(selectedPath: $folderPath)
                 .themedSubSheet(sheetThemeColors)
         }
+        .sheet(isPresented: $showingShortcutEditor, onDismiss: applyPendingShortcutOutcome) {
+            KeybindEditorView(
+                action: .open_profile,
+                actionParameter: existingProfile?.id.uuidString,
+                titleOverride: name.isEmpty
+                    ? String(localized: "Profile Shortcut", comment: "Title when editing a profile keyboard shortcut")
+                    : name,
+                allowsRestoreDefault: false,
+                draftSequence: .some(draftShortcut),
+                onOutcome: { outcome in
+                    pendingShortcutOutcome = outcome
+                }
+            )
+            .themedSubSheet(sheetThemeColors)
+        }
         .sheet(isPresented: $showingAddPortForward) {
             AddPortForwardSheet { newForward in
                 let wasEmpty = portForwards.isEmpty
@@ -403,6 +501,25 @@ struct ProfileEditorSheet: View {
                 Spacer()
                 colorPicker
             }
+            .themedRow()
+
+            Button {
+                presentShortcutEditor()
+            } label: {
+                HStack {
+                    Text("Keyboard Shortcut")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text(draftShortcut?.symbolDescription ?? String(localized: "None"))
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             .themedRow()
         }
     }
@@ -764,6 +881,18 @@ struct ProfileEditorSheet: View {
                 }
 
                 HStack {
+                    Text("Connection timeout (seconds)")
+                    Spacer()
+                    TextField("Default (30)", text: $trzszConnectTimeoutSec)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 140)
+                }
+                Text("Controls tssh connection, reconnection, and stream-opening timeouts. Shorter values allow failed connection attempts to retry sooner. Applies to terminal and VPN connections when a new transport is created.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
                     Text("MTU")
                     Spacer()
                     TextField("Default (1400)", text: $trzszMTU)
@@ -804,12 +933,15 @@ struct ProfileEditorSheet: View {
         } header: {
             Text("TSSH")
         } footer: {
-            Text("Empty fields inherit from Settings > Roam. tsshd Binary is the full path to the executable on the remote host (e.g. /usr/local/bin/tsshd); leave empty to find tsshd via PATH.")
+            Text("An empty connection timeout uses 30 seconds. Other empty fields inherit from Settings > Roam. tsshd Binary is the full path to the executable on the remote host (e.g. /usr/local/bin/tsshd); leave empty to find tsshd via PATH.")
         }
     }
 
     /// Validation warning for TSSH advanced fields
     private var trzszAdvancedWarning: String? {
+        if !isTrzszTimeoutValid {
+            return String(localized: "Connection timeout must be a whole number between 1 and 120 seconds.")
+        }
         if let mtu = Int(trzszMTU), (mtu < 100 || mtu > 9000) {
             return "MTU must be between 100 and 9000."
         }
@@ -887,6 +1019,7 @@ struct ProfileEditorSheet: View {
                 .themedRow()
 
             if useJumpHost {
+                if connectionProtocol == .trzsz { TSSHRelayForm(settings: $tsshRelay) }
                 TextField("Jump Hostname", text: $jumpHost)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
@@ -971,6 +1104,10 @@ struct ProfileEditorSheet: View {
                         }
                         .themedRow()
                     }
+                }
+
+                if connectionProtocol == .trzsz {
+                    TSSHRelayAdvancedForm(settings: $tsshRelay)
                 }
             }
         } header: {
@@ -1384,14 +1521,21 @@ struct ProfileEditorSheet: View {
     private var tmuxLaunchSelection: Binding<TmuxLaunchSelection> {
         Binding(
             get: { TmuxLaunchSelection(tmuxEnabled: enableTmux, mode: effectiveTmuxAutoMode,
-                                       herdrEnabled: enableHerdr, zmxEnabled: enableZmx) },
+                                       herdrEnabled: enableHerdr, zmxEnabled: enableZmx,
+                                       herdrMode: effectiveHerdrAutoMode) },
             set: { sel in
                 enableTmux = sel.tmuxEnabled
                 enableHerdr = sel.herdrEnabled
                 enableZmx = sel.zmxEnabled
                 if sel.tmuxEnabled { tmuxAutoMode = sel.mode }
+                if sel.herdrEnabled { herdrAutoMode = sel.herdrMode }
             }
         )
+    }
+
+    /// herdr control mode needs the exec channel Mosh cannot carry.
+    private var effectiveHerdrAutoMode: HerdrAutoMode {
+        connectionProtocol == .mosh ? .regular : herdrAutoMode
     }
 
     /// Keep the rare TERM override compact in the main form. Its full value is
@@ -1426,6 +1570,9 @@ struct ProfileEditorSheet: View {
                     Text("tmux -CC (control)").tag(TmuxLaunchSelection.control)
                 }
                 Text("herdr").tag(TmuxLaunchSelection.herdr)
+                if connectionProtocol != .mosh {
+                    Text("herdr (control)").tag(TmuxLaunchSelection.herdrControl)
+                }
                 Text("zmx").tag(TmuxLaunchSelection.zmx)
             }
             .pickerStyle(.menu)
@@ -1622,6 +1769,15 @@ struct ProfileEditorSheet: View {
 
     // MARK: - Validation
 
+    private var isTrzszTimeoutValid: Bool {
+        let value = trzszConnectTimeoutSec.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty || Int(value).map { (1...120).contains($0) } == true
+    }
+
+    private var parsedTrzszTimeout: Int? {
+        Int(trzszConnectTimeoutSec.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     private var isFormValid: Bool {
         if connectionProtocol == .local { return nameValidationMessage == nil }
         if connectionProtocol == .vnc {
@@ -1632,6 +1788,7 @@ struct ProfileEditorSheet: View {
         portValidationMessage == nil &&
         usernameValidationMessage == nil &&
         targetKeyValidationMessage == nil &&
+        (connectionProtocol != .trzsz || isTrzszTimeoutValid) &&
         (!useJumpHost || isJumpHostValid)
     }
 
@@ -1813,6 +1970,47 @@ struct ProfileEditorSheet: View {
 
     // MARK: - Actions
 
+    private func presentShortcutEditor() {
+        let title = name.isEmpty
+            ? String(localized: "Profile Shortcut", comment: "Title when editing a profile keyboard shortcut")
+            : name
+
+        if let shortcutEditorPresenter {
+            shortcutEditorPresenter(ProfileShortcutEditorRequest(
+                actionParameter: existingProfile?.id.uuidString,
+                title: title,
+                draftSequence: draftShortcut,
+                onOutcome: applyShortcutOutcome
+            ))
+        } else {
+            showingShortcutEditor = true
+        }
+    }
+
+    private func applyPendingShortcutOutcome() {
+        guard let pendingShortcutOutcome else { return }
+        self.pendingShortcutOutcome = nil
+        applyShortcutOutcome(pendingShortcutOutcome)
+    }
+
+    private func applyShortcutOutcome(_ outcome: KeybindEditorOutcome) {
+        switch outcome {
+        case .captured(let sequence):
+            draftShortcut = sequence
+        case .restoreDefault, .unbind:
+            draftShortcut = nil
+        }
+    }
+
+    /// Persist the draft keyboard shortcut for a profile after create/update.
+    private func persistDraftShortcut(for profileID: UUID) {
+        if let draftShortcut {
+            KeybindManager.shared.setProfileShortcut(sequence: draftShortcut, profileID: profileID)
+        } else {
+            KeybindManager.shared.clearProfileShortcut(profileID: profileID)
+        }
+    }
+
     private func loadExistingProfile() {
         guard !didLoadProfile else { return }
         didLoadProfile = true
@@ -1825,6 +2023,7 @@ struct ProfileEditorSheet: View {
             colorTag = profile.colorTag
             folderPath = profile.folderPath
             tags = profile.tags
+            draftShortcut = KeybindManager.shared.keybind(forProfileID: profile.id)?.sequence
 
             // Load connection protocol and transport mode
             connectionProtocol = profile.connectionProtocol
@@ -1844,12 +2043,13 @@ struct ProfileEditorSheet: View {
             }
 
             // Load TSSH advanced settings
+            if let timeout = profile.trzszConnectTimeoutSec { trzszConnectTimeoutSec = "\(timeout)" }
             if let mtu = profile.trzszMTU { trzszMTU = "\(mtu)" }
             if let portMin = profile.trzszPortMin { trzszPortMin = "\(portMin)" }
             if let portMax = profile.trzszPortMax { trzszPortMax = "\(portMax)" }
             if let serverPath = profile.trzszServerPath { trzszServerPath = serverPath }
             // Auto-expand advanced section if any override is set
-            if profile.trzszMTU != nil || profile.trzszPortMin != nil || profile.trzszPortMax != nil || profile.trzszServerPath != nil {
+            if profile.trzszConnectTimeoutSec != nil || profile.trzszMTU != nil || profile.trzszPortMin != nil || profile.trzszPortMax != nil || profile.trzszServerPath != nil {
                 showAdvancedTSSH = true
             }
 
@@ -1886,6 +2086,7 @@ struct ProfileEditorSheet: View {
                 authMethod = .none  // Newer app's auth type; shown as None (re-pick to change)
             }
 
+            tsshRelay = config.jumpHost?.tsshRelay
             if let jump = config.jumpHost {
                 useJumpHost = true
                 jumpHost = jump.host
@@ -1944,6 +2145,7 @@ struct ProfileEditorSheet: View {
             enableTmux = config.tmuxAutoEnable
             tmuxAutoMode = config.tmuxAutoMode
             enableHerdr = config.herdrAutoEnable
+            herdrAutoMode = config.herdrAutoMode
             enableZmx = config.zmxAutoEnable
 
             // Load launch command
@@ -1974,6 +2176,7 @@ struct ProfileEditorSheet: View {
 
             // Load connection protocol from history
             connectionProtocol = entry.connectionProtocol ?? .ssh
+            tsshRelay = entry.tsshRelay
 
             switch entry.authType {
             case .password:
@@ -2063,6 +2266,7 @@ struct ProfileEditorSheet: View {
             enableTmux = entry.tmuxAutoEnable ?? false
             tmuxAutoMode = entry.tmuxAutoMode ?? .regular
             enableHerdr = entry.herdrAutoEnable ?? false
+            herdrAutoMode = entry.herdrAutoMode ?? .regular
             enableZmx = entry.zmxAutoEnable ?? false
 
             // Launch command from history
@@ -2080,6 +2284,10 @@ struct ProfileEditorSheet: View {
     }
 
     private func saveProfile() {
+        guard connectionProtocol != .trzsz || isTrzszTimeoutValid else {
+            errorMessage = trzszAdvancedWarning
+            return
+        }
         errorMessage = nil
         if connectionProtocol == .local {
             saveLocalProfile()
@@ -2230,8 +2438,18 @@ struct ProfileEditorSheet: View {
 
         // Update auth method after init
         var finalConfig = sshConfig
+        if connectionProtocol == .trzsz, let jump = finalConfig.jumpHost {
+            var relay = tsshRelay
+            relay?.boundJump = TSSHRelayIdentity(host: jump.host, port: jump.port, username: jump.username)
+            do {
+                try relay?.validate(host: jump.host, port: jump.port, username: jump.username,
+                    defaultPortMin: TrzszConfig.preferredUDPPortMin, defaultPortMax: TrzszConfig.preferredUDPPortMax)
+            } catch { errorMessage = error.localizedDescription; return }
+            finalConfig.jumpHost?.tsshRelay = relay
+        }
         finalConfig.authMethod = sshAuthMethod
         finalConfig.herdrAutoEnable = enableHerdr
+        finalConfig.herdrAutoMode = effectiveHerdrAutoMode
         finalConfig.zmxAutoEnable = enableZmx
 
         // TERM override. Empty (or malformed) means inherit the global default
@@ -2283,6 +2501,7 @@ struct ProfileEditorSheet: View {
                 updated.connectionProtocol = connectionProtocol
                 updated.trzszTransportMode = trzszTransportMode
                 updated.trzszMTU = Int(trzszMTU)
+                updated.trzszConnectTimeoutSec = parsedTrzszTimeout
                 updated.trzszPortMin = Int(trzszPortMin)
                 updated.trzszPortMax = Int(trzszPortMax)
                 let trimmedServerPath = trzszServerPath.trimmingCharacters(in: .whitespaces)
@@ -2297,9 +2516,10 @@ struct ProfileEditorSheet: View {
                 updated.localConfig = nil
                 updated.themeName = profileThemeName.isEmpty ? nil : profileThemeName
                 try profileManager.updateProfile(updated)
+                persistDraftShortcut(for: updated.id)
             } else {
                 // Create new profile
-                try profileManager.createProfile(
+                let created = try profileManager.createProfile(
                     name: trimmedName,
                     sshConfig: finalConfig,
                     connectionProtocol: connectionProtocol,
@@ -2320,8 +2540,9 @@ struct ProfileEditorSheet: View {
                     vpnDNSServers: vpnDNSServers,
                     vpnExcludedRoutes: vpnExcludedRoutes,
                     vpnBlockQUIC: vpnBlockQUIC,
-                    extensionPayload: ProfileExtensionPayload(themeName: profileThemeName.isEmpty ? nil : profileThemeName)
+                    extensionPayload: ProfileExtensionPayload(themeName: profileThemeName.isEmpty ? nil : profileThemeName, trzszConnectTimeoutSec: parsedTrzszTimeout)
                 )
+                persistDraftShortcut(for: created.id)
             }
             dismiss()
         } catch {
@@ -2353,14 +2574,16 @@ struct ProfileEditorSheet: View {
                     useCount: existing.useCount, extensionPayload: payload
                 )
                 try profileManager.updateProfile(updated)
+                persistDraftShortcut(for: updated.id)
             } else {
-                try profileManager.createProfile(
+                let created = try profileManager.createProfile(
                     name: trimmedName, sshConfig: ConnectionProfile.localPlaceholderSSHConfig(),
                     connectionProtocol: .local,
                     notes: notes.isEmpty ? nil : notes, iconName: iconName,
                     colorTag: colorTag, folderPath: folderPath, tags: tags,
                     extensionPayload: payload
                 )
+                persistDraftShortcut(for: created.id)
             }
             dismiss()
         } catch {
@@ -2410,8 +2633,9 @@ struct ProfileEditorSheet: View {
                 updated.themeName = profileThemeName.isEmpty ? nil : profileThemeName
                 updated.sshConfig = ConnectionProfile.vncPlaceholderSSHConfig(for: config)
                 try profileManager.updateProfile(updated)
+                persistDraftShortcut(for: updated.id)
             } else {
-                try profileManager.createProfile(
+                let created = try profileManager.createProfile(
                     name: trimmedName,
                     sshConfig: ConnectionProfile.vncPlaceholderSSHConfig(for: config),
                     connectionProtocol: .vnc,
@@ -2422,6 +2646,7 @@ struct ProfileEditorSheet: View {
                     tags: tags,
                     extensionPayload: ProfileExtensionPayload(vncConfig: config, themeName: profileThemeName.isEmpty ? nil : profileThemeName)
                 )
+                persistDraftShortcut(for: created.id)
             }
             dismiss()
         } catch {
@@ -2585,7 +2810,7 @@ private struct ProfileMultiplexerSessionEditor: View {
         )
     }
 
-    private var isHerdr: Bool { selection == .herdr }
+    private var isHerdr: Bool { selection.herdrEnabled }
     private var isZmx: Bool { selection == .zmx }
 
     private var trimmed: String {

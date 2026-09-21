@@ -98,15 +98,6 @@ struct RootShellApp: App {
                 .immersiveChromeForFullScreen()
                 .alwaysOnDisplay()
                 .task {
-                    // Appearance must resolve even on a locked or background
-                    // launch: attach the OS-level monitor now (idempotent) and
-                    // re-run Day/Night once protected data is readable, instead
-                    // of gating it behind the one-shot startup block below.
-                    SystemAppearanceMonitor.shared.start()
-                    ProtectedDataGuard.whenAvailable {
-                        DayNightThemeManager.shared.recheckAppearance()
-                    }
-
                     guard ProtectedDataGuard.isAvailable else { return }
 
                     // App-level startup work: run ONCE per launch, not on every
@@ -130,6 +121,11 @@ struct RootShellApp: App {
                     _ = LocationDiaryManager.shared
                     #endif
 
+                    // Re-check day/night theme now that the window exists and
+                    // Ghostty.App is subscribed to themeDidChange. The initial
+                    // check in DayNightThemeManager.init() runs before any
+                    // window is available, so it can't detect dark mode.
+                    DayNightThemeManager.shared.recheckAppearance()
 
                     // Restore bookmarked external folder access and symlinks
                     #if !targetEnvironment(macCatalyst)

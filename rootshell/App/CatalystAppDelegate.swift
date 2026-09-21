@@ -344,6 +344,10 @@ extension UIApplication {
         sendAction(#selector(Ghostty.TerminalView.menuShowTmuxSessions(_:)), to: nil, from: sender, for: nil)
     }
 
+    @objc func ghostty_discoverSessions(_ sender: Any?) {
+        sendAction(#selector(Ghostty.TerminalView.menuDiscoverSessions(_:)), to: nil, from: sender, for: nil)
+    }
+
     @objc func ghostty_detachOtherClients(_ sender: Any?) {
         sendAction(#selector(Ghostty.TerminalView.menuDetachOtherClients(_:)), to: nil, from: sender, for: nil)
     }
@@ -1095,8 +1099,22 @@ class CatalystAppDelegate: AppDelegate {
             modifierFlags: [.command, .shift]
         )
 
+        let openInFolder: UICommand
+        if let sequence = KeybindManager.shared.sequence(for: .open_in_folder),
+           !sequence.isSequence, let trigger = sequence.first {
+            openInFolder = UIKeyCommand(
+                title: String(localized: "Open in Folder…"),
+                action: #selector(UIApplication.menuOpenInFolder(_:)),
+                input: trigger.uiKeyInput,
+                modifierFlags: trigger.uiModifierFlags
+            )
+        } else {
+            openInFolder = UICommand(title: String(localized: "Open in Folder…"),
+                                     action: #selector(UIApplication.menuOpenInFolder(_:)))
+        }
+
         builder.replaceChildren(ofMenu: .newScene) { _ in
-            [newLocalShell, newTab, newWindow, duplicateSshTab]
+            [newLocalShell, newTab, newWindow, duplicateSshTab, openInFolder]
         }
     }
 
@@ -1464,10 +1482,17 @@ class CatalystAppDelegate: AppDelegate {
         )
 
         let tmuxSessions = UIKeyCommand(
-            title: String(localized: "tmux Sessions"),
+            title: String(localized: "Sessions & Workspaces"),
             action: #selector(UIApplication.ghostty_showTmuxSessions(_:)),
             input: "s",
             modifierFlags: [.command, .shift]
+        )
+
+        let discoverSessions = UIKeyCommand(
+            title: String(localized: "Discover Sessions"),
+            action: #selector(UIApplication.ghostty_discoverSessions(_:)),
+            input: "s",
+            modifierFlags: [.command, .control]
         )
 
         let detachOtherClients = UIKeyCommand(
@@ -1499,7 +1524,8 @@ class CatalystAppDelegate: AppDelegate {
         )
 
         let navGroup = UIMenu(title: "", options: .displayInline, children: [
-            toggleTabSwitcher, toggleTabExpose, previousTab, nextTab, previousGroup, nextGroup, tmuxSessions, detachOtherClients
+            toggleTabSwitcher, toggleTabExpose, previousTab, nextTab, previousGroup, nextGroup, tmuxSessions,
+            discoverSessions, detachOtherClients
         ])
 
         // Tab selection (1-9), each with its own action (see ghostty_selectTabN).

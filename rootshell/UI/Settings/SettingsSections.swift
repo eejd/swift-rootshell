@@ -359,6 +359,12 @@ struct SettingsTerminalSection: View {
             // MARK: - Keyboard
             Section {
                 #if !targetEnvironment(macCatalyst)
+                #if !os(visionOS)
+                NavigationLink(value: SettingsSearchDestination.touchKeyboard) {
+                    Label("Terminal Keyboard", systemImage: "keyboard.badge.ellipsis")
+                }
+                .themedRow()
+                #endif
                 Picker(selection: $writingAssistance) {
                     ForEach(TerminalWritingAssistanceMode.allCases, id: \.self) { mode in
                         Text(mode.title).tag(mode)
@@ -455,6 +461,14 @@ struct SettingsTerminalSection: View {
 
             // MARK: - Gestures
             Section {
+                NavigationLink(value: SettingsSearchDestination.gestureHelp) {
+                    HStack(spacing: 12) {
+                        SettingsIcon(systemName: "hand.tap")
+                        Text("Gesture Help")
+                    }
+                }
+                .themedRow()
+
                 NavigationLink(value: SettingsSearchDestination.swipeGestures) {
                     HStack(spacing: 12) {
                         SettingsIcon(systemName: "hand.draw")
@@ -1095,7 +1109,6 @@ struct SettingsAISection: View {
                     }
                 }
                 .themedRow()
-                #endif
 
                 NavigationLink(value: SettingsSearchDestination.mcpServer) {
                     HStack(spacing: 12) {
@@ -1121,6 +1134,7 @@ struct SettingsAISection: View {
                 }
                 .themedRow()
                 .settingContextMenu(Settings.AI.mcpServerConfig)
+                #endif
             } footer: {
                 Text("AI providers and tool integration for external AI assistants")
                     .font(.caption)

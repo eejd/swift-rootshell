@@ -491,9 +491,14 @@ final class TrzszGoTransport: NSObject {
 
     /// Builds a port-forward manager bound to this transport's gate handle.
     /// Returns nil if the transport is not connected.
-    func makePortForwardManager(config: PortForwardConfig) -> TrzszPortForwardManager? {
+    func makePortForwardManager(
+        config: PortForwardConfig,
+        recoveringRemoteForwards: Set<UUID> = []
+    ) -> TrzszPortForwardManager? {
         guard let ref = transportRef else { return nil }
-        return TrzszPortForwardManager(transportRef: ref, config: config)
+        return TrzszPortForwardManager(
+            transportRef: ref, config: config, recoveringRemoteForwards: recoveringRemoteForwards
+        )
     }
 
     /// Debug label for this transport (e.g., "S1 user@host")
@@ -520,7 +525,9 @@ final class TrzszGoTransport: NSObject {
     private var sendWriterTask: Task<Void, Never>?
     private var cachedSessionID: UInt64?
     private let serverInfo: TrzszServerInfo
-    private let mtu: Int
+    let mtu: Int
+    private let connectTimeoutSec: Int
+    private let relayTransport: TrzszGoTransport?
     private var keepPendingInput: Bool
     /// Value the SERVER last accepted, so `applyKeepPendingInput` can skip
     /// redundant pushes and, crucially, RETRY a failed one. nil = never applied.
@@ -557,11 +564,13 @@ final class TrzszGoTransport: NSObject {
         port: Int,
         serverInfo: TrzszServerInfo,
         mtu: Int = 0,
+        connectTimeoutSec: Int? = nil,
         keepPendingInput: Bool = false,
         keepPendingOutput: Bool = false,
         displayName: String = "",
         terminalUUID: UUID? = nil,
-        terminalType: String = TerminalTypeSettings.fallback
+        terminalType: String = TerminalTypeSettings.fallback,
+        relayTransport: TrzszGoTransport? = nil
     ) throws {
         let num = Self.nextSessionNumber
         Self.nextSessionNumber += 1
@@ -571,12 +580,19 @@ final class TrzszGoTransport: NSObject {
         self.serverInfo = serverInfo
         self.mode = serverInfo.mode
         self.mtu = mtu
+        self.connectTimeoutSec = connectTimeoutSec.flatMap { (1...120).contains($0) ? $0 : nil } ?? 30
+        self.relayTransport = relayTransport
         self.keepPendingInput = keepPendingInput
         self.keepPendingOutput = keepPendingOutput
         self.terminalUUID = terminalUUID
         self.terminalType = terminalType
 
         super.init()
+    }
+
+    func effectiveRelayMTU(requested: Int, mode: String) async throws -> Int {
+        guard let ref = activeTransportRef else { throw TrzszError.connectionFailed("Jump transport is unavailable") }
+        return try await TSSHCallGate.shared.effectiveRelayMTU(ref, requested: requested, mode: mode)
     }
 
     // MARK: - Public API
@@ -588,8 +604,8 @@ final class TrzszGoTransport: NSObject {
         }
 
         state = .connecting
-        Self.logger.info("[\(self.debugLabel)] Connecting Go transport to \(self.host):\(self.port) mode=\(self.mode.rawValue)")
-        ResumeDebugLogger.shared.log("[\(debugLabel)] connect: host=\(self.host), port=\(self.port), mode=\(self.mode.rawValue)")
+        Self.logger.info("[\(self.debugLabel)] Connecting Go transport to \(self.host):\(self.port) mode=\(self.mode.rawValue) connectTimeout=\(self.connectTimeoutSec)s")
+        ResumeDebugLogger.shared.log("[\(debugLabel)] connect: host=\(self.host), port=\(self.port), mode=\(self.mode.rawValue) connectTimeout=\(self.connectTimeoutSec)s")
 
         // Wire Go tsshd debug output to file-based logger when enabled.
         let logger = ResumeDebugLogger.shared.isEnabled ? TrzszGoDebugLoggerBridge() : nil
@@ -613,6 +629,7 @@ final class TrzszGoTransport: NSObject {
             clientID: Int64(bitPattern: serverInfo.clientId),
             serverID: Int64(bitPattern: serverInfo.serverId),
             mtu: mtu,
+            connectTimeoutSec: connectTimeoutSec,
             proxyKeyHex: serverInfo.proxyKey?.hexString,
             kcpPassHex: serverInfo.mode == .kcp ? (serverInfo.kcpPass?.hexString ?? "") : nil,
             kcpSaltHex: serverInfo.mode == .kcp ? (serverInfo.kcpSalt?.hexString ?? "") : nil,
@@ -624,7 +641,11 @@ final class TrzszGoTransport: NSObject {
 
         let ref: TSSHTransportRef
         do {
-            ref = try await TSSHCallGate.shared.connect(params)
+            let proxyRef = relayTransport?.activeTransportRef
+            if relayTransport != nil && proxyRef == nil {
+                throw TrzszError.connectionFailed("Jump transport is unavailable; direct fallback is disabled.")
+            }
+            ref = try await TSSHCallGate.shared.connect(params, via: proxyRef)
             self.transportRef = ref
         } catch {
             ResumeDebugLogger.shared.log("[\(debugLabel)] TSSH connect FAILED: \(error.localizedDescription)")
@@ -769,6 +790,47 @@ final class TrzszGoTransport: NSObject {
             throw TrzszError.connectionFailed("No transport for runRemoteCommand")
         }
         return try await TSSHCallGate.shared.runRemoteCommand(on: tRef, command: command)
+    }
+
+    /// Start a long-lived command in an auxiliary session on this transport
+    /// and return a byte pipe over its stdin/stdout. The channel survives
+    /// roaming with the transport and dies with it.
+    func openExecChannel(_ command: String) async throws -> AsyncBytePipe {
+        guard let tRef = transportRef else {
+            throw TrzszError.connectionFailed("No transport for openExecChannel")
+        }
+        let channelRef = try await TSSHCallGate.shared.openExec(on: tRef, command: command)
+        let sessionID = await TSSHCallGate.shared.execSessionID(on: tRef, channelRef: channelRef)
+        return TrzszExecPipe(
+            channelRef: channelRef,
+            transportRef: tRef,
+            remoteSessionID: sessionID > 0 ? UInt64(sessionID) : nil
+        )
+    }
+
+    /// The server-side session id behind an exec channel, or nil when the
+    /// channel has none to name.
+    func execSessionID(channelRef: Int64) async -> UInt64? {
+        guard let tRef = transportRef else { return nil }
+        let id = await TSSHCallGate.shared.execSessionID(on: tRef, channelRef: channelRef)
+        return id > 0 ? UInt64(id) : nil
+    }
+
+    /// Ends a server-side session by id, including one an earlier run of the
+    /// app opened: auxiliary channels are never reattached, so an attachable
+    /// server keeps them running until someone says otherwise.
+    func exitSession(sessionID: UInt64) async throws {
+        guard let tRef = transportRef else {
+            throw TrzszError.connectionFailed("No transport for exiting a session")
+        }
+        try await TSSHCallGate.shared.exitSession(on: tRef, sessionID: Int64(bitPattern: sessionID))
+    }
+
+    func openPTYChannel(_ command: String, cols: Int, rows: Int) async throws -> HerdrPTYChannel {
+        guard let transportRef else { throw TrzszError.connectionFailed("No transport for auxiliary PTY") }
+        return try await HerdrTSSHPTYChannel.open(
+            transport: transportRef, command: command, term: terminalType, cols: cols, rows: rows
+        )
     }
 
     /// Opens a session stream with PTY

@@ -60,26 +60,11 @@ class AppearanceManager: ObservableObject {
     @Published var currentAppearanceMode: AppearanceMode {
         didSet {
             applyWindowOverrides()
-            // The override is the second input of the app's single appearance
-            // state; publish it regardless of lock state so the Day/Night pair
-            // and every terminal surface follow immediately. Only persistence
-            // waits for protected data.
-            if ProtectedDataGuard.isAvailable {
-                saveAppearanceMode()
-            } else if !isReloading, !deferredSaveScheduled {
-                deferredSaveScheduled = true
-                ProtectedDataGuard.whenAvailable { [weak self] in
-                    guard let self else { return }
-                    self.deferredSaveScheduled = false
-                    self.saveAppearanceMode()
-                }
-            }
+            guard ProtectedDataGuard.isAvailable else { return }
+            saveAppearanceMode()
             appearanceModeDidChange.send(currentAppearanceMode)
         }
     }
-
-    /// True once a save of `currentAppearanceMode` is queued for the next unlock.
-    private var deferredSaveScheduled = false
 
     /// Whether to apply terminal theme colors to sheets and settings
     @Published var themedUIEnabled: Bool {

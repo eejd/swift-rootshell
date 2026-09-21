@@ -136,6 +136,8 @@ struct MainView: View {
     /// "Ask Each Time" tmux tab-close: the tab whose ⌘W/✕ is awaiting the
     /// user's choice in the close action sheet. (id=tmux-tab-close-action)
     @State var pendingTmuxCloseTabID: UUID?
+    /// "Ask Each Time" close of a herdr control-mode tab.
+    @State var pendingHerdrCloseTabID: UUID?
     @State var pendingNewTabRequest: NewTabRequest?
     @State var unavailableNewTabRequest: NewTabRequest?
     @State var authenticationRetryRequest: SSHAuthenticationRetryRequest?
@@ -185,6 +187,7 @@ struct MainView: View {
     /// sidebar. Enabled by default so the content area reads as one canvas.
     @Setting(Settings.Shaders.effectIncludesPinnedSidebar)
     var backgroundEffectIncludesPinnedSidebar
+    @Setting(Settings.Shaders.sidebarEffectId) var backgroundSidebarEffectID
 
     // SSH settings
     @Setting(Settings.Connections.healthMonitoring) var sshHealthMonitoringEnabled
@@ -235,6 +238,8 @@ struct MainView: View {
     // approvals, helper-missing, and AI-agent alerts all route through this
     // per-window controller (see MainAlertController).
     @State var alerts = MainAlertController()
+    /// Install sheet reached from the herdr upgrade alert.
+    @State var showHerdrInstallInstructions = false
 
     // In-window full-screen takeover for VNC panes (one per window, like
     // the alert controller; see PaneFullScreenController).
@@ -280,6 +285,11 @@ struct MainView: View {
     // Theme picker overlay state
     @State var showThemePickerOverlay = false
     @State var showQuickSettingsOverlay = false
+    /// Open in Folder palette; the target is captured when it opens.
+    @State var showOpenInFolderOverlay = false
+    @State var openInFolderModel: OpenInFolderModel?
+    /// A split / new-tab chord caught by the menu rail while the palette is up.
+    @State var openInFolderShortcut: OpenInFolderShortcut?
 
     // Clipboard manager overlay state
     @State var showClipboardManager = false
@@ -348,6 +358,7 @@ struct MainView: View {
     /// tmux session dashboard sheet (opened from a gateway/window tab's
     /// context menu). Carries the gateway's controller.
     @State var tmuxDashboardRequest: TmuxDashboardRequest?
+    @State var herdrDashboardRequest: HerdrWorkspaceDashboardRequest?
 
     // Trzsz transfer (Continuity Handoff) state
     @State var trzszTransferOriginRequest: TrzszTransferOriginRequest?

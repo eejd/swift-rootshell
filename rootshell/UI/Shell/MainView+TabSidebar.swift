@@ -105,10 +105,10 @@ extension MainView {
                 reorderTabsPreservingSlots(orderedClassIDs: orderedIDs, draggedID: draggedID)
             },
             onMoveTab: { from, to in
-                moveTab(from: from, to: to)
+                moveTab(from: from, to: to, commitRemoteOrder: false)
             },
             onReorderEnded: { draggedID in
-                commitTabReorderToTmux(draggedID: draggedID)
+                commitTabReorder(draggedID: draggedID)
             },
             onNewTab: {
                 // addNewTab opens the connection sidebar (right overlay).
@@ -154,9 +154,41 @@ extension MainView {
     func showTmuxSessionsForSelectedTab() {
         guard terminals.indices.contains(selectedTabIndex) else { return }
         let tab = terminals[selectedTabIndex]
+        if let controller = HerdrController.controller(forAnyTab: tab) {
+            herdrDashboardRequest = HerdrWorkspaceDashboardRequest(controller: controller)
+            return
+        }
         guard tab.isTmuxWindow || tab.isTmuxGateway else { return }
         guard let controller = tmuxControllerForTab(tab) else { return }
         tmuxDashboardRequest = TmuxDashboardRequest(controller: controller)
+    }
+
+    /// Re-run multiplexer session discovery. Unlike the connect-time scan this
+    /// always presents the picker, so it reports back even when it finds nothing.
+    /// Invoking it while the picker is up dismisses it, so the shortcut toggles.
+    ///
+    /// `origin` is the pane that asked (the context menu's own surface, which is
+    /// not always the focused one); the menu bar and keybind rails pass nil and
+    /// get the focused pane of the selected tab.
+    func discoverSessionsForSelectedTab(origin: Ghostty.TerminalView? = nil) {
+        guard terminals.indices.contains(selectedTabIndex) else { return }
+        let tab = terminals[selectedTabIndex]
+        // The picker renders off the tab's focused pane, so a request from an
+        // unfocused split has to take focus or the card would never appear. An
+        // origin outside this tab is ignored for the same reason.
+        var target = tab.focusedTerminal
+        if let origin, tab.splitTree.contains(where: { $0 === origin }) {
+            if tab.focusedTerminal !== origin { setFocusedTerminal(origin, inTab: selectedTabIndex) }
+            target = origin
+        }
+        guard let target else { return }
+
+        // Second invocation closes the card, matching every other overlay toggle.
+        if target.dismissSessionDiscoveryIfPresented() {
+            target.becomeFirstResponder()
+            return
+        }
+        target.discoverSessionsIfConfigured(manual: true)
     }
 
     /// Evict every OTHER tmux client (`detach-client -a`) for the selected
@@ -170,6 +202,14 @@ extension MainView {
     func detachOtherClientsForSelectedTab() {
         guard terminals.indices.contains(selectedTabIndex) else { return }
         let tab = terminals[selectedTabIndex]
+        // herdr has no eviction method, and its viewers are meant to share:
+        // the same command takes the whole session instead (see
+        // `takeControlOfSession`), rather than doing nothing on a herdr tab.
+        if tab.isHerdrWindow || tab.isHerdrGateway,
+           let controller = herdrControllerForTab(tab) {
+            controller.takeControlOfSession()
+            return
+        }
         guard tab.isTmuxWindow || tab.isTmuxGateway,
               let controller = tmuxControllerForTab(tab) else { return }
         Task { @MainActor in
@@ -180,6 +220,15 @@ extension MainView {
                 TmuxDebugLogger.shared.event("DETACH", "others failed: \(message)")
             }
         }
+    }
+
+    /// The herdr controller behind a tab, from either side: a projected tab
+    /// through its owning gateway, a gateway tab through its own terminal.
+    func herdrControllerForTab(_ tab: TabModel) -> HerdrController? {
+        if let controller = HerdrController.controller(forTab: tab) { return controller }
+        return tab.splitTree.terminalLeaves.lazy
+            .compactMap { HerdrController.controller(for: $0) }
+            .first
     }
 
     /// Resolve the tmux controller backing a tab: the gateway tab holds the

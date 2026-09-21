@@ -18,10 +18,14 @@ import os
 public struct ShellCreateResult {
     public let sessionID: UUID
     public let socketPath: String
+    public let recoverySupported: Bool
+    public let recoveryAccepted: Bool
 
-    public init(sessionID: UUID, socketPath: String) {
+    public init(sessionID: UUID, socketPath: String, recoverySupported: Bool = false, recoveryAccepted: Bool = false) {
         self.sessionID = sessionID
         self.socketPath = socketPath
+        self.recoverySupported = recoverySupported
+        self.recoveryAccepted = recoveryAccepted
     }
 }
 
@@ -113,6 +117,7 @@ public class HelperConnection {
         shell: String? = nil,
         enableShellIntegration: Bool = true,
         paneToken: String? = nil,
+        recoveryAttachment: LocalMultiplexerAttachment? = nil,
         completion: @escaping (Result<ShellCreateResult, Error>) -> Void
     ) {
         Task {
@@ -126,7 +131,7 @@ public class HelperConnection {
                 let sshAuthSock: String? = nil
                 #endif
 
-                let (sessionID, socketPath) = try await socketConnection.createShell(
+                let response = try await socketConnection.createShell(
                     rows: rows,
                     cols: cols,
                     cwd: workingDirectory,
@@ -134,14 +139,44 @@ public class HelperConnection {
                     resourcesDir: resourcesDir,
                     enableShellIntegration: enableShellIntegration,
                     sshAuthSock: sshAuthSock,
-                    paneToken: paneToken
+                    paneToken: paneToken,
+                    recoveryAttachment: recoveryAttachment
                 )
 
-                let result = ShellCreateResult(sessionID: sessionID, socketPath: socketPath)
+                let result = ShellCreateResult(sessionID: response.sessionID, socketPath: response.socketPath,
+                    recoverySupported: response.recoverySupported ?? false, recoveryAccepted: response.recoveryAccepted ?? false)
                 completion(.success(result))
             } catch {
                 completion(.failure(error))
             }
+        }
+    }
+
+    func inspectLocalMultiplexers(herdrTargets: [String: LocalHerdrControlTarget] = [:]) async throws -> [String: LocalMultiplexerAttachment?] {
+        try await socketConnection.inspectLocalMultiplexers(herdrTargets: herdrTargets)
+    }
+
+    /// Spawns a long-lived non-PTY command and returns its pid plus the
+    /// session socket where the helper delivers the app's end of its stdio.
+    public func spawnPipedProcess(
+        command: String,
+        workingDirectory: String? = nil,
+        shell: String? = nil,
+        paneToken: String? = nil
+    ) async throws -> (processID: Int32, socketPath: String) {
+        try await socketConnection.spawnPipedProcess(
+            command: command,
+            cwd: workingDirectory,
+            shell: shell,
+            paneToken: paneToken
+        )
+    }
+
+    public func killPipedProcess(processID: Int32) async {
+        do {
+            try await socketConnection.killPipedProcess(processID: processID)
+        } catch {
+            Ghostty.logger.error("Failed to kill piped process \(processID): \(error)")
         }
     }
 
@@ -276,23 +311,23 @@ public class HelperConnection {
     /// Ensures helper is running, launching it if necessary (non-sandboxed mode only)
     /// Returns true if helper is available (either existing or newly launched)
     public func ensureHelperRunning() async -> Bool {
-        ensureLock.lock()
-        if let inFlightEnsure {
-            ensureLock.unlock()
-            return await inFlightEnsure.value
-        }
-
-        let created = Task {
-            defer {
-                self.ensureLock.lock()
-                self.inFlightEnsure = nil
-                self.ensureLock.unlock()
+        let task = ensureLock.withLock {
+            if let inFlightEnsure {
+                return inFlightEnsure
             }
-            return await self.performEnsureHelperRunning()
+
+            let created = Task {
+                defer {
+                    self.ensureLock.withLock {
+                        self.inFlightEnsure = nil
+                    }
+                }
+                return await self.performEnsureHelperRunning()
+            }
+            inFlightEnsure = created
+            return created
         }
-        inFlightEnsure = created
-        ensureLock.unlock()
-        return await created.value
+        return await task.value
     }
 
     private func performEnsureHelperRunning() async -> Bool {

@@ -57,9 +57,53 @@ extension MainView {
             return
         }
 
+        // herdr control mode: `pane.move` into the pane's own tab answers
+        // `same_tab` and `layout.apply` respawns the tab, so `pane.swap` is the
+        // only in-tab primitive. The drop exchanges the panes; the zone is only
+        // a hit test, and the following `tab.layout` record repositions them.
+        if let binding = source.asTerminal?.herdrPaneBinding {
+            guard let targetBinding = destination.asTerminal?.herdrPaneBinding,
+                  let controller = HerdrController.controller(forGateway: binding.gatewayUUID),
+                  let requestID = tab.paneMove.begin() else { return }
+            let focusRevision = tab.paneFocusRevision
+            let selectionRevision = tabsModel.selectionRevision
+            Task { @MainActor in
+                do {
+                    // performManagement marks the controller busy and bumps
+                    // managementRevision, so a legacy poll in flight since
+                    // before the swap cannot restore the old arrangement over
+                    // it, and its defer clears legacySnapshotFingerprint.
+                    try await controller.performManagement {
+                        try await controller.swapPanes(binding.paneId, targetBinding.paneId)
+                    }
+                    tab.paneMove.finish(requestID)
+                    // herdr owns the tree. This is the user's one-shot focus
+                    // request, re-asserted after the swap's snapshot readback.
+                    guard tabsModel.selectionRevision == selectionRevision,
+                          tab.paneFocusRevision == focusRevision,
+                          let currentIndex = terminals.firstIndex(where: { $0 === tab }),
+                          currentIndex == selectedTabIndex,
+                          !isAnySheetPresented, isWindowFocused,
+                          tab.splitTree.contains(source),
+                          source.asTerminal?.herdrPaneBinding?.gatewayUUID == binding.gatewayUUID,
+                          source.asTerminal?.herdrPaneBinding?.tabId == binding.tabId else { return }
+                    setFocusedPane(source, inTab: currentIndex)
+                } catch is CancellationError {
+                    // The controller moved on (detach, reconnect): nothing to report.
+                    tab.paneMove.finish(requestID)
+                } catch {
+                    let reason = controller.managementFailureDescription(error)
+                    tab.paneMove.finish(requestID, error: String(localized: "Couldn’t move pane: \(reason)"))
+                    Ghostty.logger.error("herdr pane swap failed: \(error.localizedDescription)")
+                }
+            }
+            return
+        }
+
         // A native tree may include terminals and nonterminal panes, but never
         // edit a server-owned window or a mixed tree with bound tmux leaves.
-        guard !tab.isTmuxWindow, !tab.splitTree.terminalLeaves.contains(where: { $0.isTmuxPane }) else { return }
+        guard !tab.isTmuxWindow, !tab.isHerdrWindow,
+              !tab.splitTree.terminalLeaves.contains(where: { $0.isMultiplexerPane }) else { return }
         do {
             tab.splitTree = try tab.splitTree.moving(view: source, to: destination, direction: zone.direction)
             setFocusedPane(source, inTab: index)
@@ -93,7 +137,9 @@ extension MainView {
         }
     }
 
-    func createSplit(direction: SplitTree<SplitPaneView>.NewDirection) {
+    /// `startDirectory` (absolute, on the pane's target) makes the new shell
+    /// start there instead of inheriting; nil keeps today's behaviour.
+    func createSplit(direction: SplitTree<SplitPaneView>.NewDirection, startDirectory: String? = nil) {
         guard terminals.indices.contains(selectedTabIndex) else { return }
         if let vnc = terminals[selectedTabIndex].focusedPane as? VNCPaneView {
             createVNCSplit(with: vnc.config, direction: direction, sourceProfileID: vnc.sourceProfileID)
@@ -108,7 +154,13 @@ extension MainView {
         // has no such pane). The gateway tab itself has no tmuxPaneBinding, so it
         // still splits locally.
         if focusedTerminal.isTmuxPane {
-            focusedTerminal.requestTmuxSplit(direction)
+            focusedTerminal.requestTmuxSplit(direction, startDirectory: startDirectory)
+            return
+        }
+        // herdr control mode: same round trip; the `tab.layout` record that
+        // follows `pane.split` builds the pane surface and the native split.
+        if focusedTerminal.isHerdrPane {
+            focusedTerminal.requestHerdrSplit(direction, cwd: startDirectory)
             return
         }
 
@@ -116,7 +168,10 @@ extension MainView {
 
         // Get connection config from FOCUSED terminal (not tab level)
         // Use forNewSplit() to create fresh session IDs for K8s, etc.
-        let connectionConfig = focusedTerminal.connectionConfig.forNewSplit()
+        var connectionConfig = focusedTerminal.connectionConfig.forNewSplit()
+        if let startDirectory, let redirected = connectionConfig.startingIn(directory: startDirectory) {
+            connectionConfig = redirected
+        }
 
         // Create a new terminal view for the split with inherited connection config
         let newTerminalView = Ghostty.TerminalView(
@@ -152,7 +207,7 @@ extension MainView {
         }
 
         // Set containing tab ID before inserting
-        newTerminalView.retargetTab(to: terminals[selectedTabIndex].id)
+        newTerminalView.containingTabID = terminals[selectedTabIndex].id
 
         // Insert the new split
         do {
@@ -211,7 +266,13 @@ extension MainView {
 
     func equalizeSplits() {
         guard terminals.indices.contains(selectedTabIndex) else { return }
-        terminals[selectedTabIndex].splitTree = terminals[selectedTabIndex].splitTree.equalize()
+        let tab = terminals[selectedTabIndex]
+        // Herdr owns these ratios; a local edit is lost on its next layout.
+        if tab.isHerdrWindow {
+            HerdrController.controller(forTab: tab)?.requestEqualizeSplits(tab)
+            return
+        }
+        tab.splitTree = tab.splitTree.equalize()
     }
 
     func toggleSplitZoom() {
@@ -225,6 +286,10 @@ extension MainView {
         // The gateway tab has no tmuxPaneBinding, so it keeps the local path.
         if let terminal = focusedPane.asTerminal, terminal.isTmuxPane {
             terminal.requestTmuxToggleZoom()
+            return
+        }
+        if let terminal = focusedPane.asTerminal, terminal.isHerdrPane {
+            terminal.requestHerdrToggleZoom()
             return
         }
 
@@ -278,6 +343,21 @@ extension MainView {
             }
             terminalToClose.requestTmuxKillPane()
             return
+        }
+        // herdr control mode: the server closes the pane and its topology
+        // events retire the surface (and the tab when it was the last pane).
+        if let terminalToClose = paneToClose.asTerminal, terminalToClose.isHerdrPane {
+            terminalToClose.requestHerdrClosePane()
+            return
+        }
+        // Closing a herdr gateway pane ends control mode first so the
+        // projected tabs go with it instead of lingering without a stream.
+        if let controller = paneToClose.asTerminal?.herdrController {
+            controller.stop()
+            guard let reindexed = terminals.firstIndex(where: {
+                $0.splitTree.contains(where: { $0 === paneToClose })
+            }) else { return }
+            tabIndex = reindexed
         }
 
         // tmux -CC gateway: tear down the window tabs/panes it projected BEFORE this

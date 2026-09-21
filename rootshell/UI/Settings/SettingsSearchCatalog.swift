@@ -24,9 +24,11 @@ enum SettingsSearchDestination: String, Hashable, CaseIterable {
     case battery
     case visor
     case toolbarKeys
+    case touchKeyboard
     case newTabAction
     case keyboardShortcuts
     case modTap
+    case gestureHelp
     case swipeGestures
     case promptAndUsername
     case bookmarkedLocations
@@ -152,6 +154,11 @@ extension SettingsSearchDestination {
         case .visor:
             Meta(section: .appearance, title: String(localized: "Visor"), systemImage: "rectangle.topthird.inset.filled",
                  keywords: ["hotkey", "drop-down", "quake", "slide", "overlay", "global shortcut"])
+        case .touchKeyboard:
+            Meta(section: .terminal, title: String(localized: "Terminal Keyboard"), systemImage: "keyboard.badge.ellipsis",
+                 keywords: ["custom keyboard", "qwerty", "vim", "emacs", "nano", "agent", "suggestions", "haptics",
+                            "letter prediction", "typing accuracy", "touch accuracy", "detached", "floating",
+                            "glass", "tint", "transparency", "system detached keyboard", "app window"])
         case .toolbarKeys:
             Meta(section: .terminal, title: String(localized: "Toolbar Keys"), systemImage: "keyboard",
                  keywords: ["toolbar", "custom keys"])
@@ -164,6 +171,14 @@ extension SettingsSearchDestination {
         case .modTap:
             Meta(section: .terminal, title: String(localized: "Mod-Tap Keys"), systemImage: "hand.tap",
                  keywords: ["caps lock", "modifier", "tap hold", "escape", "rules", "threshold", "input source", "hold"])
+        case .gestureHelp:
+            Meta(section: .terminal, title: String(localized: "Gesture Help"), systemImage: "hand.tap",
+                 keywords: ["gestures", "help", "walkthrough", "tutorial", "long press", "double tap",
+                            "two fingers", "chevron", "hide keyboard", "collapse toolbar", "modifiers",
+                            "joystick", "space", "cursor", "floating keyboard", "dock", "swipe", "pinch",
+                            "font size", "selection", "scroll mode", "context menu", "new connection",
+                            "tab expose", "pull down", "previews", "sidebar", "split", "pane",
+                            "screen sharing", "pencil"])
         case .swipeGestures:
             Meta(section: .terminal, title: String(localized: "Swipe Gestures"), systemImage: "hand.draw",
                  keywords: ["swipe", "gesture", "left swipe", "right swipe", "app tabs", "tmux windows",
@@ -324,6 +339,8 @@ extension SettingsSearchDestination {
             return AppIconManager.isSupported
         case .transparency:
             return SearchBuild.isCatalyst
+        case .touchKeyboard:
+            return !SearchBuild.isCatalyst && !SearchBuild.isVisionOS
         case .toolbarKeys, .promptAndUsername, .bookmarkedLocations, .locationDiary:
             return !SearchBuild.isCatalyst
         case .liveActivity:
@@ -639,8 +656,10 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["saver", "low power"]),
 
             // MARK: Background Effect
-            row("effect-pinned-sidebar", String(localized: "Include Pinned Sidebar"), in: .backgroundEffect,
-                keywords: ["layout", "sidebar", "effect"]),
+            row("effect-pinned-sidebar", String(localized: "Sidebar Effect"), in: .backgroundEffect,
+                keywords: ["layout", "sidebar", "effect", "sidebar only", "include pinned sidebar"], available: isTouch && !onPhone || isCatalyst),
+            row("effect-keyboard", String(localized: "Custom Keyboard Background"), in: .backgroundEffect, icon: "keyboard",
+                keywords: ["custom keyboard", "toolbar", "effect", "background", "aquarium", "keyboard only"], available: isTouch),
             row("effect-photo", String(localized: "Photo Background"), in: .backgroundEffect, icon: "photo",
                 keywords: ["photo", "image", "wallpaper", "ken burns", "filter", "tint"]),
             row("effect-video", String(localized: "Video Background"), in: .backgroundEffect, icon: "film",
@@ -868,6 +887,17 @@ struct SettingsSearchEntry: Identifiable, Hashable {
             row("screen-sharing-panning", String(localized: "Screen Panning"), in: .screenSharing, icon: "cursorarrow.motionlines",
                 keywords: ["pointer", "edge", "continuous", "pan", "viewport",
                            "default mode", "when pointer reaches edge", "continuously with pointer"]),
+            row("screen-sharing-pointer-mode", String(localized: "Default Pointer Mode"), in: .screenSharing, icon: "cursorarrow.rays",
+                keywords: ["pointer", "trackpad", "touch", "cursor", "relative", "absolute",
+                           "default mode", "mouse"]),
+            row("screen-sharing-pointer-speed", String(localized: "Pointer Speed"), in: .screenSharing, icon: "speedometer",
+                keywords: ["pointer", "trackpad", "speed", "sensitivity", "acceleration", "cursor"]),
+            row("screen-sharing-cursor-rendering", String(localized: "Cursor Rendering"), in: .screenSharing, icon: "cursorarrow",
+                keywords: ["cursor", "pointer", "remote", "local",
+                           "server rendered", "draw", "mouse"]),
+            row("screen-sharing-cursor-size", String(localized: "Cursor Size"), in: .screenSharing, icon: "arrow.up.left.and.arrow.down.right",
+                keywords: ["cursor", "pointer", "size", "small", "medium", "large",
+                           "bigger", "trackpad"]),
 
             // MARK: Connections (inline)
             row("clear-connection-history", String(localized: "Clear Connection History"), in: .connections, icon: "trash",
@@ -1028,6 +1058,12 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         #else
         EmptyView()
         #endif
+    case .touchKeyboard:
+        #if !os(visionOS) && !targetEnvironment(macCatalyst)
+        TerminalTouchKeyboardSettingsView()
+        #else
+        EmptyView()
+        #endif
     case .toolbarKeys:
         #if !targetEnvironment(macCatalyst)
         KeyboardToolbarSettingsView()
@@ -1040,6 +1076,8 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         KeyboardShortcutsSettingsView()
     case .modTap:
         ModTapSettingsView()
+    case .gestureHelp:
+        GestureHelpView()
     case .swipeGestures:
         SwipeGesturesSettingsView()
     case .promptAndUsername:
@@ -1131,7 +1169,11 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         EmptyView()
         #endif
     case .mcpServer:
+        #if !CHINA_BUILD
         MCPSettingsView()
+        #else
+        EmptyView()
+        #endif
     case .voiceAgent:
         #if !CHINA_BUILD
         VoiceAgentSettingsView()

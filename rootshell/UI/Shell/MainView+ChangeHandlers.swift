@@ -91,7 +91,9 @@ extension MainView {
             .onChange(of: WindowSessionCensus.profileCounts(in: terminals)) { _, _ in
                 notifySessionCountChanged()
             }
-            .onChange(of: selectedTabIndex) { oldValue, newValue in
+            // A close can replace the selected tab without changing its index.
+            // Focus follows identity; reordering the same tab needs no handoff.
+            .onChange(of: tabsModel.selectedTabID) { oldValue, newValue in
                 handleSelectedTabChange(oldValue: oldValue, newValue: newValue)
             }
             .onChange(of: showConnectionSidebar) { oldValue, newValue in
@@ -232,11 +234,51 @@ extension MainView {
         applyTailHandlers(chained)
     }
 
+    /// herdr controllers post per-window notifications; only the window that
+    /// hosts the gateway answers them.
+    @ViewBuilder
+    private func applyHerdrAlertHandlers<V: View>(_ view: V) -> some View {
+        view
+            .onReceive(NotificationCenter.default.publisher(for: .herdrUpgradePromptRequested)) { note in
+                guard note.userInfo?["windowId"] as? String == windowId,
+                      let prompt = note.userInfo?["prompt"] as? HerdrUpgradePrompt else { return }
+                alerts.presentHerdrUpgrade(prompt)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .herdrTakeControlRequested)) { note in
+                guard note.userInfo?["windowId"] as? String == windowId,
+                      let request = note.userInfo?["request"] as? MainAlertController.HerdrTakeControlRequest else { return }
+                alerts.presentHerdrTakeControl(request)
+            }
+            .onChange(of: alerts.showHerdrUpgradeAlert) { oldValue, newValue in
+                if newValue {
+                    alerts.enqueue(.herdrUpgrade)
+                } else if oldValue {
+                    if alerts.presentedKind == .herdrUpgrade {
+                        alerts.completePresented(clearBackingState: false)
+                    }
+                    restoreFirstResponderAfterSheetDismissal()
+                }
+            }
+            .onChange(of: alerts.showHerdrTakeControlAlert) { oldValue, newValue in
+                if newValue {
+                    alerts.enqueue(.herdrTakeControl)
+                } else if oldValue {
+                    if alerts.presentedKind == .herdrTakeControl {
+                        alerts.completePresented(clearBackingState: false)
+                    }
+                    restoreFirstResponderAfterSheetDismissal()
+                }
+            }
+            .sheet(isPresented: $showHerdrInstallInstructions) {
+                HerdrInstallInstructionsView(isFallbackForced: false, typeIntoShell: nil)
+            }
+    }
+
     // Split from applyRemainingHandlers: the single chain outgrew the
     // type-checker's budget when the VNC alert handler joined it.
     @ViewBuilder
     private func applyTailHandlers<V: View>(_ view: V) -> some View {
-        applyVNCFullScreenHandlers(view)
+        applyHerdrAlertHandlers(applyVNCFullScreenHandlers(view))
             .onChange(of: alerts.showHelperMissingAlert) { oldValue, newValue in
                 if newValue {
                     alerts.enqueue(.helperMissing)

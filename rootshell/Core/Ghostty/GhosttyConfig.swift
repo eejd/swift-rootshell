@@ -263,29 +263,7 @@ extension Ghostty {
 
             let configFile = configDir.appendingPathComponent("config")
 
-            let configContent = Self.configContent(
-                themeName: themeName,
-                fontSize: fontSize,
-                fontFamily: fontFamily
-            )
-
-            do {
-                try configContent.write(to: configFile, atomically: true, encoding: .utf8)
-                logger.info("Wrote config file: \(configFile.path)")
-                return true
-            } catch {
-                logger.error("Failed to write config file: \(error)")
-                return false
-            }
-        }
-
-        /// Serialize all app-managed Ghostty settings. Both the shared config
-        /// and per-surface override configs use this one source of truth.
-        private static func configContent(
-            themeName: String?,
-            fontSize: Int? = nil,
-            fontFamily: String? = nil
-        ) -> String {
+            // Build config content with available settings
             var configLines: [String] = []
 
             if let theme = themeName {
@@ -397,40 +375,39 @@ extension Ghostty {
             let shaderLines = ShaderManager.shared.generateConfigLines()
             configLines.append(contentsOf: shaderLines)
 
-            return configLines.joined(separator: "\n") + "\n"
+            let configContent = configLines.joined(separator: "\n") + "\n"
+
+            do {
+                try configContent.write(to: configFile, atomically: true, encoding: .utf8)
+                logger.info("Wrote config file: \(configFile.path)")
+                return true
+            } catch {
+                logger.error("Failed to write config file: \(error)")
+                return false
+            }
         }
 
-        /// Load a new config with theme from the config file.
-        ///
-        /// - Parameter file: load exactly this file instead of Ghostty's default
-        ///   search (the shared global config). Per-surface overrides use it so
-        ///   they never rewrite the global file.
-        private static func loadConfigWithTheme(file: URL? = nil) -> ghostty_config_t? {
+        /// Load a new config with theme from the config file
+        private static func loadConfigWithTheme() -> ghostty_config_t? {
             guard let cfg = ghostty_config_new() else {
                 logger.critical("ghostty_config_new failed")
                 return nil
             }
 
-            if let file {
-                file.path.withCString { ghostty_config_load_file(cfg, $0) }
-            } else {
-                // Load from default files (will read our config file)
-                ghostty_config_load_default_files(cfg)
-            }
+            // Load from default files (will read our config file)
+            ghostty_config_load_default_files(cfg)
 
             // Finalize the config
             ghostty_config_finalize(cfg)
 
-            // Diagnostics are logged, not fatal: an unrelated warning (font,
-            // unknown key) must not demote a valid theme to the global one.
-            // Theme resolvability is checked by the caller before we get here.
+            // Log any configuration errors
             let diagsCount = ghostty_config_diagnostics_count(cfg)
             if diagsCount > 0 {
-                logger.error("config error: \(diagsCount) configuration errors")
+                logger.warning("config error: \(diagsCount) configuration errors")
                 for i in 0..<diagsCount {
                     let diag = ghostty_config_get_diagnostic(cfg, UInt32(i))
                     let message = String(cString: diag.message)
-                    logger.error("config error: \(message)")
+                    logger.warning("config error: \(message)")
                 }
             }
 
@@ -447,47 +424,14 @@ extension Ghostty {
         static func createConfigForTheme(_ themeName: String) -> ghostty_config_t? {
             logger.info("Creating per-surface config for theme: \(themeName)")
 
-            // The semantic scheme and Ghostty renderer config must come from
-            // the same readable backing file. Custom themes are additionally
-            // verified against their in-memory metadata by themeInfo(for:).
-            guard let themeInfo = ThemeManager.shared.themeInfo(for: themeName),
-                  FileManager.default.isReadableFile(atPath: themeInfo.filePath.path) else {
-                logger.error("Theme backing file is unavailable: \(themeName)")
-                return nil
-            }
-
-            // A unique file prevents overlapping surface refreshes from
-            // loading one another's theme. It is removed after Ghostty has
-            // synchronously parsed it, never becoming shared mutable state:
-            // ghostty_config_load_file (called by loadConfigWithTheme below)
-            // reads and ghostty_config_finalize completes the parse before
-            // either call returns, so the file is safe to delete as soon as
-            // loadConfigWithTheme returns, not just eventually.
-            guard let configDirectory else {
-                logger.error("Failed to get config directory")
-                return nil
-            }
-            let overrideFile = configDirectory.appendingPathComponent(
-                "config.override.\(UUID().uuidString)"
-            )
-            guard writeConfigFileForTheme(themeName: themeName, to: overrideFile) else {
+            // Write config file with the override theme
+            guard writeConfigFileForTheme(themeName: themeName) else {
                 logger.error("Failed to write config file for per-surface theme: \(themeName)")
                 return nil
             }
-            defer {
-                do {
-                    try FileManager.default.removeItem(at: overrideFile)
-                } catch {
-                    // Non-fatal (the file is only a transient parse input),
-                    // but a silently-failing removal accumulates
-                    // config.override.* files in configDirectory over many
-                    // surface registrations, so it's worth knowing about.
-                    logger.warning("Failed to remove per-surface override file \(overrideFile.lastPathComponent): \(error)")
-                }
-            }
 
-            // Load exactly that file
-            guard let cfg = loadConfigWithTheme(file: overrideFile) else {
+            // Load the config
+            guard let cfg = loadConfigWithTheme() else {
                 logger.error("Failed to load config for per-surface theme: \(themeName)")
                 return nil
             }
@@ -498,8 +442,102 @@ extension Ghostty {
 
         /// Write a config file with the specified theme (static version for per-surface configs)
         /// Uses current font settings from FontManager
-        private static func writeConfigFileForTheme(themeName: String, to configFile: URL) -> Bool {
-            let configContent = configContent(themeName: themeName)
+        private static func writeConfigFileForTheme(themeName: String) -> Bool {
+            guard let configDir = configDirectory else {
+                logger.error("Failed to get config directory")
+                return false
+            }
+
+            let configFile = configDir.appendingPathComponent("config")
+
+            // Build config content
+            var configLines: [String] = []
+
+            // Use the specified theme
+            configLines.append("theme = \(themeName)")
+
+            // Preserve current font size from saved preferences
+            let currentSize = Int(FontManager.shared.currentFontSize)
+            configLines.append("font-size = \(currentSize)")
+
+            // Font family - preserve current if set
+            if let currentFamily = FontManager.shared.currentFontFamily {
+                configLines.append("font-family = \(currentFamily)")
+            }
+
+            // Mac Catalyst: Spawn shell directly instead of via /usr/bin/login
+            #if targetEnvironment(macCatalyst)
+            configLines.append("command = \(LocalShellSettings.ghosttyConfigCommand)")
+            let homeDir = NSHomeDirectory()
+            configLines.append("working-directory = \(homeDir)")
+            #endif
+
+            // Standard settings
+            configLines.append("clipboard-paste-bracketed-safe-newline = true")
+
+            // Enable OSC 52 clipboard access for terminal applications (e.g., neovim, tmux)
+            configLines.append("clipboard-read = allow")
+            configLines.append("clipboard-write = allow")
+
+            // Auto-copy selected text to clipboard (default on, matches macOS Ghostty)
+            let copyOnSelect = SettingsStore.shared.value(Settings.Selection.copyOnSelect)
+            configLines.append("copy-on-select = \(copyOnSelect)")
+
+            // Option key as Alt setting (matches Ghostty's macos-option-as-alt)
+            let optionAsAlt = SettingsStore.shared.value(Settings.Keyboard.optionKeyAsAlt)
+            if optionAsAlt == .on {
+                configLines.append("macos-option-as-alt = true")
+            } else if optionAsAlt == .left {
+                configLines.append("macos-option-as-alt = left")
+            } else if optionAsAlt == .right {
+                configLines.append("macos-option-as-alt = right")
+            } else {
+                configLines.append("macos-option-as-alt = false")
+            }
+
+            // Font ligatures
+            let fontManager = FontManager.shared
+            if fontManager.ligaturesEnabled {
+                configLines.append("font-feature = calt")
+                configLines.append("font-feature = liga")
+            } else {
+                configLines.append("font-feature = -calt")
+                configLines.append("font-feature = -liga")
+                configLines.append("font-feature = -dlig")
+            }
+
+            // Per-font stylistic set / feature toggles from FontManager
+            let featureLines = fontManager.fontFeatureConfigLines()
+            configLines.append(contentsOf: featureLines)
+
+            // Per-font cell box adjustments (adjust-cell-width / -height)
+            configLines.append(contentsOf: fontManager.cellAdjustmentConfigLines())
+
+            configLines.append("font-thicken = true")
+            configLines.append(contentsOf: SelectionManager.shared.generateSelectionConfigLines())
+            configLines.append(contentsOf: CursorManager.shared.generateCursorConfigLines())
+            configLines.append(contentsOf: PaletteManager.shared.generatePaletteConfigLines())
+
+            let transparency = Self.effectiveTransparencySettings()
+            configLines.append("background-opacity = \(transparency.opacity)")
+            configLines.append("background-blur = \(transparency.blur)")
+
+            // Window padding for text inset from edges (background still renders to edges).
+            // Keep this in sync with app config generation above.
+            let windowPadding = PaddingManager.shared.configPadding()
+            configLines.append("window-padding-x = \(windowPadding.x)")
+            configLines.append("window-padding-y = \(windowPadding.y)")
+            configLines.append("window-padding-balance = \(windowPadding.balance)")
+
+            // Keybinds
+            let keybindLines = KeybindManager.shared.terminalKeybindConfigLines()
+            configLines.append(contentsOf: keybindLines)
+
+            // Custom shader configuration
+            let shaderLines = ShaderManager.shared.generateConfigLines()
+            configLines.append(contentsOf: shaderLines)
+
+            let configContent = configLines.joined(separator: "\n") + "\n"
 
             do {
                 try configContent.write(to: configFile, atomically: true, encoding: .utf8)

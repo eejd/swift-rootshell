@@ -155,6 +155,9 @@ extension Ghostty {
     /// Cancellable for observing mouse capture state changes
     private var mouseCapturedCancellable: AnyCancellable?
 
+    /// Coalesces capture-state refreshes requested during hit testing.
+    private var mouseCaptureRefreshPending = false
+
     /// Cancellable for observing multiplexer scroll-active state changes
     private var multiplexerScrollActiveCancellable: AnyCancellable?
 
@@ -203,7 +206,11 @@ extension Ghostty {
 
     init(terminalView: TerminalView) {
         self.terminalView = terminalView
+        #if targetEnvironment(macCatalyst)
+        self.scrollView = TabSwipeYieldingScrollView()
+        #else
         self.scrollView = UIScrollView()
+        #endif
         self.documentView = UIView()
 
         super.init(frame: .zero)
@@ -246,24 +253,38 @@ extension Ghostty {
     /// Override hit testing to bypass UIScrollView in capture mode
     /// This ensures touches reach TerminalView for tmux divider dragging, etc.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // The gateway replaces the terminal's input surface. Route clicks and
+        // scrolling to its hosted controls before capture, scrollbar, or
+        // Catalyst's transparent-scroll-view routing can claim the event.
+        if let gatewayView = terminalView.herdrGatewayHost?.view,
+           let hitView = gatewayView.hitTest(convert(point, to: gatewayView), with: event) {
+            return hitView
+        }
+
         // Query Ghostty directly for capture state (don't rely on cached isMouseCaptured)
         // This ensures we have the current state at the moment of touch
         let isCaptured: Bool
         if let surface = terminalView.surface {
             isCaptured = ghostty_surface_mouse_captured(surface)
 
-            // Update cached state if changed - this triggers the Combine observer
-            // which handles scroll view settings and context menu interaction
-            if terminalView.isMouseCaptured != isCaptured {
-                terminalView.isMouseCaptured = isCaptured
+            // Hit testing can run during SwiftUI view updates. Defer publication
+            // and re-read the current capture state when the callback executes.
+            if terminalView.isMouseCaptured != isCaptured && !mouseCaptureRefreshPending {
+                mouseCaptureRefreshPending = true
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.mouseCaptureRefreshPending = false
+                    self.terminalView.updateMouseCaptureState()
+                }
             }
         } else {
             isCaptured = false
         }
 
-        // In capture mode, route touches directly to terminalView
-        // This bypasses UIScrollView's touch interception
-        if isCaptured {
+        // Captured apps and server scrollback use TerminalView's gestures.
+        // Bypass UIScrollView's touch interception; pointer capture remains
+        // independent so uncaptured fallback panes can select text normally.
+        if isCaptured || terminalView.usesHerdrFallbackScrolling {
             // But first check if the touch lands on an interactive floating
             // overlay so it still receives taps during mouse capture — otherwise
             // the in-bounds fall-through below hands the touch to terminalView
@@ -400,6 +421,17 @@ extension Ghostty {
     #endif
 
     #if targetEnvironment(macCatalyst)
+    /// The native pan is exclusive with the wrapper's tab swipe. Route the
+    /// horizontal-intent decision to the terminal so the pan stands aside.
+    func yieldNativePanToTrackpadTabSwipe(_ shouldYield: @escaping (UIPanGestureRecognizer) -> Bool) {
+        (scrollView as? TabSwipeYieldingScrollView)?.yieldsToTabSwipe = shouldYield
+    }
+
+    var isNativeScrollPanActive: Bool {
+        let state = scrollView.panGestureRecognizer.state
+        return state == .began || state == .changed
+    }
+
     private func isPointInCatalystScrollbarGutter(_ point: CGPoint) -> Bool {
         guard scrollView.isScrollEnabled,
               scrollView.showsVerticalScrollIndicator,
@@ -685,10 +717,12 @@ extension Ghostty {
 
     private func setupMouseCaptureObserver() {
         // Observe mouse capture state to toggle scroll behavior
-        mouseCapturedCancellable = terminalView.$isMouseCaptured
+        mouseCapturedCancellable = terminalView.$isMouseCaptured.combineLatest(terminalView.$usesHerdrFallbackScrolling)
+            .removeDuplicates { $0.0 == $1.0 && $0.1 == $1.1 }
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] isCaptured in
+            .sink { [weak self] isCaptured, fallbackScrolling in
                 guard let self = self else { return }
+                let forwardsScroll = isCaptured || fallbackScrolling
 
                 // In mouse capture mode (tmux, vim):
                 // - Disable UIScrollView scrolling AND its pan gesture
@@ -696,19 +730,19 @@ extension Ghostty {
                 // - Remove UIContextMenuInteraction (its gesture cancels touches)
                 // - TerminalView's gesture recognizer handles scroll wheel → mouse_scroll
                 //
-                // In non-capture mode:
+                // Without capture or server scrollback:
                 // - iOS/iPadOS: UIScrollView handles scrolling with native momentum
                 // - Mac Catalyst: UIScrollView handles native momentum while
                 //   TerminalView stays pinned under its blank range model
                 // - scrollViewDidScroll → scroll_to_row for Ghostty scrollback
-                // - Context menu available for copy/paste
+                // Context menus depend only on actual pointer capture.
                 // Prevent scroll view from cancelling touches delivered to terminal
-                self.scrollView.canCancelContentTouches = !isCaptured
+                self.scrollView.canCancelContentTouches = !forwardsScroll
 
                 #if targetEnvironment(macCatalyst)
-                self.scrollView.panGestureRecognizer.isEnabled = !isCaptured
+                self.scrollView.panGestureRecognizer.isEnabled = !forwardsScroll
                 #else
-                self.scrollView.panGestureRecognizer.isEnabled = !isCaptured
+                self.scrollView.panGestureRecognizer.isEnabled = !forwardsScroll
                 // Remove/add context menu interaction on iOS/iPadOS only
                 // UIContextMenuInteraction's internal gesture recognizer cancels touches,
                 // which breaks tmux divider dragging on iPad
@@ -773,12 +807,13 @@ extension Ghostty {
     /// still renders the terminal.
     private func applyVerticalScrollState(isCaptured: Bool) {
         let multiplexerActive = terminalView.multiplexerScrollActive
-        let nativeScrollActive = !isCaptured || multiplexerActive
+        let forwardsScroll = isCaptured || terminalView.usesHerdrFallbackScrolling
+        let nativeScrollActive = !forwardsScroll || multiplexerActive
         scrollView.showsVerticalScrollIndicator = nativeScrollActive
         scrollView.isScrollEnabled = nativeScrollActive
-        scrollView.panGestureRecognizer.isEnabled = !isCaptured
+        scrollView.panGestureRecognizer.isEnabled = !forwardsScroll
         updateRubberBandScrollBehavior()
-        if isCaptured || multiplexerActive {
+        if forwardsScroll || multiplexerActive {
             resetSmoothScrollOffset()
         }
     }
@@ -787,6 +822,7 @@ extension Ghostty {
         return useRubberBandScrollback &&
             !useLineScrollback &&
             !terminalView.isMouseCaptured &&
+            !terminalView.usesHerdrFallbackScrolling &&
             !terminalView.multiplexerScrollActive
     }
 
@@ -1002,6 +1038,11 @@ extension Ghostty {
                     )
                 }
                 self?.updateRoamBanner(state: moshState)
+                if trzszSession.canRebuildJumpConnection {
+                    self?.roamBannerHostView?.rebuildJumpConnection = { [weak trzszSession] in
+                        trzszSession?.rebuildJumpConnection()
+                    }
+                }
             }
     }
 
@@ -1416,7 +1457,8 @@ extension Ghostty {
 
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            let nativeScrollActive = !self.terminalView.isMouseCaptured || self.terminalView.multiplexerScrollActive
+            let nativeScrollActive = !(self.terminalView.isMouseCaptured || self.terminalView.usesHerdrFallbackScrolling)
+                || self.terminalView.multiplexerScrollActive
             self.scrollView.showsVerticalScrollIndicator = nativeScrollActive
             self.restoreNativeScrollIndicatorWorkItem = nil
         }
@@ -1679,6 +1721,16 @@ extension Ghostty {
     }
     #endif
 
+    /// Reset native gesture state before a one-shot herdr viewport jump.
+    func prepareHerdrReturnToLive() {
+        isLiveScrolling = false
+        isTouchScrolling = false
+        wasRubberBandingDuringScroll = false
+        // Stops UIKit deceleration without manufacturing a scroll gesture.
+        setContentOffsetFromTerminalSync(scrollView.contentOffset)
+        resetSmoothScrollOffset()
+    }
+
     /// Scroll to the bottom (live terminal view) in response to user input
     func scrollToBottom() {
         guard !terminalView.multiplexerScrollActive else { return }
@@ -1740,6 +1792,7 @@ extension Ghostty {
     // MARK: - UIScrollViewDelegate
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        terminalView.cancelHerdrReturnToLive()
         isLiveScrolling = true
         lastLiveScrollEventTime = Date().timeIntervalSinceReferenceDate
         isTouchScrolling = false
@@ -1855,6 +1908,16 @@ extension Ghostty {
             updateTerminalPositionForCurrentOffset()
             return
         }
+        // A herdr replay resizes the content under us, and Catalyst has no
+        // drag callbacks to tell UIKit's clamp from a trackpad scroll. Inferring
+        // a live scroll here would push the pre-replay row back into the
+        // terminal and cancel the pending jump to live output. A real scroll
+        // owns the pan gesture (or the scroll view), and still cancels it.
+        if terminalView.hasPendingHerdrReturnToLive,
+           !isNativeScrollPanActive, !isScrollViewUserInteracting {
+            updateTerminalPositionForCurrentOffset()
+            return
+        }
         ensureCatalystLiveScrollTracking()
         #else
         if applyTouchScrollBoostIfNeeded(scrollView) {
@@ -1876,6 +1939,7 @@ extension Ghostty {
     }
 
     func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
+        terminalView.cancelHerdrReturnToLive()
         // iOS status-bar tap. Use Ghostty's canonical scroll-to-top (same as
         // Cmd+Home) instead of letting UIKit animate the raw content offset:
         // the native animation only fires scrollViewDidScroll (not
@@ -1933,6 +1997,14 @@ extension Ghostty {
         }
 
         let deltaRows = row - lastSentRow
+
+        if let state = terminalView.herdrEndpointPane {
+            resetSmoothScrollOffset()
+            guard row != lastSentRow else { return }
+            lastSentRow = row
+            state.scrollToRow(row)
+            return
+        }
 
         if terminalView.multiplexerScrollActive {
             resetSmoothScrollOffset()
@@ -2363,3 +2435,24 @@ extension Ghostty.TerminalScrollView: UIDropInteractionDelegate {
         terminalView.dropInteraction(interaction, performDrop: session)
     }
 }
+
+#if targetEnvironment(macCatalyst)
+// MARK: - Trackpad Tab-Swipe Yield
+
+/// UIKit asks a recognizer's own view before its delegate, and the built-in
+/// pan ignores `require(toFail:)` for scroll-type events. Once there is
+/// scrollback it begins on any trackpad delta and, being exclusive with the
+/// wrapper's tab swipe, starves it. Yield horizontal intent to the swipe here.
+final class TabSwipeYieldingScrollView: UIScrollView {
+    var yieldsToTabSwipe: ((UIPanGestureRecognizer) -> Bool)?
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === panGestureRecognizer,
+           let pan = gestureRecognizer as? UIPanGestureRecognizer,
+           yieldsToTabSwipe?(pan) == true {
+            return false
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+}
+#endif
