@@ -22,7 +22,7 @@ extension MainView {
         guard terminals.isEmpty else { return true }
         guard await waitForGhosttyAppReadyForVisor() else { return false }
 
-        let isAvailable = await HelperConnection.shared.ensureHelperRunning()
+        let isAvailable = await HelperConnection.shared.ensureLocalShellsAvailable()
         guard terminals.isEmpty else { return true }
 
         if let savedState = WindowStateManager.shared.getPendingStateExactly(forWindowId: "visor") {
@@ -81,7 +81,7 @@ extension MainView {
     func checkHelperAndCreateInitialTab() {
         Task {
             // Use ensureHelperRunning to auto-launch helper if non-sandboxed
-            let isAvailable = await HelperConnection.shared.ensureHelperRunning()
+            let isAvailable = await HelperConnection.shared.ensureLocalShellsAvailable()
 
             await MainActor.run {
                 guard self.terminals.isEmpty else { return }
@@ -365,7 +365,7 @@ extension MainView {
         // that await costing 0.5–2s at window/tab open. Re-verify in the
         // background so a helper that has since died gets relaunched for the
         // session's own connect path.
-        if HelperConnection.shared.isKnownRunning {
+        if HelperConnection.shared.localShellsKnownAvailable {
             action()
             // Re-verify the helper, but OFF the critical open path: this pings
             // the helper on the same MainActor/socket queue that the session's
@@ -373,7 +373,7 @@ extension MainView {
             // startup. A few seconds later is plenty to catch a died helper.
             Task(priority: .utility) {
                 try? await Task.sleep(for: .seconds(3))
-                if !(await HelperConnection.shared.ensureHelperRunning()) {
+                if !(await HelperConnection.shared.ensureLocalShellsAvailable()) {
                     Ghostty.logger.warning("Local shell action (\(description)): helper re-verify failed")
                 }
             }
@@ -381,7 +381,7 @@ extension MainView {
         }
 
         Task {
-            let isAvailable = await HelperConnection.shared.ensureHelperRunning()
+            let isAvailable = await HelperConnection.shared.ensureLocalShellsAvailable()
             await MainActor.run {
                 if isAvailable {
                     action()

@@ -1,0 +1,27 @@
+// Native macOS Keychain proxy embedded only by the Native flavor.
+// See rootshell-keychain/Sources/main.swift and docs/NATIVE.md.
+#include "Identity.xcconfig"
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_STYLE = Manual
+ENABLE_APP_SANDBOX = NO
+ENABLE_HARDENED_RUNTIME = YES
+MACOSX_DEPLOYMENT_TARGET = 15.0
+PRODUCT_BUNDLE_IDENTIFIER = $(ROOTSHELL_ORG_IDENTIFIER).rootshell-keychain
+PRODUCT_NAME = $(TARGET_NAME)
+PROVISIONING_PROFILE_SPECIFIER =
+SDKROOT = macosx
+SKIP_INSTALL = YES
+SUPPORTED_PLATFORMS = macosx
+SUPPORTS_MACCATALYST = NO
+SWIFT_VERSION = 5.0
+
+// The project-level configuration carries the app's settings; a plain
+// command-line tool wants none of them.
+EXCLUDED_SOURCE_FILE_NAMES =
+FRAMEWORK_SEARCH_PATHS =
+HEADER_SEARCH_PATHS =
+INFOPLIST_FILE =
+OTHER_LDFLAGS =
+OTHER_SWIFT_FLAGS =
+SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated
+SWIFT_OBJC_BRIDGING_HEADER =

@@ -1,0 +1,3 @@
+// Debug-Native.xcconfig - Debug build for the Native variant
+#include "Debug.xcconfig"
+#include "Native.xcconfig"

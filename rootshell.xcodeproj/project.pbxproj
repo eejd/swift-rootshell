@@ -213,6 +213,7 @@
 		F053C5922D21FD448FBDF660 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = 4739D0592ED3A4F4000EE57A /* Citadel */; };
 		F95F66F45A2A58F968B83428 /* VimRuntime.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 47A51A922EEDC704000D76E0 /* VimRuntime.bundle */; platformFilters = (ios, xros, ); };
 		F9641A2175775B2B2284EFF2 /* AppIconRadicalDracula.icon in Resources */ = {isa = PBXBuildFile; fileRef = 478D16DE2F9FC42B007B574B /* AppIconRadicalDracula.icon */; };
+		1E2B465E2E2AB0A937AA73BE /* rootshell-keychain in Embed Keychain Tool */ = {isa = PBXBuildFile; fileRef = 08DC65D196A746EB89BAC526 /* rootshell-keychain */; platformFilter = maccatalyst; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -320,6 +321,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 47CWP0102F560000DDEE0010;
 			remoteInfo = CoreWLANPlugin;
+		};
+		A3ABC832C3C4D2237C347A60 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 47D8B23A2ECAAE7F00CA99EC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 324FAC53CA3E5299F0C9CBED;
+			remoteInfo = "rootshell-keychain";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -465,6 +473,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E86BD623C9B8131310DF7064 /* Embed Keychain Tool */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				1E2B465E2E2AB0A937AA73BE /* rootshell-keychain in Embed Keychain Tool */,
+			);
+			name = "Embed Keychain Tool";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -563,6 +582,10 @@
 		47WASM00000000000000001 /* Wasm */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Wasm; path = Resources/Wasm; sourceTree = "<group>"; };
 		992A6D1173F54B70A4EDBA3E /* joe */ = {isa = PBXFileReference; lastKnownFileType = folder; name = joe; path = Resources/joe; sourceTree = "<group>"; };
 		DD1249A5776E91521A4BEA8A /* rootshell.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rootshell.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		57861BFC4329F407DCAE2841 /* Debug-Native.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug-Native.xcconfig; sourceTree = "<group>"; };
+		08A71F43D6FA574781C9A8CF /* Release-Native.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release-Native.xcconfig; sourceTree = "<group>"; };
+		237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = KeychainTool.xcconfig; sourceTree = "<group>"; };
+		08DC65D196A746EB89BAC526 /* rootshell-keychain */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "rootshell-keychain"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -815,6 +838,11 @@
 			path = VPNTunnelExtension;
 			sourceTree = "<group>";
 		};
+		CCD086C87B6D0E36F4D120BE /* rootshell-keychain */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "rootshell-keychain";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -958,6 +986,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7A281AAC1B8E3A6E07611015 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -980,6 +1015,9 @@
 				47C100022F990000BBCC0002 /* Release-China.xcconfig */,
 				47511AD02EDF598900696C18 /* Release-Standalone.xcconfig */,
 				47511AD12EDF598900696C18 /* Standalone.xcconfig */,
+				57861BFC4329F407DCAE2841 /* Debug-Native.xcconfig */,
+				08A71F43D6FA574781C9A8CF /* Release-Native.xcconfig */,
+				237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */,
 			);
 			path = Configuration;
 			sourceTree = "<group>";
@@ -1054,6 +1092,7 @@
 				47AAAD932F99299F00587DC3 /* AltIcons */,
 				477738A82F9C3553009B5D30 /* AppIcon.icon */,
 				47E4DFFB303B992000224D87 /* Recovered References */,
+				CCD086C87B6D0E36F4D120BE /* rootshell-keychain */,
 			);
 			sourceTree = "<group>";
 		};
@@ -1074,6 +1113,7 @@
 				47AC7E570000000000000012 /* rootshellTests.xctest */,
 				473118FC2FFC2B4D00FB3C83 /* com.kk2.rootshellvpn.tunnel.systemextension */,
 				DD1249A5776E91521A4BEA8A /* rootshell.app */,
+				08DC65D196A746EB89BAC526 /* rootshell-keychain */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1453,6 +1493,7 @@
 				52071B726FBB8BD40E3DD10F /* Embed Frameworks */,
 				786BED5E81FB0CF6B1F64C43 /* Strip Joe (Release) */,
 				40EB0C880DA366E6F7A16A3D /* Embed Foundation Extensions */,
+				E86BD623C9B8131310DF7064 /* Embed Keychain Tool */,
 			);
 			buildRules = (
 			);
@@ -1462,6 +1503,7 @@
 				47PSH01B2F900000AABB001B /* PBXTargetDependency */,
 				B9B1F082475DD7289A043F3B /* PBXTargetDependency */,
 				3292BCB45A34AE2F549BA0F0 /* PBXTargetDependency */,
+				71F38953774AA36B1A3F9F31 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				47D8B2442ECAAE7F00CA99EC /* rootshell */,
@@ -1484,6 +1526,25 @@
 			productName = rootshell;
 			productReference = DD1249A5776E91521A4BEA8A /* rootshell.app */;
 			productType = "com.apple.product-type.application";
+		};
+		324FAC53CA3E5299F0C9CBED /* rootshell-keychain */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 98A52F70C088135DE0C9E98E /* Build configuration list for PBXNativeTarget "rootshell-keychain" */;
+			buildPhases = (
+				6AF8D6F63E3D77C163C4CD22 /* Sources */,
+				7A281AAC1B8E3A6E07611015 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CCD086C87B6D0E36F4D120BE /* rootshell-keychain */,
+			);
+			name = "rootshell-keychain";
+			productName = "rootshell-keychain";
+			productReference = 08DC65D196A746EB89BAC526 /* rootshell-keychain */;
+			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
@@ -1613,6 +1674,7 @@
 				473118D42FFC2B1600FB3C83 /* rootshellvpnUITests */,
 				473118FB2FFC2B4D00FB3C83 /* tunnel */,
 				F8E8E0BB93A62D2E0F4FCE1F /* rootshell-standalone */,
+				324FAC53CA3E5299F0C9CBED /* rootshell-keychain */,
 			);
 		};
 /* End PBXProject section */
@@ -2088,6 +2150,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6AF8D6F63E3D77C163C4CD22 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2200,6 +2269,13 @@
 			target = 47VPN0102F460000BBCC0010 /* VPNTunnelExtension */;
 			targetProxy = 1F45670AD985896EA7DF3592 /* PBXContainerItemProxy */;
 		};
+		71F38953774AA36B1A3F9F31 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "rootshell-keychain";
+			platformFilter = maccatalyst;
+			target = 324FAC53CA3E5299F0C9CBED /* rootshell-keychain */;
+			targetProxy = A3ABC832C3C4D2237C347A60 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -2207,6 +2283,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47C100012F990000BBCC0001 /* Debug-China.xcconfig */;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -2265,6 +2342,7 @@
 		29B7315643978DA921BC5975 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -2329,6 +2407,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511AD02EDF598900696C18 /* Release-Standalone.xcconfig */;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -2384,6 +2463,66 @@
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = ReleaseStandalone;
+		};
+		1805C7C7CB6C08252E58DD5A /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 08A71F43D6FA574781C9A8CF /* Release-Native.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
+				PRODUCT_NAME = rootshell;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/rootshell/rootshell-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = ReleaseNative;
 		};
 		473118DD2FFC2B1700FB3C83 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -2478,6 +2617,53 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = DebugStandalone;
+		};
+		1EB2E34001E6CF727E6DBB8E /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = rootshellvpn/rootshellvpn.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 3;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshellvpn/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "rootshell VPN";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "Enables rootshell to establish a VPN connection";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpn";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = DebugNative;
 		};
 		473118DF2FFC2B1700FB3C83 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -2669,6 +2855,54 @@
 			};
 			name = ReleaseStandalone;
 		};
+		96F0A502321A4424A969EC61 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = rootshellvpn/rootshellvpn.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshellvpn/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "rootshell VPN";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSystemExtensionUsageDescription = "Enables rootshell to establish a VPN connection";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpn";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = ReleaseNative;
+		};
 		473118E32FFC2B1700FB3C83 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2807,6 +3041,27 @@
 			};
 			name = DebugStandalone;
 		};
+		3ED65C0F96E70B128AF1549E /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpnTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rootshellvpn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/rootshellvpn";
+			};
+			name = DebugNative;
+		};
 		473118E72FFC2B1700FB3C83 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2893,6 +3148,28 @@
 			};
 			name = ReleaseStandalone;
 		};
+		9B153A09B3016868B1F889E2 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpnTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/rootshellvpn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/rootshellvpn";
+			};
+			name = ReleaseNative;
+		};
 		473118EB2FFC2B1700FB3C83 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2977,6 +3254,26 @@
 			};
 			name = DebugStandalone;
 		};
+		0012C8E4112B4258EB1CF7C0 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpnUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = rootshellvpn;
+			};
+			name = DebugNative;
+		};
 		473118EF2FFC2B1700FB3C83 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -3058,6 +3355,27 @@
 				TEST_TARGET_NAME = rootshellvpn;
 			};
 			name = ReleaseStandalone;
+		};
+		9106AE8F2C14FE654E0FBEB6 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpnUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = rootshellvpn;
+			};
+			name = ReleaseNative;
 		};
 		473118F32FFC2B1700FB3C83 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -3172,6 +3490,42 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = DebugStandalone;
+		};
+		BB0AD1B2085D2CB9E12173B0 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = tunnel/tunnel.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = tunnel/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = tunnel;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpn.tunnel";
+				PRODUCT_NAME = "$(PRODUCT_BUNDLE_IDENTIFIER)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = DebugNative;
 		};
 		4731190D2FFC2B4D00FB3C83 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -3318,6 +3672,43 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = ReleaseStandalone;
+		};
+		C666F97A281116038A3C05F8 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = tunnel/tunnel.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = tunnel/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = tunnel;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshellvpn.tunnel";
+				PRODUCT_NAME = "$(PRODUCT_BUNDLE_IDENTIFIER)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = ReleaseNative;
 		};
 		473119112FFC2B4D00FB3C83 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -3567,6 +3958,63 @@
 			};
 			name = ReleaseStandalone;
 		};
+		981861A358E9DAE141C981F7 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 08A71F43D6FA574781C9A8CF /* Release-Native.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = ReleaseNative;
+		};
 		47511ADF2EDF5A0C00696C18 /* ReleaseStandalone */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511AD02EDF598900696C18 /* Release-Standalone.xcconfig */;
@@ -3626,6 +4074,66 @@
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = ReleaseStandalone;
+		};
+		5C64FC2E1B1B737706EE37D9 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 08A71F43D6FA574781C9A8CF /* Release-Native.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/rootshell/rootshell-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = ReleaseNative;
 		};
 		47511AE02EDF5A1700696C18 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -3822,6 +4330,71 @@
 			};
 			name = DebugStandalone;
 		};
+		91EF32B3A71F6718BBFC00D1 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 57861BFC4329F407DCAE2841 /* Debug-Native.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = DebugNative;
+		};
 		47511AE32EDF5A1E00696C18 /* DebugStandalone */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511ACD2EDF598900696C18 /* Debug-Standalone.xcconfig */;
@@ -3887,6 +4460,71 @@
 			};
 			name = DebugStandalone;
 		};
+		DA4165F97BD80575BC3EF0F2 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 57861BFC4329F407DCAE2841 /* Debug-Native.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/rootshell/rootshell-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = DebugNative;
+		};
 		47ABC11B2FF50000AABB001B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47ABC1172FF50000AABB0017 /* Helper.xcconfig */;
@@ -3900,6 +4538,13 @@
 			buildSettings = {
 			};
 			name = DebugStandalone;
+		};
+		E3E14D88F11E8183566166C1 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47ABC1172FF50000AABB0017 /* Helper.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugNative;
 		};
 		47ABC11D2FF50000AABB001D /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -3929,6 +4574,13 @@
 			};
 			name = ReleaseStandalone;
 		};
+		296BE2C92A172EB7903F53FC /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47ABC1172FF50000AABB0017 /* Helper.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseNative;
+		};
 		47ABC1212FF50000AABB0021 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47ABC1172FF50000AABB0017 /* Helper.xcconfig */;
@@ -3956,6 +4608,13 @@
 			buildSettings = {
 			};
 			name = DebugStandalone;
+		};
+		A32069BB69E5F412CE39EC41 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47ABC1182FF50000AABB0018 /* HelperTests.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugNative;
 		};
 		47ABC1252FF50000AABB0025 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -3985,6 +4644,13 @@
 			};
 			name = ReleaseStandalone;
 		};
+		A72C478235CCF5F5130DAB6C /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47ABC1182FF50000AABB0018 /* HelperTests.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseNative;
+		};
 		47ABC1292FF50000AABB0029 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47ABC1182FF50000AABB0018 /* HelperTests.xcconfig */;
@@ -4013,6 +4679,13 @@
 			};
 			name = DebugStandalone;
 		};
+		A2F6D1E17F7D0F7801A1FB21 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugNative;
+		};
 		47AC7E570000000000000063 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
@@ -4040,6 +4713,13 @@
 			buildSettings = {
 			};
 			name = ReleaseStandalone;
+		};
+		0F593C124E5FBD6759F78C01 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 47AC7E570000000000000011 /* AppTests.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseNative;
 		};
 		47AC7E570000000000000067 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
@@ -4599,6 +5279,71 @@
 			};
 			name = DebugStandalone;
 		};
+		983F9D62E4BC2BD0FE3EA148 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 57861BFC4329F407DCAE2841 /* Debug-Native.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
+				PRODUCT_NAME = rootshell;
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/rootshell/rootshell-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = DebugNative;
+		};
 		47CD00005900000000000000 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511ACC2EDF598900696C18 /* Debug-AppStore.xcconfig */;
@@ -4843,6 +5588,66 @@
 			};
 			name = ReleaseStandalone;
 		};
+		BCB81F0DB2D8EE622379713B /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 08A71F43D6FA574781C9A8CF /* Release-Native.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
+				PRODUCT_NAME = rootshell;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/rootshell/rootshell-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = ReleaseNative;
+		};
 		47CD00005D00000000000000 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511ACF2EDF598900696C18 /* Release-AppStore.xcconfig */;
@@ -5032,6 +5837,30 @@
 			};
 			name = DebugStandalone;
 		};
+		0B8CE392DB11D5263AFB9140 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
+				CURRENT_PROJECT_VERSION = 151;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "CoreWLANPlugin/CoreWLANPlugin-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = DebugNative;
+		};
 		47CWP0232F560000DDEE0023 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -5103,6 +5932,30 @@
 				WRAPPER_EXTENSION = bundle;
 			};
 			name = ReleaseStandalone;
+		};
+		35A320F0A6DCF9CFE064A56A /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CONFIGURATION_BUILD_DIR = "$(BUILD_DIR)/$(CONFIGURATION)-maccatalyst";
+				CURRENT_PROJECT_VERSION = 151;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CoreWLANPlugin/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.CoreWLANPlugin";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "CoreWLANPlugin/CoreWLANPlugin-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = ReleaseNative;
 		};
 		47D8B24B2ECAAE8100CA99EC /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -5449,6 +6302,36 @@
 			};
 			name = DebugStandalone;
 		};
+		3C31BDC55DA3726F75075C9D /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = DebugNative;
+		};
 		47LA00132F360000AABB0013 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -5538,6 +6421,36 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = ReleaseStandalone;
+		};
+		2F52933C986BBD70CF99A13E /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SessionActivityWidget/SessionActivityWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SessionActivityWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Session Activity";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.SessionActivityWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = ReleaseNative;
 		};
 		47PSH0102F900000AABB0010 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -5641,6 +6554,40 @@
 			};
 			name = DebugStandalone;
 		};
+		6C01EED342EB753C5294BB55 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PushNotificationService/PushNotificationService.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PushNotificationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				ROOTSHELL_PUSH_SERVER = "https://push.rootshell.com";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = DebugNative;
+		};
 		47PSH0132F900000AABB0013 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -5742,6 +6689,40 @@
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = ReleaseStandalone;
+		};
+		F25A28081A1025D3A44999D0 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PushNotificationService/PushNotificationService.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PushNotificationService/PushNotificationService-MacCatalyst.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PushNotificationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "rootshell Push";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.PushNotificationService";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				ROOTSHELL_PUSH_SERVER = "https://push.rootshell.com";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = ReleaseNative;
 		};
 		47PSH0402F900000AABB0040 /* DebugChina */ = {
 			isa = XCBuildConfiguration;
@@ -5908,6 +6889,39 @@
 			};
 			name = DebugStandalone;
 		};
+		2FEB99C30DCA848182C85341 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "VPN Tunnel";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = DebugNative;
+		};
 		47VPN0232F460000BBCC0023 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -6007,10 +7021,44 @@
 			};
 			name = ReleaseStandalone;
 		};
+		E8D3F58C2F39E1791B99FAC6 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VPNTunnelExtension/VPNTunnelExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VPNTunnelExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "VPN Tunnel";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell.vpntunnel";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator xros xrsimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = ReleaseNative;
+		};
 		59E3FA887ED94757B6916732 /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511ACC2EDF598900696C18 /* Debug-AppStore.xcconfig */;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -6075,6 +7123,7 @@
 		71D892CF91EA52FDCF7E3D84 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -6144,6 +7193,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511ACD2EDF598900696C18 /* Debug-Standalone.xcconfig */;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -6205,10 +7255,76 @@
 			};
 			name = DebugStandalone;
 		};
+		B954D7CBB21CC5DCABFE4F66 /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 57861BFC4329F407DCAE2841 /* Debug-Native.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 151;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/Frameworks";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = rootshell/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = rootshell;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NFCReaderUsageDescription = "Rootshell uses NFC to communicate with your YubiKey for secure SSH authentication.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access may be used for YubiKey QR code provisioning.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Authenticate to use SSH keys stored in the Keychain";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Rootshell uses your local network for croc transfers, device discovery, and direct terminal connections.";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Optional diary of the places you use rootshell, and location data for solar background.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Rootshell uses the microphone for voice agent mode, allowing you to speak naturally with the AI terminal assistant.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.12;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ROOTSHELL_ORG_IDENTIFIER).rootshell";
+				PRODUCT_NAME = rootshell;
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/rootshell/rootshell-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+				XROS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = DebugNative;
+		};
 		C2F4CA318C2D42612EE98F67 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47511ACF2EDF598900696C18 /* Release-AppStore.xcconfig */;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -6269,6 +7385,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 47C100022F990000BBCC0002 /* Release-China.xcconfig */;
 			buildSettings = {
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) rootshell-keychain";
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconBlack AppIconCRT AppIconNoBorder AppIconOrig AppIconRadicalBases AppIconRadicalCatppuccin AppIconRadicalDracula AppIconRadicalGruvboxDark AppIconRadicalMonoDark AppIconRadicalMonokai AppIconRadicalMonoLight AppIconRadicalNord AppIconRadicalRosePine AppIconRadicalSolarizedDark AppIconRadicalSolarizedLight AppIconRadicalTokyoNight AppIconSixColors AppIconSixColorsDark AppIconUnderscore";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -6322,6 +7439,76 @@
 			};
 			name = ReleaseChina;
 		};
+		8942A058FBAB9E76879E83B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		03DE6C0518EF5010DCC66DCB /* DebugStandalone */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugStandalone;
+		};
+		10F69AFE2479747E034B3921 /* DebugAppStore */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugAppStore;
+		};
+		F0E5CD98D18FFDA36E2D4725 /* DebugChina */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugChina;
+		};
+		AB351AA46EE37885B9C4ACBA /* DebugNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = DebugNative;
+		};
+		E7B0257DBC4794D0A94F2554 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		48191EDA7845E644F035A947 /* ReleaseStandalone */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseStandalone;
+		};
+		CB92FD82E2196D43B9618269 /* ReleaseAppStore */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseAppStore;
+		};
+		3EA22BED5846D5C298096FC9 /* ReleaseChina */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseChina;
+		};
+		F4FC20F378D2078F1D5E8375 /* ReleaseNative */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 237CDEBC4FBA51B1B548F952 /* KeychainTool.xcconfig */;
+			buildSettings = {
+			};
+			name = ReleaseNative;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -6336,6 +7523,8 @@
 				473118E22FFC2B1700FB3C83 /* ReleaseStandalone */,
 				473118E32FFC2B1700FB3C83 /* ReleaseAppStore */,
 				473118E42FFC2B1700FB3C83 /* ReleaseChina */,
+				1EB2E34001E6CF727E6DBB8E /* DebugNative */,
+				96F0A502321A4424A969EC61 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6351,6 +7540,8 @@
 				473118EA2FFC2B1700FB3C83 /* ReleaseStandalone */,
 				473118EB2FFC2B1700FB3C83 /* ReleaseAppStore */,
 				473118EC2FFC2B1700FB3C83 /* ReleaseChina */,
+				3ED65C0F96E70B128AF1549E /* DebugNative */,
+				9B153A09B3016868B1F889E2 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6366,6 +7557,8 @@
 				473118F22FFC2B1700FB3C83 /* ReleaseStandalone */,
 				473118F32FFC2B1700FB3C83 /* ReleaseAppStore */,
 				473118F42FFC2B1700FB3C83 /* ReleaseChina */,
+				0012C8E4112B4258EB1CF7C0 /* DebugNative */,
+				9106AE8F2C14FE654E0FBEB6 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6381,6 +7574,8 @@
 				473119102FFC2B4D00FB3C83 /* ReleaseStandalone */,
 				473119112FFC2B4D00FB3C83 /* ReleaseAppStore */,
 				473119122FFC2B4D00FB3C83 /* ReleaseChina */,
+				BB0AD1B2085D2CB9E12173B0 /* DebugNative */,
+				C666F97A281116038A3C05F8 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6396,6 +7591,8 @@
 				47ABC1202FF50000AABB0020 /* ReleaseStandalone */,
 				47ABC1212FF50000AABB0021 /* ReleaseAppStore */,
 				47ABC1222FF50000AABB0022 /* ReleaseChina */,
+				E3E14D88F11E8183566166C1 /* DebugNative */,
+				296BE2C92A172EB7903F53FC /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6411,6 +7608,8 @@
 				47ABC1282FF50000AABB0028 /* ReleaseStandalone */,
 				47ABC1292FF50000AABB0029 /* ReleaseAppStore */,
 				47ABC12A2FF50000AABB002A /* ReleaseChina */,
+				A32069BB69E5F412CE39EC41 /* DebugNative */,
+				A72C478235CCF5F5130DAB6C /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6426,6 +7625,8 @@
 				47AC7E570000000000000066 /* ReleaseStandalone */,
 				47AC7E570000000000000067 /* ReleaseAppStore */,
 				47AC7E570000000000000068 /* ReleaseChina */,
+				A2F6D1E17F7D0F7801A1FB21 /* DebugNative */,
+				0F593C124E5FBD6759F78C01 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6441,6 +7642,8 @@
 				47CD00005C00000000000000 /* ReleaseStandalone */,
 				47CD00005D00000000000000 /* ReleaseAppStore */,
 				47CD00005E00000000000000 /* ReleaseChina */,
+				983F9D62E4BC2BD0FE3EA148 /* DebugNative */,
+				BCB81F0DB2D8EE622379713B /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6456,6 +7659,8 @@
 				47CWP0252F560000DDEE0025 /* ReleaseStandalone */,
 				47CWP0242F560000DDEE0024 /* ReleaseAppStore */,
 				47C100312F990000BBCC0031 /* ReleaseChina */,
+				0B8CE392DB11D5263AFB9140 /* DebugNative */,
+				35A320F0A6DCF9CFE064A56A /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6471,6 +7676,8 @@
 				47511ADE2EDF5A0C00696C18 /* ReleaseStandalone */,
 				47511ADC2EDF59FB00696C18 /* ReleaseAppStore */,
 				47C100112F990000BBCC0011 /* ReleaseChina */,
+				91EF32B3A71F6718BBFC00D1 /* DebugNative */,
+				981861A358E9DAE141C981F7 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6486,6 +7693,8 @@
 				47511ADF2EDF5A0C00696C18 /* ReleaseStandalone */,
 				47511ADD2EDF59FB00696C18 /* ReleaseAppStore */,
 				47C100212F990000BBCC0021 /* ReleaseChina */,
+				DA4165F97BD80575BC3EF0F2 /* DebugNative */,
+				5C64FC2E1B1B737706EE37D9 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6501,6 +7710,8 @@
 				47LA00152F360000AABB0015 /* ReleaseStandalone */,
 				47LA00142F360000AABB0014 /* ReleaseAppStore */,
 				47C100412F990000BBCC0041 /* ReleaseChina */,
+				3C31BDC55DA3726F75075C9D /* DebugNative */,
+				2F52933C986BBD70CF99A13E /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6516,6 +7727,8 @@
 				47PSH0152F900000AABB0015 /* ReleaseStandalone */,
 				47PSH0142F900000AABB0014 /* ReleaseAppStore */,
 				47PSH0412F900000AABB0041 /* ReleaseChina */,
+				6C01EED342EB753C5294BB55 /* DebugNative */,
+				F25A28081A1025D3A44999D0 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6531,6 +7744,8 @@
 				47VPN0252F460000BBCC0025 /* ReleaseStandalone */,
 				47VPN0242F460000BBCC0024 /* ReleaseAppStore */,
 				47C100512F990000BBCC0051 /* ReleaseChina */,
+				2FEB99C30DCA848182C85341 /* DebugNative */,
+				E8D3F58C2F39E1791B99FAC6 /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -6546,9 +7761,28 @@
 				4551FB0C28780DF1FBB12D9F /* ReleaseStandalone */,
 				C2F4CA318C2D42612EE98F67 /* ReleaseAppStore */,
 				C8BA996C1D8EB4DEBEECF4D9 /* ReleaseChina */,
+				B954D7CBB21CC5DCABFE4F66 /* DebugNative */,
+				1805C7C7CB6C08252E58DD5A /* ReleaseNative */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = ReleaseStandalone;
+		};
+		98A52F70C088135DE0C9E98E /* Build configuration list for PBXNativeTarget "rootshell-keychain" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8942A058FBAB9E76879E83B8 /* Debug */,
+				03DE6C0518EF5010DCC66DCB /* DebugStandalone */,
+				10F69AFE2479747E034B3921 /* DebugAppStore */,
+				F0E5CD98D18FFDA36E2D4725 /* DebugChina */,
+				AB351AA46EE37885B9C4ACBA /* DebugNative */,
+				E7B0257DBC4794D0A94F2554 /* Release */,
+				48191EDA7845E644F035A947 /* ReleaseStandalone */,
+				CB92FD82E2196D43B9618269 /* ReleaseAppStore */,
+				3EA22BED5846D5C298096FC9 /* ReleaseChina */,
+				F4FC20F378D2078F1D5E8375 /* ReleaseNative */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 
