@@ -177,15 +177,23 @@ nonisolated enum NativeLocalShellSpawner {
         arguments += ["-flp", user, "/bin/bash", "--noprofile", "--norc", "-c"]
         // exec -l replaces bash with the shell as a login shell; execfail keeps
         // bash alive only if that exec fails, so the fallback still gets a turn.
+        // Each token is single-quoted: validatedShell admits no quote character,
+        // so a token cannot end its quoting or add shell syntax.
+        let quotedShell = quoted(shell)
+        let quotedFallback = quoted(fallbackShell)
         arguments.append("""
             cd -- "$\(initialDirectoryVariable)" 2>/dev/null
             unset \(initialDirectoryVariable)
             shopt -s execfail
-            exec -l \(shell)
-            exec -l \(fallbackShell)
+            exec -l \(quotedShell)
+            exec -l \(quotedFallback)
             exit 127
             """)
         return arguments
+    }
+
+    private static func quoted(_ command: String) -> String {
+        command.split(separator: " ").map { "'\($0)'" }.joined(separator: " ")
     }
 
     private static func defaultShell() -> String {

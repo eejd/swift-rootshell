@@ -63,6 +63,8 @@ the attributes that only mean something to the data protection keychain:
 - **Object-reference queries return `errSecUnimplemented`.** A `SecKey`,
   `SecCertificate` or `SecIdentity` cannot cross a process boundary. Today
   that is only the Kubernetes client-certificate identity.
+- **Persistent references are not proxied** either (`kSecReturnPersistentRef`,
+  `kSecValuePersistentRef`); no current caller uses them.
 - Only the app module is rerouted. Code in other modules still calls
   Security directly and keeps failing with -34018: the RootshellPushKit
   package and the VPN extension (neither feature is available without a
@@ -95,3 +97,7 @@ Still helper-only: piped processes, one-shot command execution (AI agent,
 session discovery, remote exec probe), local multiplexer recovery and the
 herdr local channel. They keep calling `ensureHelperRunning()` and degrade as
 they already do when the helper is absent.
+
+`DEBUG` builds of `rootshell-keychain` skip the ownership check and honour
+`ROOTSHELL_KEYCHAIN_TEST_PATH` (which skips caller validation entirely). They
+are for tests only and must not be distributed; release builds contain neither.

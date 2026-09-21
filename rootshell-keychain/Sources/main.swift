@@ -109,6 +109,7 @@ enum CallerValidation {
         var st = stat()
         guard stat(path, &st) == 0 else { return false }
         #if DEBUG
+        // DEBUG builds weaken caller validation and must never be distributed.
         return true
         #else
         return st.st_uid != getuid() && (st.st_mode & (S_IWGRP | S_IWOTH)) == 0
@@ -128,6 +129,9 @@ enum Framing {
 
     static func write(_ response: [String: Any]) {
         guard let body = try? PropertyListSerialization.data(fromPropertyList: response, format: .binary, options: 0) else {
+            // Never leave the client waiting for a reply it will not get.
+            if response["status"] as? Int == Int(errSecInternalError) { return }
+            write(["status": Int(errSecInternalError)])
             return
         }
         var length = UInt32(body.count).bigEndian
