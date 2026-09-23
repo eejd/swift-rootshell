@@ -437,7 +437,7 @@ final class KeybindManager: ObservableObject {
     /// Shell-visible path for the imported config file.
     var externalConfigShellPath: String {
         #if STANDALONE && targetEnvironment(macCatalyst)
-        "~/.config/rootshell/imported_keybinds.conf"
+        "~/Library/Application Support/RootShell/imported_keybinds.conf"
         #else
         "~/.ghostty/imported_keybinds.conf"
         #endif
