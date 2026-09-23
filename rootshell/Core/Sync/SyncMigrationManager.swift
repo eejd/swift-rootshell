@@ -13,11 +13,11 @@ import os.log
 final class SyncMigrationManager {
     private static let logger = Logger(subsystem: "com.rootshell", category: "SyncMigration")
 
-    /// Base directory for sync data
+    /// Base directory for sync data. On STANDALONE Mac this must go through
+    /// GhosttyStorageLocation like every other sync-adjacent path -- plain
+    /// Documents/.ghostty/sync is TCC-gated there (see GhosttyStorageLocation.swift).
     private static var syncDirectory: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("sync", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "sync")
     }
 
     /// Backup directory for legacy data
@@ -228,10 +228,11 @@ final class SyncMigrationManager {
     /// Migrate known hosts from legacy JSON file to per-record files
     /// - Returns: Backup file path if migration occurred, nil if no data to migrate
     private static func migrateKnownHosts() throws -> String? {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let legacyURL = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("known_hosts.json")
+        // GhosttyStorageLocation.url() may already have moved this out of
+        // Documents/.ghostty on STANDALONE (any earlier caller asking for
+        // "known_hosts.json" triggers that one-time move) -- go through the
+        // same helper so this always finds it wherever it currently lives.
+        let legacyURL = GhosttyStorageLocation.url(forRelativePath: "known_hosts.json")
 
         guard FileManager.default.fileExists(atPath: legacyURL.path) else {
             logger.info("No legacy known_hosts.json, skipping migration")
@@ -310,11 +311,10 @@ final class SyncMigrationManager {
         UserDefaults.standard.removeObject(forKey: "ssh_connection_history")
         logger.info("Removed legacy SSH history from UserDefaults")
 
-        // Remove legacy known_hosts.json
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let legacyURL = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("known_hosts.json")
+        // Remove legacy known_hosts.json (see migrateKnownHosts() above for
+        // why this goes through GhosttyStorageLocation rather than Documents
+        // directly).
+        let legacyURL = GhosttyStorageLocation.url(forRelativePath: "known_hosts.json")
 
         if FileManager.default.fileExists(atPath: legacyURL.path) {
             do {

@@ -13,9 +13,11 @@ import os.log
 /// Stores each record as a separate JSON file in a dedicated directory,
 /// enabling efficient per-record sync operations.
 ///
-/// Directory structure:
+/// Directory structure (see GhosttyStorageLocation for which root applies
+/// on which platform -- Documents/.ghostty on iOS, ~/.config/rootshell on
+/// STANDALONE Mac):
 /// ```
-/// Documents/.ghostty/sync/{storeName}/
+/// <root>/sync/{storeName}/
 ///   {uuid1}.json
 ///   {uuid2}.json
 ///   ...
@@ -251,10 +253,13 @@ struct SyncableFileStore<T: SyncableRecord> {
             )
             lastLoadFailed = false
         } catch {
-            // On the non-sandboxed macOS build this directory lives in the
-            // real ~/Documents, which is TCC-protected — a denied or racing
-            // grant surfaces here as NSCocoaErrorDomain 257 / EPERM, not as
-            // a missing directory.
+            // On the non-sandboxed macOS build this directory lives under
+            // ~/.config/rootshell (GhosttyStorageLocation), not the TCC-gated
+            // ~/Documents -- so this should no longer surface a permission
+            // error in practice. Kept broad (any error, not just EPERM)
+            // since a still-unmigrated legacy Documents path, or an
+            // unrelated I/O failure, should both flip lastLoadFailed rather
+            // than silently reporting "no records".
             lastLoadFailed = true
             let nsError = error as NSError
             let path = directoryURL.path

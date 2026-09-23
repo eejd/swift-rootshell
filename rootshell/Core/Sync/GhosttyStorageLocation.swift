@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import os.log
 
 nonisolated enum GhosttyStorageLocation {
     #if STANDALONE && targetEnvironment(macCatalyst)
@@ -29,6 +30,8 @@ nonisolated enum GhosttyStorageLocation {
             .appendingPathComponent(".ghostty", isDirectory: true)
     }
 
+    private static let logger = Logger(subsystem: "com.rootshell", category: "GhosttyStorageLocation")
+
     /// Resolve a relative path under the new base, migrating it from the
     /// legacy Documents/.ghostty location the first time it's asked for.
     /// One-time and per-path -- each caller only knows its own subpath, so
@@ -39,11 +42,18 @@ nonisolated enum GhosttyStorageLocation {
         if !fm.fileExists(atPath: new.path) {
             let legacy = legacyBaseDirectory.appendingPathComponent(relativePath)
             if fm.fileExists(atPath: legacy.path) {
-                try? fm.createDirectory(
-                    at: new.deletingLastPathComponent(),
-                    withIntermediateDirectories: true
-                )
-                try? fm.moveItem(at: legacy, to: new)
+                do {
+                    try fm.createDirectory(
+                        at: new.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    try fm.moveItem(at: legacy, to: new)
+                } catch {
+                    // Data isn't lost -- it's still at `legacy` -- but a
+                    // failed migration otherwise looks identical to "never
+                    // had any data", which is worth being able to diagnose.
+                    logger.error("Failed to migrate \(relativePath) from Documents: \(error.localizedDescription)")
+                }
             }
         }
         return new
