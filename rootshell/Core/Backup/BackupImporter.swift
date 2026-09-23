@@ -373,15 +373,16 @@ enum BackupImporter {
 
     @MainActor
     static func restoreImportedKeybindConfig(_ backup: ImportedKeybindConfigBackup) {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-        let configPath = ghosttyDir.appendingPathComponent("imported_keybinds.conf")
+        let configPath = GhosttyStorageLocation.url(forRelativePath: "imported_keybinds.conf")
 
         // Only restore if no imported config currently exists
         guard !FileManager.default.fileExists(atPath: configPath.path) else { return }
 
         do {
-            try FileManager.default.createDirectory(at: ghosttyDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: configPath.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try backup.configContent.write(to: configPath, atomically: true, encoding: .utf8)
 
             if let filename = backup.originalFilename {

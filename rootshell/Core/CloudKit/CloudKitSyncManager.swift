@@ -1543,11 +1543,12 @@ final class CloudKitSyncManager {
         }
 
         if isKnownHostsSyncEnabled {
-            // Check if there's legacy data that wasn't migrated
-            let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let legacyURL = documentsURL
-                .appendingPathComponent(".ghostty", isDirectory: true)
-                .appendingPathComponent("known_hosts.json")
+            // Check if there's legacy data that wasn't migrated -- the
+            // pre-SyncableFileStore single-file format, a different legacy
+            // generation than the Documents/.ghostty -> ~/.config/rootshell
+            // migration GhosttyStorageLocation.url(forRelativePath:) itself
+            // performs for this same relative path.
+            let legacyURL = GhosttyStorageLocation.url(forRelativePath: "known_hosts.json")
             let hasLegacyData = FileManager.default.fileExists(atPath: legacyURL.path)
 
             if hasLegacyData && KnownHostsManager.shared.allRecordsForSync.isEmpty {

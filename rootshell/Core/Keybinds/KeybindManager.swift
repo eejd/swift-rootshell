@@ -431,15 +431,16 @@ final class KeybindManager: ObservableObject {
 
     /// Local destination for imported config files
     private var importedKeybindsURL: URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("imported_keybinds.conf")
+        GhosttyStorageLocation.url(forRelativePath: "imported_keybinds.conf")
     }
 
     /// Shell-visible path for the imported config file.
     var externalConfigShellPath: String {
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        "~/.config/rootshell/imported_keybinds.conf"
+        #else
         "~/.ghostty/imported_keybinds.conf"
+        #endif
     }
 
     var externalConfigSymlinkDestination: String? {
