@@ -14,8 +14,8 @@ import os.log
 /// enabling efficient per-record sync operations.
 ///
 /// Directory structure (see GhosttyStorageLocation for which root applies
-/// on which platform -- Documents/.ghostty on iOS, ~/.config/rootshell on
-/// STANDALONE Mac):
+/// on which platform -- Documents/.ghostty on iOS, Application
+/// Support/RootShell on STANDALONE Mac):
 /// ```
 /// <root>/sync/{storeName}/
 ///   {uuid1}.json
@@ -256,9 +256,9 @@ struct SyncableFileStore<T: SyncableRecord> {
             lastLoadFailed = false
         } catch {
             // On the non-sandboxed macOS build this directory lives under
-            // ~/.config/rootshell (GhosttyStorageLocation), not the TCC-gated
-            // ~/Documents -- so this should no longer surface a permission
-            // error in practice. Kept broad (any error, not just EPERM)
+            // Application Support/RootShell (GhosttyStorageLocation), not
+            // the TCC-gated ~/Documents -- so this should no longer surface
+            // a permission error in practice. Kept broad (any error, not just EPERM)
             // since a still-unmigrated legacy Documents path, or an
             // unrelated I/O failure, should both flip lastLoadFailed rather
             // than silently reporting "no records".
