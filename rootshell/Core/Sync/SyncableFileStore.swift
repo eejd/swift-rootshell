@@ -240,10 +240,12 @@ struct SyncableFileStore<T: SyncableRecord> {
         let storeName = self.storeName
         let fileURLs: [URL]
         do {
-            // Do not use `.skipsHiddenFiles`. The store lives under
-            // `Documents/.ghostty/...`, and on macOS files in a dot-directory
-            // are UF_HIDDEN — skipping them makes every profile (and other
-            // sync records) disappear from the UI while remaining on disk.
+            // Do not use `.skipsHiddenFiles`. The store lives under a
+            // dot-directory (GhosttyStorageLocation on STANDALONE Mac,
+            // Documents/.ghostty on iOS), and on macOS files in a
+            // dot-directory are UF_HIDDEN — skipping them makes every
+            // profile (and other sync records) disappear from the UI while
+            // remaining on disk.
             // Atomic temp files use a `.*.tmp` name and are already excluded
             // by the `.json` path-extension filter below.
             fileURLs = try FileManager.default.contentsOfDirectory(
