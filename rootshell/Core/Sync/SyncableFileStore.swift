@@ -63,11 +63,9 @@ struct SyncableFileStore<T: SyncableRecord> {
     init(storeName: String, directoryURL: URL? = nil) {
         self.storeName = storeName
 
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        self.directoryURL = directoryURL ?? documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("sync", isDirectory: true)
-            .appendingPathComponent(storeName, isDirectory: true)
+        self.directoryURL = directoryURL ?? GhosttyStorageLocation.url(
+            forRelativePath: "sync/\(storeName)"
+        )
 
         createDirectoryIfNeeded()
         loadAllRecords()

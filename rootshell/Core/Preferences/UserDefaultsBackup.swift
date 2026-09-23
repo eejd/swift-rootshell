@@ -23,9 +23,7 @@ enum UserDefaultsBackup {
     ]
 
     private static var backupURL: URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let dir = docs.appendingPathComponent(".ghostty", isDirectory: true)
-        return dir.appendingPathComponent("defaults_backup.json")
+        GhosttyStorageLocation.url(forRelativePath: "defaults_backup.json")
     }
 
     /// Written on the first unlocked activation, so its absence means a fresh install.
