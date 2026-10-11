@@ -3,6 +3,457 @@
 All notable changes to the rootshell app for iPhone, iPad, Vision Pro, and Mac, newest first.
 Versions are listed as `release-build`, matching the version shown in Settings, About.
 
+## 1.0.14-165 - October 9, 2026
+
+### Program Status Protocol (OSC 7501)
+
+- **Live Program Status:** Added Program Status Protocol (PSP) support so programs can report what they are doing directly. Supported AI agents and ordinary terminal programs, including built-in iOS local-shell commands, appear in the sidebar and agent inbox with working, idle, waiting for input, completed, or failed states. Programs can also supply progress for the terminal's progress indicator. Direct reports take priority over screen detection and herdr's inferred status while the program holds the pane.
+- **Agent Entries and Tab Logos:** PSP reports for Pi and Claude Code use their existing inbox entries, names, and logos. Top tabs show the detected agent or PSP program's logo alongside its status badge. Logos follow Show Attention Badges and replace the H/T pane marker in herdr/tmux tabs; gateway stars remain visible.
+- **Vim and Helix:** Integrated PSP into the Vim and Helix commands bundled with the iOS local shell. They appear in the sidebar and agent inbox with their own logos and report failed saves or a quit blocked by unsaved changes.
+- **Notifications and Completion:** Waiting notifications can include the program's reported prompt, and failure notifications can include its error message. Unfinished status clears when the shell reports program completion; completed and failed results remain available in the inbox.
+
+### Rounded Panes
+
+- **Optional Pane Style:** Added Rounded Panes in Settings -> Window -> Split Panes and Quick Settings. Best on larger screens such as Mac and iPad, it draws terminal panes, splits, and docked sidebars as separate rounded cards with gaps between them. Background effects stay inside the cards, and spacing below floating top tabs is tighter.
+- **Integrated Tabs:** Integrated tabs use Pills while Rounded Panes is enabled. Your saved Integrated style returns when you turn Rounded Panes off.
+
+### Theme Gradient
+
+- **Theme-Colored Background:** Added Theme Gradient in Settings -> Background Effect: a soft gradient using your terminal theme's colors. Adjust intensity and speed, or turn off Drift for a still background. Motion pauses in the background and respects Reduce Motion.
+
+### herdr Control Mode Performance and Agent Tracking
+
+- **Faster Tab Switching:** An already attached herdr pane shows its cached screen immediately when its size matches the server's layout, without waiting for another server confirmation. Tab-selection requests also skip the resize-settling delay.
+- **Claude Code Background Agents:** Background-agent counts are now read in herdr panes, including wrapped status lines. Counts use the latest transcript entry and advancing agent timers to avoid showing stale counts from old output or frozen hidden tabs.
+
+### libghostty Upgrade
+
+- **Kitty Clipboard Protocol:** Added OSC 5522 support so programs can request specific clipboard formats or list available formats. Reads can serve text, URLs, and other available formats; writes retain supported text formats.
+- **Terminal Memory:** Metal device setup is now shared across terminal panes. Smaller initial memory allocations and improved scrollback-page reuse reduce terminal memory overhead.
+- **Keyboard Encoding:** Improved encoding for extended function keys, numeric keypad keys, modified Escape and Backspace, and non-ASCII Alt combinations.
+- **Kitty Images:** Updated decoding of compressed Kitty images.
+
+### Tailscale
+
+- **Engine Update:** Updated the built-in Tailscale engines to 1.104.1 for Whole Device and rootshell Only modes.
+
+### Security
+
+- **HTTP/2 CPU-Exhaustion Fix:** Fixed CVE-2026-78669, a possible CPU-exhaustion issue when HTTP Capture is decrypting HTTP/2 traffic. With Decrypt HTTP/2 enabled, a malicious peer in an intercepted connection could cause excessive CPU use through repeated flow-control settings.
+
+### Mac Keyboard Focus
+
+- **Visor Focus:** Fixed the standalone Mac visor losing keyboard focus after it was hidden and clicked back into view.
+
+## 1.0.14-164 - October 8, 2026
+
+### Display Fix
+
+- **Mac Display Switching:** Fixed a regression introduced in build 163 by changes for iPhone Duo support: terminal text could become too small or too large when moving a Mac window between Retina and non-Retina displays. Text now keeps the correct size when switching displays.
+
+### AI Agent
+
+- **Haiku 5.5:** Replaced Claude Haiku 4.5 with Haiku 5.5 for Anthropic and Amazon Bedrock, with a 1 million-token context window and adaptive thinking. Saved Haiku 4.5 selections automatically switch to Haiku 5.5 on launch.
+
+### Stability
+
+- **Mosh Traffic Limits:** Limited queued incoming Mosh traffic when using rootshell Only Tailscale to prevent excessive memory use if a server sends packets faster than the app can process them.
+- **Browse as Root Startup:** Limited server output retained while starting Browse as Root (sudo) in the file manager. Excessively long output lines now stop the connection attempt with an error instead of continuing to accumulate in memory.
+
+## 1.0.14-163 - October 8, 2026
+
+### Tailscale Without Replacing Your VPN
+
+- **rootshell Only:** Choose rootshell Only in Settings -> VPN -> Tailscale to reach your tailnet from inside rootshell while keeping another VPN connected. SSH, SFTP, Mosh, tssh, and Screen Sharing connections can use it. Other apps are unaffected.
+- **Automatic Connection and Local Shell:** Connect Automatically starts Tailscale when you first connect to a tailnet device. Use in Local Shell enables tailnet access for `curl` and `git` on iOS; `ping` also reaches tailnet devices. On Mac, it sets a proxy for new local shells, so tools that honor `ALL_PROXY`, such as `curl`, can use it.
+- **Exit Nodes and Routing:** Choose an optional Exit Node to send rootshell's connections through that device, with an Allow Local Network Access option. MagicDNS names and advertised subnet routes are supported.
+- **Whole Device Mode:** Whole Device (VPN) remains available for tailnet access from other apps, SSH traffic routing, and HTTP capture. In rootshell Only mode, iOS local-shell `mtr`, `traceroute`, and `nc` do not reach the tailnet.
+- **Connection Recovery:** rootshell Only stays usable when switching from Whole Device mode, moving between Wi-Fi and cellular, and returning from the background. On iOS, returning to the app refreshes Tailscale's sockets so peers can use direct connections again without disconnecting open sessions.
+- **Traffic Statistics:** View uptime, traffic totals, and the live traffic graph in VPN settings while rootshell Only is connected. The Live Activity shows its traffic when no VPN is running.
+
+### File Manager: Browse as Root
+
+- **Browse as Root (sudo):** Choose Browse as Root (sudo) in a remote file pane's menu to browse and manage files as root over SSH or tssh. The server needs sudo permission and an installed `sftp-server`; servers requiring a terminal for sudo are unsupported.
+- **Authentication and Exit:** Passwordless sudo works directly. Password and PAM prompts, including one-time codes, appear in a sheet. Exit sudo returns to your login account in the same folder.
+- **Copies Between Accounts:** Moves, replacements, and merges between root and another account on the same server are blocked because paths may refer to the same files. Copy instead; for name conflicts, choose Keep Both.
+
+### iPhone Duo Layouts
+
+- **Front Display Layouts:** Added adaptive layouts for iPhone Duo on iOS 27.1. Choose Side Rail, Below Camera, or Behind Camera in the Duo Front Display section of tab settings. Side Rail puts new-tab, numbered-tab, and settings controls beside the terminal; Below Camera keeps top tabs beneath the camera; Behind Camera extends the terminal behind it, with optional top tabs.
+- **Laptop Pose:** The terminal stays above the fold and the keyboard stays below it. The system keyboard toolbar sits with the keys, and the custom keyboard uses taller rows to fill the keyboard area.
+- **Display and Control Fixes:** Camera-aware headers and controls, keyboard onboarding, and connection category layouts fit the Duo displays. Terminal sizing updates correctly when the keyboard is dismissed. The side-rail close button respects Confirm Before Closing Tab.
+
+### Session, Keyboard, and Language Fixes
+
+- **Saved Session Restoration:** Fixed saved tabs and layouts being erased when you force-quit rootshell on iOS while it still has background time. Your saved session remains available for restoration on the next launch.
+- **Keyboard Visibility:** Fixed keyboard visibility tracking for Quick Connect and VNC, including Quick Connect's toolbar with a hardware keyboard attached.
+- **Shell Language:** Fixed `git` and other shell tools using a secondary preferred language when English is first. Local and remote shells no longer set `LANGUAGE`; the Mac helper also chooses an installed locale matching the language's script.
+
+### HTTP Capture
+
+- **Reset Decrypted Hosts:** Decrypted Hosts now has Reset to Defaults, with confirmation, to replace your custom host rules with the default Apple exclusions.
+
+## 1.0.14-162 - October 5, 2026
+
+### Tailscale Quick Controls
+
+- **Quick Connect:** Start the built-in Tailscale connection from the VPN widget, Control Center toggle, or Connect VPN shortcut once you have signed in on this device.
+- **Sign-In Status:** When Tailscale needs a login, the controls show that status. The widget opens rootshell for sign-in instead of offering a connection that cannot start.
+
+### AWS SSO
+
+- **IAM Identity Center Sign-In:** Sign in to AWS cloud accounts through IAM Identity Center (AWS SSO). Enter your organization's start URL and SSO region, complete browser sign-in, then choose an account and role.
+- **Regions and Credential Refresh:** Choose the SSO region separately from the AWS region you work in. Temporary credentials refresh automatically for cloud sync, Kubernetes, and Bedrock. If your session requires a new login, use Sign In Again in the saved account's details.
+
+### Passwords from Your Password Manager for Remote Programs
+
+- **Remote Credential Requests:** Programs on an SSH or tssh host can ask rootshell for a password or token using `rootshell-askpass`. A sheet shows the host, requesting command, and prompt; fill it with password-manager AutoFill and tap Send to return the value to the requesting program.
+- **Opt-In Per Connection:** Enable Allow Credential Requests under the connection's Advanced -> Credential Requests settings or in its profile editor, then reconnect. It is off by default and is unavailable for Mosh.
+- **Remote Helper:** Install `scripts/rootshell-askpass` on the remote host. Use it with `SUDO_ASKPASS` and `sudo -A`, or call it directly for keyring passwords and CLI tokens. The helper needs `perl`, `socat`, or an `nc` with Unix-socket support; the server must allow Unix-socket forwarding. See the [setup guide and examples](docs/remote-credential-requests.md).
+- **Approval and Privacy:** Each request needs your approval. Values are not stored, logged, or cached. Requests cancel when the helper exits or the connection ends, and unanswered prompts time out after two minutes. The command label comes from the requesting program; cancel unexpected requests.
+
+### Keyboard Fixes
+
+- **VNC Keyboard Focus:** Fixed terminal tabs losing keyboard input after leaving full-screen VNC.
+- **Mac Visor Focus:** Summoning the visor on standalone Mac now gives its terminal keyboard focus even after the main window has been closed, so you can type immediately without clicking it.
+
+## 1.0.13-161 - October 4, 2026
+
+### Tailscale and VPN
+
+- **Built-In Tailscale:** Stay connected to your tailnet while optionally routing selected traffic through SSH or tssh. Capture HTTP(S) traffic from tailnet and non-tailnet destinations without disconnecting from Tailscale. Tailscale and HTTP capture work without an SSH host.
+- **Tailnet Access:** Connect in Settings -> VPN -> Tailscale on iPhone, iPad, or standalone Mac. Reach tailnet IPs, MagicDNS names, and subnet routes from other apps, and view or copy peer hostnames and IPs. Disconnect the separate Tailscale app before connecting here. HTTPS decryption still requires a trusted capture certificate and selected hosts.
+- **Selective SSH Routing:** Optionally choose a saved SSH or tssh egress host, including one on your tailnet. Domain, wildcard, IP, and CIDR rules route matching traffic through SSH or Direct; the first match wins. SSH-matched names resolve on the host. Send Other Traffic Through SSH routes remaining IPv4 traffic through it. Trust the host key in a terminal first; Apply Changes reconnects with edited settings.
+- **Reconnect and Auto Recovery:** VPN now has a top-level Settings section with one-tap reconnect to the last VPN or Tailscale connection. Auto Recovery is on by default: reopening rootshell reconnects a VPN left on before a restart or app update. Manual disconnect clears recovery, another active VPN prevents it, and Local Capture is never automatically restored.
+- **General Settings:** Privacy & Data, notifications, sounds, and updates now live under Settings -> General.
+
+### Open Web Links from Remote Programs
+
+- **Browser Requests:** Remote tools can open HTTP(S) links in this device's browser. Enable Open Links from Programs in Settings -> Terminal -> Program Links; it is off by default.
+- **Remote Helpers:** Install `scripts/rootshell-open` and `scripts/rootshell-open-clipboard` on the remote host. Set `BROWSER` to the full path of `rootshell-open` for SSH/tssh, or `rootshell-open-clipboard` for Mosh 1.4+ and native tmux. Ordinary tmux needs `allow-passthrough on` or `set-clipboard on`, respectively. See the [setup guide](docs/remote-url-opening.md).
+- **Focused-Terminal Requests:** Links open only from the focused terminal in the active window, at most once per second. Background or replayed output cannot open them later, and the clipboard stays untouched. Remote localhost callbacks still need the tool's remote/device authentication flow.
+
+### HTTP Capture and Panels
+
+- **XML and Plist Views:** View XML and binary plists as trees, readable XML, or hex, including bodies with generic content types. JSON and plist trees render lazily. Depth, node, and XML-size limits prevent excessive expansion; oversized plist views fall back to hex.
+- **Server Information:** Request lists show country flags; details add server location and network information, plus hostname, IP, and value copy actions. Look Up Server Locations and Show Network Favicons default to on in Capture Settings -> Server Info. They use your selected location provider and the network's website; private and local addresses are skipped.
+- **Capture Controls:** Fixed capture menu freezes during recording. The certificate sheet now has a Done button.
+- **Full-Size Panels:** Files and HTTP Capture offer Full Size alongside Sidebar and Overlay on larger screens, remembering each panel's presentation. Fixed transparent-background flashes when switching or closing tabs.
+
+### Connections and Preventive Hardening
+
+- **Connection Reuse:** tssh multiplexer discovery reuses its transport, avoiding a second Face ID prompt on connect or roam resume. Attachment uploads reuse live SSH/tssh connections, including native tmux and herdr; a separate connection is the fallback.
+- **Preventive Validation:** Added validation for malformed Mosh messages, invalid tssh IDs, and repeated OAuth callback parameters to prevent potential crashes; none were observed in the wild. OAuth callbacks now listen only on localhost.
+
+## 1.0.13-160 - October 1, 2026
+
+### HTTP and HTTPS Capture
+
+- **Built-In Traffic Inspection:** HTTP capture is included with rootshell. Inspect traffic through the rootshell VPN, including HTTP/1.1, HTTP/2, and WebSocket frames. Use an existing SSH or tssh VPN, or press Record to start Local Capture through your device's internet connection without a remote server. Stopping recording leaves the VPN connected.
+- **Quick Access:** Open HTTP Capture from Settings -> Connections -> VPN, the File menu, the terminal context menu, or Control-Command-H, or add it to the keyboard toolbar. Choose a sidebar or overlay on iPad and standalone Mac; iPhone uses a sheet.
+- **Selective HTTPS Decryption:** Install and trust the capture certificate using the guided setup, then add hosts under Decrypted Hosts. Host rules support wildcards, exclusions, and ports; HTTPS is not decrypted by default. Apps that reject the certificate are automatically skipped on subsequent connections. HTTP/3 is blocked while recording so clients can retry over HTTP/2 or HTTP/1.1.
+- **Request Details and Exports:** Search and filter requests; inspect headers, cookies, bodies, and timing; view JSON trees, HTML, images, forms, source, or hex. Copy requests as cURL, save messages or bodies, and export HAR or ZIP sessions. HAR export can omit cookie and authorization headers. Enable packet recording before starting a session to export pcapng with TLS keys for Wireshark.
+- **Rewrite Rules and Storage Limits:** Add request and response rewrite rules to change headers or replace body text, with wildcard or regular-expression URL matching. Body rewrites apply to bodies up to 1 MB. Set body-storage limits, session-size limits, and how many sessions to retain; recording stops at the session-size limit.
+
+### VPN Controls
+
+- **Local Shell VPN Command:** Added `vpn` to the local shell on iOS and visionOS. `vpn status` shows the active profile, uptime, traffic, and connection counts; `vpn list`, `vpn start <profile>`, and `vpn stop` manage saved VPN profiles.
+- **Mac VPN Status:** Fixed the standalone Mac app losing the active VPN profile or showing stale status when refreshing.
+
+### Files and Uploads
+
+- **Paste Into the File Manager:** Paste copied files, images, and PDFs with Command-V, the overflow menu, or a context menu. Pasting on a folder targets that folder; otherwise it targets the current pane's directory. This uses the normal transfer system for local, remote, and cloud destinations.
+- **Upload Preferences:** Settings -> Connections -> Uploads now controls the default directory, file-path or Markdown-image insertion, and whether pasted or dropped images and PDFs need confirmation. Choose Don't ask again in the upload sheet to save its choices and upload immediately next time. Remembered directories for individual hosts take priority and can be cleared in settings.
+- **SFTP Folder Browsing:** Folder listings make fewer server requests and now release directory handles, preventing repeated browsing from exhausting the server's open-file limit.
+
+### Tabs and Panels
+
+- **Tab Close Confirmation:** Enable Confirm Before Closing Tab in Settings -> Terminal -> Tabs to ask before the tab's close button, Close Tab, or Command-W on its last pane ends the session. It is off by default. The existing pane confirmation also lives here.
+- **Multiplexer Close Preferences:** tmux and herdr control-mode tabs use Multiplexer Close Tab Action instead; choose Ask Each Time to confirm those. Closing herdr's last pane now honors detach and ask preferences.
+- **Resizable Overlays:** Resize the Files, HTTP Capture, Quick Settings, and Open in Folder overlays by dragging a bottom corner. Each remembers its size on that device.
+
+### Stability
+
+- **Locked iPad Fix:** Fixed iPadOS terminating rootshell when session changes updated keyboard suggestions while the iPad was locked. Updates resume when the app becomes active.
+- **iPhone Files and Keyboard Fixes:** Fixed a crash when opening Files from the iPhone connection sheet with the terminal keyboard still active, and a keyboard left covering the sheet after an authentication prompt.
+
+## 1.0.13-159 - October 1, 2026
+
+### Background Sessions and Notifications
+
+- **Background Terminal Processing:** Previously, tssh sessions buffered incoming output when rootshell entered the background and processed it only after you returned. Now, on iOS and iPadOS, SSH and tssh terminals keep processing output during the background time granted by iOS. This includes tmux and herdr control-mode sessions, so terminal notifications can arrive while the app is backgrounded instead of waiting for you to reopen it.
+- **Background Grace Period:** Background tunnels and active local commands also request this grace period. Use Keep TCP SSH Alive in Background in SSH transport settings. Time remains OS-limited.
+- **Saved State:** Window state and scrollback are saved before background processing ends. Rendering stays paused; pending tmux tab and pane changes apply when you return.
+
+### AI Agent
+
+- **ChatGPT Sign-In:** ChatGPT sign-in now uses OpenAI's app registration flow and public API. Existing users must sign in again after updating: Settings -> AI Agent -> OpenAI -> Continue with ChatGPT.
+- **Multiple ChatGPT Accounts:** Save and switch between multiple ChatGPT accounts or workspaces. Each keeps its sign-in; switching refreshes the model list.
+- **Usage Management:** Manage usage links in settings, the model picker, and usage-limit errors open ChatGPT settings to review usage and set a limit for rootshell. Enable plan-use permission for your account or use an API key instead.
+- **Claude Sonnet 5.5:** Updated Claude Sonnet 5 to Sonnet 5.5 on Anthropic and AWS Bedrock, including saved selections. Improved multi-step tool conversations by preserving thinking blocks in order and showing progress updates. The direct Claude API can use a server-selected fallback for declined requests.
+
+### Keyboard, Selection, and Windows
+
+- **iPad Dock and Keyboard:** Fixed the iPad Dock hiding with Terminal Keyboard and a hardware keyboard. Enabling Terminal Keyboard with hardware attached no longer unexpectedly opens the onscreen keyboard.
+- **Keyboard and Pane Crash Fixes:** Fixed crashes when undocking a Magic Keyboard with Terminal Keyboard enabled, or closing a pane with queued mouse or selection events.
+- **Mac Window Positions:** Moved Mac windows now reopen at their last position after quitting. Fixed stale positions being saved when a window move did not trigger a layout update.
+
+### Multiplexers and Agent Detection
+
+- **Optional Detach Banner:** Turn off the tmux, zellij, herdr, and zmx detach confirmation in Settings -> Multiplexers -> Show Detach Banner, or choose Never Show Again in the banner.
+- **herdr Stability and Performance:** Fixed herdr crashes involving zoomed layouts, popup hyperlinks, and malformed Tab Expose geometry. Limited cached layouts and sped up metadata lookups for large sessions.
+- **Coding-Agent Discovery:** Fixed repeated project-directory probes while coding agents run inside plain tmux over SSH. Failed discovery no longer triggers immediate retries, and Linux discovery launches fewer remote processes.
+
+### File Transfers and Attachments
+
+- **Replacement Permissions:** Replacing a file keeps its existing permissions during copying. Preserve Permissions and Dates still applies source attributes when enabled.
+- **Safer Remote Copies:** SFTP copies reject server-supplied names that escape the destination folder. Failed copies prevent a move from deleting its source; `rf` image and editor downloads refuse unexpected folders.
+- **Attachment Size Limits:** Dropped images and PDFs are limited to 250 MB each and 500 MB per drop. Oversized attachments are skipped with an alert; attachments that fit can still proceed.
+- **S3 Share-Link Crash Fix:** Fixed S3 share-link crashes with unusual bucket names.
+
+### Security and Stability
+
+- **SSH Import and Startup Fixes:** Fixed encrypted SSH-key imports freezing on large keys and crashes from malformed tsshd startup output.
+- **Settings and Download Limits:** Added numeric limits for config files and synced settings, preventing crashes from invalid values such as font sizes. Capped SSH login banners and favicon downloads to reduce memory use.
+- **Preview and Folder-Name Safety:** Terminal previews no longer change the clipboard. Prevented control characters in folder names from injecting terminal sequences or extra tmux commands.
+- **VNC Memory Fix:** Fixed memory growth and eventual crashes in long-running VNC Screen Sharing sessions.
+
+## 1.0.13-158 - September 28, 2026
+
+### Dictation in More Languages
+
+- **SenseVoice for Chinese, Japanese, and Korean:** Added on-device SenseVoice dictation for Chinese, Cantonese, Japanese, Korean, and English. Choose a language in Settings -> Terminal -> Dictation, then download SenseVoice under Speech Model. Choosing Chinese, Cantonese, Japanese, or Korean automatically selects SenseVoice; choosing a language it does not support switches to Parakeet. Audio stays on your device.
+- **CJK Spacing and Punctuation:** Chinese and Japanese phrases join without extra spaces in Prose and Agent Prompt modes. Command mode preserves spaces between phrases so separate shell arguments stay separate, and removes full-width sentence punctuation.
+- **Numbers and Vocabulary Boost:** SenseVoice always writes numbers as digits, and its settings now make that clear. Vocabulary Boost remains available with Parakeet models only.
+
+### Faster File Transfers
+
+- **Parallel Small-File Copies:** The file manager and `rf` now copy multiple small files at once, speeding up folders with many files, including app bundles. S3 copies also skip unnecessary folder-marker requests.
+- **Safer Replacements:** Improved replacement handling for linked files and protection against overwriting files whose names differ only in case or equivalent Unicode spelling on destinations that treat them as the same name.
+- **Safer Moves:** When moving files, each source is removed only after all of its contents have copied successfully.
+
+### Terminal Performance and Stability
+
+- **Many Tabs and Panes on iOS:** Fixed the OS terminating rootshell on iOS, iPadOS, and visionOS with many tabs or panes open. Ghostty used Zig's default 16 MB stack reservation for each terminal thread. These reservations consumed virtual address space, even when most of that space needed no physical RAM. With enough tabs or panes, the app could exceed the OS's address-space limit and be terminated despite physical memory still being available. Rendering, I/O, and search threads now reserve 2 MB each; pipe-reader and font-release threads reserve 512 KB each. macOS also uses the smaller stacks, but did not have the same virtual address-space issue.
+- **Large Session Testing:** Tested on iOS with more than 100 tabs, including attaching to tmux and herdr control-mode sessions of that size. Previously, opening this many tabs or attaching to these large sessions could cause the OS to terminate the app because of those stack reservations.
+- **Faster Pastes:** Large pastes now process faster, with less repeated scanning and less CPU work in SSH and terminal input filters.
+- **herdr Output Processing:** Improved herdr control-mode output processing, reducing repeated parsing and buffer copying.
+- **rf Preview Crash Fix:** Fixed a crash in the `rf` terminal file browser when previewing a file that cannot be read, such as an iCloud file that has not downloaded. File read and write errors are now handled more safely across the app.
+- **rf Remote Edits:** Remote edits in `rf` are no longer treated as unchanged when the file cannot be fully read for comparison. The app attempts the upload and retains a recovery copy if it fails.
+
+### Tabs, Windows, and Effects
+
+- **Clean Tab Switching:** Switching tabs now waits for a fresh terminal frame before revealing the destination tab, preventing transparent flashes and stale colors after a theme change.
+- **Tab Bar Blur Fix:** Fixed unwanted blur over the scrolling tab bar on Mac when many tabs are open.
+- **New Tab and Window With No Windows:** Command-T and Command-N now open a window on Mac when all windows are closed. In the standalone Mac app, New Tab and Open Connections still use a visible visor, while a hidden visor no longer receives invisible new tabs.
+- **Jellyfish Effect:** Reduced CPU work for the animated jellyfish effect.
+
+## 1.0.13-157 - September 27, 2026
+
+### Faster Mosh and Terminal Output
+
+- **Hardware-Accelerated Mosh Encryption:** Mosh now uses hardware-accelerated packet encryption on Apple silicon and Intel Macs, greatly reducing encryption overhead while remaining compatible with existing Mosh servers.
+- **Terminal Output Performance:** Reduced CPU work when processing SSH and local terminal output.
+
+### Dictation on Older Devices
+
+- **Lower-Memory Speech Recognition:** Fixed on-device dictation running out of memory on 4 GB devices such as the A12X iPad Pro. Speech recognition now uses the GPU on devices with limited memory to avoid the heavier CPU fallback.
+
+### Large Sessions and Tab Previews
+
+- **Tab and Sidebar Performance:** Reduced work in the tab bar and sidebar when many tabs are open, including grouped tab navigation and sidebar drag previews.
+- **Multiplexer Layout Updates:** tmux and herdr control mode now skip redundant layout and resize work for unchanged windows. Coding-agent status updates are also batched when refreshing the session's tabs and panes.
+- **Preview Memory Budget:** Tab Expose now limits preview memory use and prioritizes the current tab and visible previews. Nearby previews are retained when space allows; previews farther off screen release their rendering resources.
+- **Preview Fallbacks and Remote Captures:** When the preview memory budget is reached, some app tabs may show their last rendered frame, and multiplexer previews may show only the active pane or placeholders. Remote preview captures focus on the active tab and panes on or near the screen, with older off-screen captures evicted as needed.
+
+### Lower Memory Use
+
+- **On-Demand Font Previews:** Font previews now load as needed and are released when Font settings closes, reducing retained memory by about 12 MB.
+- **Expired Pane Previews:** Multiplexer Expose now releases cached pane previews after they expire instead of keeping them for the life of the window.
+- **Memory Reclamation:** Improved memory reclamation after closing terminals, unloading dictation models, completing file transfers, and moving the app to the background.
+
+### Smaller App
+
+- **Smaller iOS Bundle:** These optimizations reduce the iOS app bundle by 40 MB compared with the previous version.
+- **Trimmed Components:** Trimmed unused dictation and Kubernetes components, along with unused code and resources, to reduce the app's size.
+- **Helix Git Support:** Ported Helix to use libgit2, retaining its Git features while reducing app size. Removed the separate `gix` (gitoxide) command; use the existing `git` command for local Git operations.
+- **Removed Syntax Grammars:** Removed bundled SQL and Kotlin syntax grammars from the built-in Helix editor to save space. These languages no longer have their bundled syntax highlighting or grammar-based editing features.
+
+### Stability
+
+- **Terminal Close Crash Fix:** Fixed a crash that could occur when a terminal closed while a resize was still in progress.
+
+## 1.0.13-156 - September 26, 2026
+
+### More Dictation Options
+
+- **On-Device Dictation:** Alongside Apple system dictation, rootshell now offers customizable on-device dictation for commands and coding-agent prompts, with multiple Parakeet models. Audio stays on your device. Enable Settings -> Terminal -> Dictation and download the speech and speech-detection models. Parakeet v3 supports 25 European languages; choose Ultra for greater accuracy, Redux for a smaller download, or v2 for English-only recognition.
+- **Quick Access:** Swipe left on rootshell's custom terminal keyboard to open Dictation, add the Dictation toolbar key, or press Option-Command-R for a floating panel. Press the shortcut again to close the panel. On Mac, it is also available from Shell -> Dictation.
+- **Preview, Live, and Hands-Free Modes:** Preview lets you review text before choosing Insert or Run. Live inserts each phrase when you pause without pressing Return. Hands-Free inserts and submits each phrase automatically, useful for conversations with a coding agent.
+- **Formatting and Vocabulary:** Command formatting turns spoken symbols such as "dash dash help" into `--help`. Prose preserves sentences and punctuation; Agent Prompt removes filler words and understands line breaks and code naming styles. Add custom vocabulary or boost terms from the terminal screen.
+
+### Custom Terminal Keyboard Improvements
+
+- **Height and Style Gestures:** Swipe up or down on the typing page to change height: Extra Large, Large, Medium, Small, or the new Extra Small. Saved heights carry over. Hold the Apple Keyboard key to choose a keyboard style.
+- **More Reliable Fast Typing:** Improved typing accuracy, with fewer dropped letters, duplicate taps, accidental toolbar presses, and unintended page swipes. Space takes longer to enter trackpad mode while typing.
+- **Haptics and Character Previews:** Stronger haptic feedback now also covers drawer, tools-page, and suggestion buttons. A new Character Preview setting lets you hide the key popup.
+- **Drawer Alignment and Backgrounds:** Toolbar drawer keys now line up with the main row. In the Flat style, their icons and text scale with keyboard height. Fixed custom keyboard backgrounds stopping above the bottom padding.
+
+### Cloud Storage Tools
+
+- **Share Links and Metadata:** Create temporary S3 share links that expire after an hour, a day, or seven days. View object details and edit headers and custom metadata from the storage info sheet.
+- **Bucket and Upload Management:** Create buckets using New Folder at the top level, delete empty buckets, and list or cancel incomplete multipart uploads. Large copies now preserve headers, metadata, and tags.
+- **S3 in the Terminal File Browser:** The `rf` terminal file browser now opens saved S3 providers from its "o" location picker. Copy and paste files between local, SFTP, and S3 tabs.
+- **Provider Icons:** Storage providers now show website icons in settings, location pickers, and file-manager pane headers.
+
+### IP Lookup
+
+- **Address and Location Lookup:** Press Shift-Command-I for an IP lookup panel with location information from your configured provider. It uses an address from your clipboard, or discovers your network's public IPv4 and IPv6 addresses.
+- **Quick Controls:** Enter another address, or press Return in an empty field to show your own. Repeat the shortcut to close.
+
+### Connection and Interface Fixes
+
+- **SSH Login Fix:** Fixed SSH connections hanging until login timeout when a server sends its welcome banner immediately.
+- **Smoother mosh Updates:** Fixed mosh timestamp handling that could make typing feedback and screen updates arrive in delayed bursts, especially after idle periods. Reordered packets no longer distort latency.
+- **Consistent Roam Prediction:** Settings -> Roam -> Default Prediction Mode now also applies to new sessions opened from connection sheets and deep links.
+- **herdr Pane Sizing:** Herdr control mode now sizes each pane for its own font, avoiding gaps with mixed font sizes and preserving shared viewing. If you run the rootshell fork of herdr, upgrade it to a version with protocol 3 pane-geometry support to use this improvement.
+- **herdr Reconnection Input:** Fixed keystrokes being dropped in herdr control mode over tssh while the connection recovers after returning from the background.
+- **Interface Performance:** Reduced unnecessary interface updates and split-pane layouts.
+
+## 1.0.13-155 - September 24, 2026
+
+### Cloud Storage in the File Manager
+
+- **S3-Compatible Storage:** Browse cloud storage alongside local folders and SSH or tssh hosts. Add accounts in Settings -> Connections -> Storage Providers, then open them from either file-manager pane or Open Connections -> Files.
+- **Provider Presets and Custom Endpoints:** Presets include Amazon S3, Backblaze B2, Akamai (Linode), Google Cloud Storage, and more. Custom endpoints support services such as MinIO and Ceph.
+- **Cloud File Operations:** Upload, download, copy, move, rename, and delete files and folders using the existing transfer queue. Compatible copies within the same service run on the server without downloading data to your device; large uploads use multipart transfers.
+- **Bucket and Credential Options:** Set a specific bucket and starting folder, use temporary credentials, or leave credentials empty for public buckets. Saved providers and their keys sync through iCloud Keychain.
+- **File Manager Fixes:** Fixed drag and drop into empty panes and over file rows. Local panes now load their contents on first open, and restoring the file manager preserves the saved local folder.
+
+### Terminal Keyboard Heights
+
+- **Four Height Options:** Choose Full, Compact, Shorter, or Shortest in Settings -> Terminal -> Terminal Keyboard -> Keyboard Height. Shorter and Shortest reduce the keys, toolbar, and drawer rows to leave more room for the terminal on iPhone and iPad.
+- **Preserved Preferences:** Your existing Compact Height preference carries over automatically. The floating keyboard continues to size itself independently.
+
+### Tint by Host
+
+- **Consistent Server Colors:** Enable Settings -> Appearance -> Colors -> Tint by Host to give each SSH destination a consistent background shade based on its host key. The tint follows your active theme and stays consistent across profiles for the same server. Off by default.
+
+### Detach and Resume Multiplexer Sessions
+
+- **Detach Session:** Detach from tmux, zellij, herdr, and zmx while leaving the remote session running. Use the tab menu or assign a Detach Session key binding. In tmux control mode, it is available from window tabs even when the gateway tab is hidden.
+- **Reconnect to Detached Sessions:** A Reconnect banner lets you return to the detached remote session, preserving the session name, control mode, and tmux socket instead of falling back to profile defaults. The banner remains available even when detaching closes every tab.
+- **Reuse Attached Sessions:** Opening a profile for a multiplexer session that is already attached focuses its existing tab or window instead of creating another client. Reconnecting herdr control mode reuses the existing gateway connection when available.
+- **tmux Tab Fixes:** Fixed window tabs that would stay stuck or reappear when closed after detaching and reattaching. Close, Hide, and Detach follow your configured tab-close action even for background windows.
+
+### Choose Pane to Swap
+
+- **Numbered Pane Picker:** Press Option-Command-S in a tmux control-mode window to swap the current pane with another. Type a displayed pane number or tap the destination. Also available from Terminal -> Choose Pane to Swap and the pane context menu; the shortcut is customizable.
+- **Preserved Focus and Zoom:** Swapping preserves the active pane and zoom state. Escape or any non-number key cancels without sending that input to the terminal.
+
+### Mac Keyboard Shortcuts
+
+- **Custom Menu Shortcuts:** Close Tab now follows your configured key binding in the menu bar. Reassigned shortcuts such as Command-W, Command-Q, Command-H, and Command-M reach your chosen action instead of being intercepted by system menus.
+- **Key Sequences and Recording:** Multi-key sequence prefixes are no longer swallowed by menu shortcuts, and shortcut recording can capture keys normally reserved by those menus.
+
+## 1.0.12-154 - September 23, 2026
+
+### New SFTP File Manager
+
+- **Two-Pane File Browsing:** Browse local folders and remote SSH or tssh hosts side by side. Use a resizable sidebar or floating overlay on iPad and Mac; iPhone opens the file manager in a sheet.
+- **Quick Access:** Open with Command-Shift-U, File -> File Manager, or the keyboard toolbar's File Manager button, found in the drawer by default. The shortcut is customizable. Choose Open Connections -> Files and select a local location or saved profile to open a specific location.
+- **File Operations and Previews:** Copy and move files and folders between panes, rename items, create folders, delete files, and inspect file information. Filter listings, show hidden files, preview files with Quick Look, or open a folder in a terminal.
+- **Transfer Queue:** Track progress, transfer rate, and estimated time remaining, with cancellation and retry. Resolve name conflicts with Replace, Skip, or Keep Both. A floating progress indicator keeps transfers visible when the file manager is closed.
+- **Hardware Keyboard Navigation:** Use arrow keys to navigate, Tab to switch panes, and Shift-Tab for the enclosing folder. Press Command-/ for the full shortcut list.
+
+### iPhone Keyboard Chooser
+
+- **Live Keyboard Previews:** A one-time chooser lets you compare the system keyboard and every Terminal Keyboard style with live previews. Skip to keep your current keyboard. On a fresh install, it appears before Open Connections.
+- **Hands-On Tutorial:** Choosing a Terminal Keyboard style opens a tutorial for swiping between Symbols, Navigation, and Shortcuts pages. The final screen explains how to change your keyboard later and links directly to its settings.
+
+### Five New Terminal Keyboard Styles
+
+- **New Style Choices:** Choose Steampunk, Phosphor, Beige Box, Neon Grid, or Circuit Board in Settings -> Terminal -> Terminal Keyboard -> Keyboard Style.
+- **Steampunk:** Brass-rimmed instrument keys and machinery respond to touch. Ivory and enamel keycaps are the default; enable Theme-Aware Keycaps with Follow Terminal Theme to match your terminal colors.
+- **Retro Styles:** Phosphor adds glowing CRT-style keys with green, amber, white, or terminal-theme colors. Beige Box brings tall classic office keycaps. Neon Grid adds a synthwave horizon that moves as you type. Circuit Board features chip-style keys, gold leads, and pulses along its traces.
+- **Theme and Motion Support:** The four retro styles adapt to light and dark terminal themes when Follow Terminal Theme is enabled. Animations stop when idle, with Reduce Motion, or in Low Power Mode.
+- **Optional Key Click Sounds:** Sounds match each keyboard style and respect Silent Mode. Off by default; enable them in Terminal Keyboard settings.
+
+### AI Agent Updates
+
+- **Updated Model Choices:** OpenAI API-key connections now offer GPT-6 Astra, Sol, and Luna, with Astra as the default. Anthropic and Amazon Bedrock model choices now include Claude Fable 5.1, Opus 5.5, Sonnet 5, and Haiku 4.5.
+
+## 1.0.12-153 - September 22, 2026
+
+### Touch Right-Click with the Loupe
+
+- **Right-Click and Drag:** In Scroll Mode, hold the terminal until the magnifier appears, then keep holding and tap the magnifier with a second finger. In mouse-aware terminal apps this switches to a right-button hold: move the original finger to drag and lift it to release. Otherwise, lifting opens the terminal context menu.
+- **Loupe Setting and Gesture Help:** Requires the app's loupe: turn off Use Native Selection Loupe in Settings -> Appearance -> Window -> Text Selection. Gesture Help includes an animated demonstration.
+
+### Terminal Keyboard and Home Gestures
+
+- **Sculpted Keyboard Style:** Choose Flat or Sculpted in Settings -> Terminal -> Terminal Keyboard -> Keyboard Style. Flat remains the default; Sculpted adds raised keycaps, matching drawers and previews, and animated key presses. Reduce Motion and Low Power Mode disable press animations.
+- **Toolbar and Hardware Keyboard Support:** The custom keyboard keeps its toolbar and drawers when typing rows are hidden or a hardware keyboard is connected, respecting toolbar visibility settings. Modifiers work with hardware input; the restore button brings back the full keyboard.
+- **Smoother Keyboard Transitions:** Improved transitions between floating, full keyboard, and toolbar-only views, preserving floating placement and modifiers.
+- **Reliable Home Gestures:** Fixed accidental toolbar presses during Home swipes, including with spacing above the Home indicator. Pending touches and key repeats stop when the app becomes inactive.
+
+### Choose Pane to Zoom
+
+- **Numbered Pane Picker:** Press Option-Command-P in a tmux or herdr control-mode tab to show numbered panes. Type a displayed number or tap a pane to focus and zoom it. Also available from the Terminal menu and pane context menu; the shortcut is customizable.
+- **Switch between Zoomed Panes:** Works while another pane is already zoomed, showing the full layout so you can switch directly. Choosing the current pane keeps it zoomed. Escape or any non-number key cancels without sending that input to the terminal.
+
+### Optional Pane-Close Confirmation
+
+- **Confirm Before Closing Pane:** Enable Confirm Before Closing Pane in Settings -> Appearance -> Window -> Split Panes to ask before Command-W, or your custom Close Tab/Split shortcut, closes a pane in a multi-pane tab. Off by default.
+- **Confirmation Follows the Original Pane:** Confirmation stays tied to the original pane and dismisses if it disappears. Sessions that end on their own still close normally.
+
+### tmux Layout and Scrollback Fixes
+
+- **Improved Equalize Splits:** Improved equalization for nested rows and columns. Panes keep their positions and a zoomed pane is restored afterward. Layouts that cannot be equalized safely are left unchanged.
+- **Reliable Divider Dragging:** Fixed divider dragging in layouts with three or more panes and nested splits, avoiding size jumps or changes to the wrong pane.
+- **Preserved Scroll Position:** Preserve scroll position when a tmux pane's terminal view is temporarily unavailable, while correctly clearing stale scrollbars when history is empty.
+- **Resolved Pane Titles:** Swap-pane menus now show resolved pane titles instead of a generic title.
+
+### Jellyfish and Aquarium Improvements
+
+- **Enhanced Jellyfish Rendering:** Enhanced rendering adds translucent bells, flowing arms, finer tentacles, and richer glow. Enhanced is the default; choose Original in Jellyfish settings for simpler graphics and lower GPU use.
+- **Preview and Appearance Controls:** Added a Bloom slider and full-screen Jellyfish preview. Battery Saver reduces detail and frame rate; Reduce Motion softens swimming and disables shimmer.
+- **Stable Aquarium Preview:** Fixed the Aquarium preview dismissing unexpectedly as its settings row moved offscreen.
+
+### Connection Reliability
+
+- **Background Connection Grace Period:** With Keep SSH Alive in Background enabled, eligible sessions now request a short background grace period even when a Live Activity or Location Diary is active. This helps SSH and Screen Sharing survive brief app switches; iOS still controls the available background time.
+- **YubiKey RSA Key Crash Fix:** Malformed YubiKey RSA public keys now report a conversion error instead of triggering Swift's bounds-check trap and terminating the app. This is a crash-handling fix, not a C-style memory-safety flaw: Swift already prevented out-of-bounds memory access.
+
+## 1.0.12-152 - September 20, 2026
+
+### Terminal Resize Fixes
+
+- **Reliable Terminal Redraws:** Fixed a timing issue that could garble terminal contents during resizing, including when dismissing the software keyboard. rootshell now applies the new terminal dimensions before notifying the session, so programs redraw only after the terminal is ready for the new size.
+- **Ordered SSH Size Updates:** Fixed rapid SSH size changes being sent out of order, allowing an older size to override the latest one.
+
+### Terminal Keyboard Reliability
+
+- **Shared Keyboard State:** Keyboard pages, shortcuts, drawers, sticky modifiers and keyboard choice now carry across tabs by default. Enable Separate State per Tab in Terminal Keyboard settings to remember them independently; split panes in one tab share their state.
+- **Continuous Background Effects:** Keyboard background effects stay animated across tab switches, with fewer visual resets.
+
+### Hardware Keyboard and Mod-Tap
+
+- **More Reliable Mod-Tap Keys:** Improved keys that perform one action when tapped and act as a modifier when held. Existing shortcuts now take priority, and held keys apply the intended modifier without accidentally adding the original one.
+
+### tmux Split Equalization
+
+- **Synchronized Equalize Splits:** Fixed Equalize Splits in tmux control mode so changes update the server layout and stay in sync with the app.
+- **Preserved Pane Layouts:** Equalizing keeps panes in their existing positions, including nested horizontal and vertical splits, and restores a zoomed pane afterward. Layouts that are too cramped to equalize safely are left alone to avoid hangs.
+
+### Aquarium Improvements
+
+- **Natural Fish Movement and Sand Detail:** Fish move more naturally. Added a finger-drawn rootshell hash in the sand, with rounded grooves and raised edges.
+
+### iPhone Full Screen Reminder
+
+- **Full Screen Guidance:** When launching with Full Screen enabled, a reminder explains that content may appear behind the Dynamic Island or notch and shows where to change the setting. Turn Full Screen off directly from the reminder, dismiss it, or choose Never Remind Me Again.
+
 ## 1.0.12-151 - September 17, 2026
 
 ### Critical Crash Fix: Session Discovery

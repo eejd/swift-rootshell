@@ -34,6 +34,7 @@ import UIKit
 enum TabBarSizingPolicy {
     struct Item: Equatable {
         let hasTmuxBadge: Bool
+        let hasAgentLogo: Bool
         let hasAttentionBadge: Bool
         let hasThemeOverride: Bool
         let shortcut: String?
@@ -216,6 +217,9 @@ enum TabBarSizingPolicy {
         if item.hasTmuxBadge {
             widths.append(18)
         }
+        if item.hasAgentLogo {
+            widths.append(14)
+        }
         if item.hasAttentionBadge {
             widths.append(8)
         }
@@ -298,6 +302,10 @@ struct TabBar: View {
     let tabNamespace: Namespace.ID
     let canAcceptWindowTransferDrop: Bool
     let suppressSelectionAnimation: Bool
+    /// Rounded Panes: where the tabs start, past the pinned sidebar card. The
+    /// scope menu may sit over the sidebar and counts toward it.
+    var tabsLeadingInset: CGFloat = 0
+    var scopeMenuLeadingInset: CGFloat = 0
 
     // MARK: - State propagated up
 
@@ -338,6 +346,10 @@ struct TabBar: View {
 
     // MARK: - User preferences
 
+    /// The selection slide. Scrolls that follow a selection share it so the
+    /// active tab and the strip move as one.
+    static let selectionAnimation = Animation.spring(response: 0.3, dampingFraction: 0.7)
+
     @Setting(Settings.Tabs.barAnimationsDisabled) private var tabBarAnimationsDisabled
     @Setting(Settings.Tabs.showScopeMenu) private var showTabScopeMenu
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -352,6 +364,11 @@ struct TabBar: View {
 
     /// Gates the attention dot on tabs. (id=agent-attention)
     @Setting(Settings.CodingAgents.attentionBadges) private var attentionBadgesEnabled
+
+    /// Logo for the focused pane's agent, under the same gate as the dot.
+    private func agentLogoAsset(for tab: TabModel) -> String? {
+        attentionBadgesEnabled ? AgentBrandMark.assetName(for: tab.agentID) : nil
+    }
 
     // MARK: - Body
 
@@ -418,7 +435,7 @@ struct TabBar: View {
             return sizingItem(for: tab, index: index, gatewayOwnerIDs: gatewayOwnerIDs)
         }
         return TabBarSizingPolicy.decision(
-            availableWidth: max(0, availableWidth - activeScopeMenuWidth),
+            availableWidth: max(0, availableWidth - scopeMenuLead - activeScopeMenuWidth - cardGutterWidth),
             items: items,
             style: style,
             usesCompactSpacing: usesCompactSpacing
@@ -443,8 +460,11 @@ struct TabBar: View {
         gatewayOwnerIDs: [UUID]
     ) -> TabBarSizingPolicy.Item {
         let navigationIndex = tabsModel.navigationIndex(of: tab.id) ?? index
+        let tmuxBadge = TmuxTabBadgeResolver.badge(for: tab, gatewayOwnerIDs: gatewayOwnerIDs)
+        let hasAgentLogo = agentLogoAsset(for: tab) != nil
         return TabBarSizingPolicy.Item(
-            hasTmuxBadge: TmuxTabBadgeResolver.badge(for: tab, gatewayOwnerIDs: gatewayOwnerIDs) != nil,
+            hasTmuxBadge: tmuxBadge != nil && !(hasAgentLogo && tmuxBadge?.yieldsToAgentLogo == true),
+            hasAgentLogo: hasAgentLogo,
             hasAttentionBadge: attentionBadgesEnabled && tab.attentionBadge != nil,
             hasThemeOverride: tabHasThemeOverride(tab.id),
             shortcut: keyboardShortcut(navigationIndex)
@@ -480,6 +500,7 @@ struct TabBar: View {
             // `==` compares it — a rollup change must re-render even when
             // every other parent-side input is unchanged. (id=agent-attention)
             attentionBadge: attentionBadgesEnabled ? tab.attentionBadge : nil,
+            agentLogoAsset: agentLogoAsset(for: tab),
             isSelected: index == selectedTabIndex,
             isOnly: isOnly,
             theme: theme,
@@ -584,6 +605,9 @@ struct TabBar: View {
             dialogs: tmuxDialogs
         )
         HerdrGatewayDetachMenuItem(tab: tab, dialogs: herdrDialogs)
+        MultiplexerDetachMenuItem(tab: tab) { tab in
+            _ = MuxSessionDetach.detach(tab: tab, tmuxController: tmuxController)
+        }
         Button(role: .destructive) {
             onCloseTab(index)
         } label: {
@@ -696,7 +720,7 @@ struct TabBar: View {
 
     private func moveTargetRawIndex(for tab: TabModel, delta: Int) -> Int? {
         let orderedTabs = tabsModel.navigationTabs
-        guard let visibleIndex = orderedTabs.firstIndex(where: { $0.id == tab.id }) else { return nil }
+        guard let visibleIndex = tabsModel.navigationIndex(of: tab.id) else { return nil }
         let targetVisibleIndex = visibleIndex + delta
         guard orderedTabs.indices.contains(targetVisibleIndex) else { return nil }
         return tabsModel.index(of: orderedTabs[targetVisibleIndex].id)
@@ -816,8 +840,9 @@ struct TabBar: View {
                 }
 
                 HStack(spacing: usesCompactSpacing ? 0 : 4) {
-                    activeScopeMenu
+                    leadingScopeMenu
                     compactScopeMenuSpacer
+                    cardLeadingGutter
                     troughWell(segmentCount: 1, segmentWidth: resolvedWidth) {
                         tabItem(
                             for: tab,
@@ -901,8 +926,9 @@ struct TabBar: View {
         // compare the resolved badge.
         let gatewayOwnerIDs = TmuxTabBadgeResolver.activeGatewayOwnerIDs(in: tabs)
         HStack(spacing: usesCompactSpacing ? 0 : 4) {
-            activeScopeMenu
+            leadingScopeMenu
             compactScopeMenuSpacer
+            cardLeadingGutter
             troughWell(segmentCount: navigationTabs.count, segmentWidth: tabWidth) {
                 ForEach(navigationTabs) { tab in
                     let index = tabsModel.index(of: tab.id) ?? 0
@@ -944,7 +970,7 @@ struct TabBar: View {
         .animation(
             tabBarAnimationsDisabled || suppressSelectionAnimation || reduceMotion
                 ? nil
-                : .spring(response: 0.3, dampingFraction: 0.7),
+                : Self.selectionAnimation,
             value: tabsModel.selectedTabID
         )
     }
@@ -967,6 +993,7 @@ struct TabBar: View {
                     selectedTabIndex: selectedTabIndex,
                     renderedTabIDs: renderedTabIDs,
                     tabWidth: tabWidth,
+                    viewportWidth: availableWidth,
                     tabsModel: tabsModel
                 ))
         }
@@ -983,52 +1010,65 @@ struct TabBar: View {
         // Gateway ordering for tmux badge colors — computed once per render; see
         // equalWidthView.
         let gatewayOwnerIDs = TmuxTabBadgeResolver.activeGatewayOwnerIDs(in: tabs)
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: usesCompactSpacing ? 0 : 8) {
-                activeScopeMenu
-                compactScopeMenuSpacer
-                troughWell(segmentCount: navigationTabs.count, segmentWidth: tabWidth) {
-                    ForEach(navigationTabs) { tab in
-                        let index = tabsModel.index(of: tab.id) ?? 0
-                        let moveLeftTarget = moveTargetRawIndex(for: tab, delta: -1)
-                        let moveRightTarget = moveTargetRawIndex(for: tab, delta: 1)
-                        tabItem(
-                            for: tab,
-                            index: index,
-                            isOnly: false,
-                            gatewayOwnerIDs: gatewayOwnerIDs,
-                            tabWidth: tabWidth
-                        )
-                            .equatable()
-                            .frame(width: tabWidth)
-                            .contentShape(Rectangle())
-                            .id(tab.id)
-                            .modifier(dragModifier(for: tab, index: index))
-                            .contextMenu {
-                                tabContextMenu(
-                                    for: tab,
-                                    index: index,
-                                    moveLeftTarget: moveLeftTarget,
-                                    moveRightTarget: moveRightTarget,
-                                    includeThemeOverrideClear: true
-                                )
-                            }
+        let pinsLead = pinsLeadingRun(tabWidth: tabWidth)
+        HStack(spacing: 0) {
+            // Pinned outside the scroll so scrolled tabs never slide over the
+            // sidebar card.
+            if pinsLead {
+                leadingScopeMenu
+                cardLeadingGutter
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: usesCompactSpacing ? 0 : 8) {
+                    if !pinsLead {
+                        leadingScopeMenu
+                        compactScopeMenuSpacer
+                        cardLeadingGutter
+                    }
+                    troughWell(segmentCount: navigationTabs.count, segmentWidth: tabWidth) {
+                        ForEach(navigationTabs) { tab in
+                            let index = tabsModel.index(of: tab.id) ?? 0
+                            let moveLeftTarget = moveTargetRawIndex(for: tab, delta: -1)
+                            let moveRightTarget = moveTargetRawIndex(for: tab, delta: 1)
+                            tabItem(
+                                for: tab,
+                                index: index,
+                                isOnly: false,
+                                gatewayOwnerIDs: gatewayOwnerIDs,
+                                tabWidth: tabWidth
+                            )
+                                .equatable()
+                                .frame(width: tabWidth)
+                                .contentShape(Rectangle())
+                                .id(tab.id)
+                                .modifier(dragModifier(for: tab, index: index))
+                                .contextMenu {
+                                    tabContextMenu(
+                                        for: tab,
+                                        index: index,
+                                        moveLeftTarget: moveLeftTarget,
+                                        moveRightTarget: moveRightTarget,
+                                        includeThemeOverrideClear: true
+                                    )
+                                }
+                        }
                     }
                 }
+                .padding(.leading, usesCompactSpacing ? 0 : 8)
+                .padding(.trailing, usesCompactSpacing ? Self.compactOvershootHeadroom : 8)
+                .contentShape(Rectangle())
+                .modifier(GlassEffectContainerModifier())
+                // Scoped animation for the selection slide. See equalWidthView.
+                .animation(
+                    tabBarAnimationsDisabled || suppressSelectionAnimation || reduceMotion
+                        ? nil
+                        : Self.selectionAnimation,
+                    value: tabsModel.selectedTabID
+                )
             }
-            .padding(.leading, usesCompactSpacing ? 0 : 8)
-            .padding(.trailing, usesCompactSpacing ? Self.compactOvershootHeadroom : 8)
-            .contentShape(Rectangle())
-            .modifier(GlassEffectContainerModifier())
-            // Scoped animation for the selection slide. See equalWidthView.
-            .animation(
-                tabBarAnimationsDisabled || suppressSelectionAnimation || reduceMotion
-                    ? nil
-                    : .spring(response: 0.3, dampingFraction: 0.7),
-                value: tabsModel.selectedTabID
-            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .modifier(ScrollEdgeEffectHiddenModifier())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Compact pills and the trough well intentionally abut, but the scope
@@ -1040,6 +1080,54 @@ struct TabBar: View {
            !style.usesStripLayout,
            activeScopeMenuWidth > 0 {
             Color.clear.frame(width: 4)
+        }
+    }
+
+    /// Pins the card-aligned scope menu only while a full tab still fits beside
+    /// it; narrower bars (iPhone) scroll it with the tabs.
+    private func pinsLeadingRun(tabWidth: CGFloat) -> Bool {
+        let leadingRun = scopeMenuLead + activeScopeMenuWidth + cardGutterWidth
+        return tabsLeadingInset > 0 && availableWidth - leadingRun >= tabWidth
+    }
+
+    /// Lines the scope menu up with the pinned sidebar card's leading edge.
+    private var scopeMenuLead: CGFloat {
+        activeScopeMenuWidth > 0 ? scopeMenuLeadingInset : 0
+    }
+
+    private var cardGutterWidth: CGFloat {
+        max(0, tabsLeadingInset - scopeMenuLead - activeScopeMenuWidth)
+    }
+
+    @ViewBuilder
+    private var leadingScopeMenu: some View {
+        cardInsetRegion(width: scopeMenuLead)
+        activeScopeMenu
+    }
+
+    /// Empty run between the scope menu and the first tab.
+    private var cardLeadingGutter: some View {
+        cardInsetRegion(width: cardGutterWidth)
+    }
+
+    /// Card-alignment space; acts like the strip's other empty space.
+    @ViewBuilder
+    private func cardInsetRegion(width: CGFloat) -> some View {
+        if width > 0 {
+            #if targetEnvironment(macCatalyst)
+            if usesTitlebarTabs {
+                CatalystWindowDragRegion(tabStyleSelection: $selectedStyleRawValue)
+                    .frame(width: width, height: TabMetrics.tabBarHeight)
+                    .catalystCursorRegion(.openHand, priority: .titlebar)
+                    .accessibilityHidden(true)
+            } else {
+                TabStyleContextMenuRegion(selectedStyleRawValue: $selectedStyleRawValue)
+                    .frame(width: width, height: TabMetrics.tabBarHeight)
+            }
+            #else
+            TabStyleContextMenuRegion(selectedStyleRawValue: $selectedStyleRawValue)
+                .frame(width: width, height: TabMetrics.tabBarHeight)
+            #endif
         }
     }
 
@@ -1104,6 +1192,7 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
     let selectedTabIndex: Int
     let renderedTabIDs: [UUID]
     let tabWidth: CGFloat
+    let viewportWidth: CGFloat
     /// Held as a reference (not snapshotted at construction) so the retry
     /// loop in `assertScrollToPendingTabID` reads live `pendingScrollToTabID`
     /// and `selectedTabID` values on each iteration. Snapshotting them broke
@@ -1112,6 +1201,11 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
     /// captured `selectedTabID` was stale.
     let tabsModel: TabsModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Setting(Settings.Tabs.barAnimationsDisabled) private var tabBarAnimationsDisabled
+
+    private var scrollAnimation: Animation? {
+        tabBarAnimationsDisabled || reduceMotion ? nil : TabBar.selectionAnimation
+    }
 
     func body(content: Content) -> some View {
         content
@@ -1125,7 +1219,7 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
             .onChange(of: selectedTabIndex) { _, newValue in
                 guard tabs.indices.contains(newValue),
                       renderedTabIDs.contains(tabs[newValue].id) else { return }
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                withAnimation(scrollAnimation) {
                     proxy.scrollTo(tabs[newValue].id, anchor: .center)
                 }
             }
@@ -1138,6 +1232,11 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
             .onChange(of: tabWidth) { _, _ in
                 recenterIfPossible(animated: false)
             }
+            // A sidebar opening narrows the viewport without changing tab
+            // widths; bring the selected tab back only if it left the view.
+            .onChange(of: viewportWidth) { _, _ in
+                revealSelectedTab()
+            }
             // Explicit scroll-target signal. Tab-creation code sets
             // `tabsModel.pendingScrollToTabID = newTab.id` so newly added
             // tabs are reliably scrolled into view even when they're
@@ -1148,6 +1247,16 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
             .task(id: tabsModel.pendingScrollToTabID) {
                 await assertScrollToPendingTabID()
             }
+    }
+
+    private func revealSelectedTab() {
+        let fallbackID = tabs.indices.contains(selectedTabIndex) ? tabs[selectedTabIndex].id : nil
+        guard let targetID = tabsModel.selectedTabID ?? fallbackID, renderedTabIDs.contains(targetID) else { return }
+        DispatchQueue.main.async {
+            withAnimation(scrollAnimation) {
+                proxy.scrollTo(targetID)
+            }
+        }
     }
 
     private func recenterIfPossible(animated: Bool = true) {
@@ -1164,7 +1273,7 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
                 return
             }
 
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+            withAnimation(scrollAnimation) {
                 proxy.scrollTo(targetID, anchor: .center)
             }
         }
@@ -1195,7 +1304,7 @@ private struct ScrollingTabBarHandlersModifier: ViewModifier {
                 return
             }
             if attempt == 5 {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                withAnimation(scrollAnimation) {
                     proxy.scrollTo(targetID, anchor: .center)
                 }
             } else {
@@ -1241,6 +1350,8 @@ struct TabBarItem: View, Equatable {
     /// is nothing to show). Stored and compared in `==` — a stale value
     /// here means a stale dot. (id=agent-attention)
     let attentionBadge: AgentAttentionStatus?
+    /// Agent / PSP logo; replaces an H/T badge. Compared in `==` like `attentionBadge`.
+    let agentLogoAsset: String?
     let isSelected: Bool
     let isOnly: Bool
     let theme: ResolvedTabBarTheme
@@ -1275,6 +1386,7 @@ struct TabBarItem: View, Equatable {
             && lhs.tmuxBadge == rhs.tmuxBadge
             && lhs.tmuxBadgeColor == rhs.tmuxBadgeColor
             && lhs.attentionBadge == rhs.attentionBadge
+            && lhs.agentLogoAsset == rhs.agentLogoAsset
             && lhs.isSelected == rhs.isSelected
             && lhs.isOnly == rhs.isOnly
             && lhs.isWiggling == rhs.isWiggling
@@ -1321,6 +1433,7 @@ struct TabBarItem: View, Equatable {
             tmuxBadgePalette: TmuxTabBadgePalette(theme: theme),
             controlledElsewhere: tab.herdrIsControlledElsewhere,
             attentionBadge: attentionBadge,
+            agentLogoAsset: agentLogoAsset,
             style: style,
             tabWidth: tabWidth,
             usesTitlebarTabs: usesTitlebarTabs

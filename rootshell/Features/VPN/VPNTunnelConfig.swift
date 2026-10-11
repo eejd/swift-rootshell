@@ -29,6 +29,21 @@ nonisolated struct VPNResolvedConfig: Codable, Sendable {
     var snapshot: VPNSharedProfileSnapshot
     var credential: VPNResolvedCredential?
     var jumpCredential: VPNResolvedCredential?
+    /// Tailscale tunnels only: the sysext can't read the app group either.
+    var tailnet: VPNResolvedTailnet? = nil
+}
+
+/// Tailscale settings and the resolved SSH egress host, if one is set.
+nonisolated struct VPNResolvedTailnet: Codable, Sendable {
+    var settings: VPNTailnetSettings
+    var egress: VPNSharedProfileSnapshot?
+    var egressCredential: VPNResolvedCredential?
+    var egressJumpCredential: VPNResolvedCredential?
+    /// Node state the in-app engine last used; replaces the sysext's copy so
+    /// both modes stay one device.
+    var importState: [String: Data]? = nil
+    /// Come up without Tailscale or routes, only so the app can read the node state.
+    var exportOnly: Bool? = nil
 }
 
 /// Runtime VPN tunnel config resolved inside the extension from the shared profile mirror.
@@ -67,6 +82,9 @@ struct VPNTunnelConfig: Codable, Sendable {
     // budget is too small to carry QUIC packets.
     var blockQUIC: Bool = false
 
+    // Halved SSH channel windows, for SSH egress beside Tailscale.
+    var compactChannelWindows: Bool = false
+
     // Secrets pushed by the macOS host (nil on iOS/Catalyst — the keychain is
     // read in-process). When set, VPNSSHConnector uses these instead of the
     // shared keychain, which a root system extension cannot access.
@@ -76,6 +94,9 @@ struct VPNTunnelConfig: Codable, Sendable {
     enum TransportType: String, Codable, Sendable {
         case ssh
         case tssh
+        case direct
+        /// Tailscale, optionally with an SSH egress host (iOS only).
+        case tailscale
     }
 
     /// Jump host config subset needed by the extension
@@ -181,7 +202,12 @@ extension VPNTunnelConfig {
 
         self.profileID = snapshot.id
         self.profileName = snapshot.name
-        self.transportType = snapshot.transportType == .tssh ? .tssh : .ssh
+        switch snapshot.transportType {
+        case .tssh: self.transportType = .tssh
+        case .direct: self.transportType = .direct
+        case .ssh: self.transportType = .ssh
+        case .tailscale: self.transportType = .tailscale
+        }
         self.sshHost = snapshot.host
         self.sshPort = snapshot.port
         self.sshUsername = snapshot.username

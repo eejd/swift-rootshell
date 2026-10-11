@@ -265,6 +265,7 @@ final class ConnectionProfileManager {
         // don't use it). Apply directly so profile creation preserves
         // the history entry's GPG setup.
         sshConfig.gpgAgentConfig = historyEntry.gpgAgentConfig ?? .disabled
+        sshConfig.askpassConfig = historyEntry.askpassConfig ?? .disabled
 
         // Use history display string as default name if not provided
         let profileName = name ?? historyEntry.displayString
@@ -938,6 +939,13 @@ final class ConnectionProfileManager {
             .filter(\.isVPNCapable)
             .map(makeVPNSharedProfileSnapshot)
         VPNSharedProfileStore.write(sharedProfiles)
+
+        // Tailscale's SSH egress host needs no VPN toggle of its own.
+        let egressID = VPNTailnetProfile.settings().sshEgressProfileID
+        let egress = egressID.flatMap { id in
+            profiles.first { $0.id == id && !$0.isDeleted && ($0.connectionProtocol == .ssh || $0.connectionProtocol == .trzsz) }
+        }
+        VPNTailnetProfile.storeEgress(egress.map(makeVPNSharedProfileSnapshot))
         #endif
     }
 

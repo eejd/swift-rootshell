@@ -154,6 +154,8 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
         /// older serialized profiles decode as nil and we apply
         /// `.disabled` on restore.
         let gpgAgentConfig: GPGAgentConfig?
+        /// Optional for backward compat; nil restores as `.disabled`.
+        let askpassConfig: RemoteAskpassConfig?
         let portForwardConfig: PortForwardConfig
         let tmuxAutoEnable: Bool?
         let tmuxAutoMode: TmuxAutoMode?
@@ -172,6 +174,8 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
         /// Per-profile multiplexer session name. Optional for backward compat —
         /// older serialized sessions decode as nil and use the global default.
         let multiplexerSessionName: String?
+        /// Captured attachment target belongs to tab restoration, not profiles.
+        let muxResumeTarget: MuxSessionTarget?
         /// Folder the pane was opened in (Open in Folder). Optional for
         /// backward compat; nil restores in the login directory.
         let initialDirectory: String?
@@ -201,6 +205,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             self.cloudInstanceLabel = config.cloudInstanceLabel
             self.agentConfig = config.agentConfig
             self.gpgAgentConfig = config.gpgAgentConfig
+            self.askpassConfig = config.askpassConfig
             self.portForwardConfig = config.portForwardConfig
             self.tmuxAutoEnable = config.tmuxAutoEnable
             self.tmuxAutoMode = config.tmuxAutoMode
@@ -211,6 +216,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             self.launchCommandMode = config.launchCommandMode
             self.terminalType = config.terminalType
             self.multiplexerSessionName = config.multiplexerSessionName
+            self.muxResumeTarget = config.muxResumeTarget
             self.initialDirectory = config.initialDirectory
 
             // Convert auth method, stripping passwords
@@ -286,6 +292,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             // serialized profiles decode cleanly — fall back to
             // .disabled when absent.
             config.gpgAgentConfig = gpgAgentConfig ?? .disabled
+            config.askpassConfig = askpassConfig ?? .disabled
             config.portForwardConfig = portForwardConfig
             config.tmuxAutoEnable = tmuxAutoEnable ?? false
             config.tmuxAutoMode = tmuxAutoMode ?? .regular
@@ -296,6 +303,7 @@ nonisolated struct SerializableConnectionConfig: Codable, Equatable, Sendable {
             config.launchCommandMode = launchCommandMode ?? .afterConnect
             config.terminalType = terminalType
             config.multiplexerSessionName = multiplexerSessionName
+            config.muxResumeTarget = muxResumeTarget
             config.initialDirectory = initialDirectory
 
             if let jump = jumpHost {

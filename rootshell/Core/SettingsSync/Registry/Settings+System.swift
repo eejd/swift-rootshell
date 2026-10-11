@@ -39,12 +39,12 @@ nonisolated extension Settings {
         static let resumeDebugLogging = SettingKey(
             "resumeDebugLoggingEnabled", default: false, group: .system, policy: .deviceOnly,
             title: String(localized: "Resume Debug Logging", comment: "Setting title"))
+        static let screenshotMode = SettingKey(
+            "screenshotModeEnabled", default: false, group: .system, policy: .deviceOnly,
+            title: String(localized: "Screenshot Mode", comment: "Setting title"))
         static let lifecycleDebugLogging = SettingKey(
             "lifecycleDebugLoggingEnabled", default: false, group: .system, policy: .deviceOnly,
             title: String(localized: "Lifecycle Debug Logging", comment: "Setting title"))
-        static let lifecycleSyncRendererDrain = SettingKey(
-            "lifecycleSyncRendererDrainEnabled", default: false, group: .system, policy: .deviceOnly,
-            title: String(localized: "Synchronous Renderer Drain", comment: "Setting title"))
         static let lifecycleVerboseWiFiPollLogging = SettingKey(
             "lifecycleVerboseWiFiPollLoggingEnabled", default: false, group: .system, policy: .deviceOnly,
             title: String(localized: "Verbose WiFi Poll Logging", comment: "Setting title"))
@@ -57,6 +57,9 @@ nonisolated extension Settings {
         static let tmuxDebugLogging = SettingKey(
             "tmuxDebugLoggingEnabled", default: false, group: .system, policy: .deviceOnly,
             title: String(localized: "tmux Debug Logging", comment: "Setting title"))
+        static let programStatusDebugLogging = SettingKey(
+            "programStatusDebugLoggingEnabled", default: false, group: .system, policy: .deviceOnly,
+            title: String(localized: "Program Status Debug Logging", comment: "Setting title"))
         static let herdrForceFallback = SettingKey(
             "herdrForceFallbackEnabled", default: false, group: .system, policy: .deviceOnly,
             title: String(localized: "Force herdr Fallback Mode", comment: "Setting title"))
@@ -98,9 +101,10 @@ nonisolated extension Settings {
             cloudKitSyncEnabled.erased, cloudKitSyncHistory.erased, cloudKitSyncKnownHosts.erased,
             cloudKitSyncProfiles.erased, cloudKitSyncAppSettings.erased, cloudKitDeviceID.erased,
             cloudKitMigratedToCustomZone.erased, cloudKitZoneChangeToken.erased, cloudKitLastSyncDate,
-            resumeDebugLogging.erased, lifecycleDebugLogging.erased, lifecycleSyncRendererDrain.erased,
+            resumeDebugLogging.erased, screenshotMode.erased, lifecycleDebugLogging.erased,
             lifecycleVerboseWiFiPollLogging.erased, sshDebugLogging.erased, vncDebugLogging.erased,
-            tmuxDebugLogging.erased, herdrForceFallback.erased, agentDetectionCapture.erased,
+            tmuxDebugLogging.erased, programStatusDebugLogging.erased,
+            herdrForceFallback.erased, agentDetectionCapture.erased,
             ghosttyBookmarkNames, applePressAndHold.erased,
             sparkleAutomaticChecks.erased, sparkleCheckInterval.erased,
             configOverlayBookmark.erased, configOverlayExternalPath.erased, configOverlayWriteBack.erased,
@@ -108,14 +112,21 @@ nonisolated extension Settings {
     }
 
     /// Every area the registry assembles. Add new areas here.
-    static let allAreas: [[AnySettingDefinition]] = [
-        Theme.all, Font.all, Cursor.all, Selection.all, Transparency.all, Palette.all, Shaders.all,
-        Tabs.all, Sidebar.all, Window.all, Power.all, Visor.all,
-        Terminal.all, Gestures.all, Prompt.all, Locale.all, SessionRestore.all,
-        Keyboard.all, KeyboardToolbar.all, Keybinds.all,
-        Connections.all, Multiplexer.all, SSHAgent.all, HostTrust.all, Roam.all, ScreenSharing.all, Transfer.all,
-        AI.all,
-        Notifications.all, CodingAgents.all, Sounds.all, LiveActivity.all, Privacy.all, Clipboard.all,
-        System.all, Legacy.all,
-    ]
+    static let allAreas: [[AnySettingDefinition]] = {
+        var areas: [[AnySettingDefinition]] = [
+            Theme.all, Font.all, Cursor.all, Selection.all, Transparency.all, Palette.all, Shaders.all,
+            Tabs.all, Sidebar.all, Window.all, Power.all, Visor.all,
+            Terminal.all, Gestures.all, Prompt.all, Locale.all, SessionRestore.all,
+            Keyboard.all, KeyboardToolbar.all, Keybinds.all, Dictation.all,
+            Connections.all, Multiplexer.all, SSHAgent.all, HostTrust.all, Roam.all, ScreenSharing.all, Transfer.all,
+            AI.all,
+            Notifications.all, CodingAgents.all, Sounds.all, LiveActivity.all, Privacy.all, Clipboard.all,
+            System.all, Legacy.all,
+        ]
+        #if !CHINA_BUILD
+        areas.append(HTTPCapture.all)
+        areas.append(VPN.all)
+        #endif
+        return areas
+    }()
 }

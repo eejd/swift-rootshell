@@ -54,7 +54,24 @@ final class EffectManager {
         id == BackgroundEffectSelection.followTerminalID ? activeEffect : effect(withId: id)
     }
 
+    /// Full-window gradient behind all content, configured apart from the
+    /// Theme Gradient area effect.
+    @ObservationIgnored let backdropEffect = AnyTerminalEffect(ThemeGradientEffect(isBackdrop: true))
+
+    var isBackdropEnabled = false {
+        didSet {
+            guard isBackdropEnabled != oldValue else { return }
+            if !isReloading { SettingsStore.shared.set(Settings.Shaders.themeGradientBackdrop, isBackdropEnabled) }
+            #if !targetEnvironment(macCatalyst)
+            // Off the Mac, terminal opacity applies only over the backdrop. Not
+            // during init: the config writer reads it back through `shared`.
+            if isLoaded { TransparencyManager.shared.transparencyDidChange.send() }
+            #endif
+        }
+    }
+
     @ObservationIgnored private var isReloading = false
+    @ObservationIgnored private var isLoaded = false
 
     /// Theme colors for effects (updated from ThemeManager)
     private(set) var themeColors: EffectThemeColors = .defaults
@@ -72,12 +89,6 @@ final class EffectManager {
 
     /// Version counter that increments on keyboard state changes to force SwiftUI re-render
     private(set) var keyboardStateVersion: Int = 0
-
-    /// Version counter that increments when a surface's cell size changes, so
-    /// SwiftUI re-evaluates layout that depends on grid metrics (the terminal's
-    /// top grid-alignment padding). Deliberately separate from
-    /// `keyboardStateVersion`: grid changes do not change keyboard geometry.
-    private(set) var gridMetricsVersion: Int = 0
 
     /// Whether the effect has been toggled off (for toggle_background_effect action)
     private(set) var isEffectDisabled: Bool = false
@@ -138,6 +149,7 @@ final class EffectManager {
 
         // Register built-in effects first
         registerBuiltInEffects()
+        setUpBackdrop()
 
         // Setup video download completion handler
         setupVideoDownloadHandler()
@@ -173,7 +185,19 @@ final class EffectManager {
 
         SettingsRefreshHub.shared.register(keys: [
             Settings.Shaders.activeEffectId.name, Settings.Shaders.effectConfigurations.name,
+            Settings.Shaders.themeGradientBackdrop.name,
         ]) { [weak self] keys in self?.reload(keys: keys) }
+        isLoaded = true
+    }
+
+    private func setUpBackdrop() {
+        restoreConfiguration(for: backdropEffect)
+        backdropEffect.themeColors = themeColors
+        effectConfigCancellables[backdropEffect.id] = backdropEffect.configurationDidChange
+            .sink { [weak self] in
+                guard let self else { return }
+                self.saveEffectConfiguration(self.backdropEffect)
+            }
     }
 
     private func reload(keys: Set<String>) {
@@ -190,8 +214,14 @@ final class EffectManager {
            sidebarEffect.id != activeEffect?.id, sidebarEffect.id != keyboardEffect?.id {
             restoreConfiguration(for: sidebarEffect)
         }
+        if keys.contains(Settings.Shaders.effectConfigurations.name) {
+            restoreConfiguration(for: backdropEffect)
+        }
         if keys.contains(Settings.Shaders.activeEffectId.name) {
             activeEffect = SettingsStore.shared.get(Settings.Shaders.activeEffectId).flatMap { effect(withId: $0) }
+        }
+        if keys.contains(Settings.Shaders.themeGradientBackdrop.name) {
+            isBackdropEnabled = SettingsStore.shared.get(Settings.Shaders.themeGradientBackdrop)
         }
     }
 
@@ -204,10 +234,6 @@ final class EffectManager {
         keyboardStateVersion += 1
         keyboardStateDidChange.send()
         keyboardEnvironmentDidChange.send()
-    }
-
-    func notifyGridMetricsChanged() {
-        gridMetricsVersion += 1
     }
 
     func clearPreservedKeyboardLayout() {
@@ -308,6 +334,9 @@ final class EffectManager {
     }
 
     private func loadSettings() {
+        isReloading = true
+        isBackdropEnabled = SettingsStore.shared.get(Settings.Shaders.themeGradientBackdrop)
+        isReloading = false
         // Load active effect
         if let activeId = SettingsStore.shared.get(Settings.Shaders.activeEffectId) {
             activeEffect = effect(withId: activeId)
@@ -433,17 +462,12 @@ final class EffectManager {
         }
     }
 
-    #if !os(visionOS) && !targetEnvironment(macCatalyst)
-    /// Tolerance for detecting if keyboard is docked (accounts for safe area)
-    private static let dockTolerance: CGFloat = 50
-    #endif
-
     private func isMeaningfulKeyboardFrame(_ keyboardFrame: CGRect) -> Bool {
         guard !keyboardFrame.isNull, !keyboardFrame.isEmpty else { return false }
         #if os(visionOS)
         return keyboardFrame.height > Self.softwareKeyboardHeightThreshold
         #else
-        let screenBounds = activeWindowFrame() ?? UIScreen.main.bounds
+        guard let screenBounds = activeWindowFrame() else { return false }
         let intersection = screenBounds.intersection(keyboardFrame)
         if intersection.isNull || intersection.isEmpty {
             return false
@@ -455,21 +479,8 @@ final class EffectManager {
     #if !os(visionOS) && !targetEnvironment(macCatalyst)
     /// Check if keyboard frame represents a docked keyboard (bottom edge at screen bottom)
     private func isKeyboardFrameDocked(_ keyboardFrame: CGRect) -> Bool {
-        let windowFrame = activeWindowFrame() ?? UIScreen.main.bounds
-        let screenHeight = windowFrame.height
-
-        let keyboardBottom = keyboardFrame.origin.y + keyboardFrame.height
-
-        // Keyboard is docked if its bottom edge is at or near the screen bottom
-        // and it has meaningful height (not just the suggestion bar)
-        let touchesBottom = abs(keyboardBottom - screenHeight) < Self.dockTolerance
-        let hasMeaningfulHeight = keyboardFrame.height > 100
-        // A docked keyboard spans the window. Narrow bottom HUDs — the
-        // minimized-keyboard pill a pencil tap summons, the floating
-        // mini keyboard — must never register as docked coverage.
-        let spansWindowWidth = keyboardFrame.width >= windowFrame.width - Self.dockTolerance
-
-        return touchesBottom && hasMeaningfulHeight && spansWindowWidth
+        guard let windowFrame = activeWindowFrame() else { return false }
+        return TerminalKeyboardGeometry.isDocked(keyboard: keyboardFrame, container: windowFrame)
     }
     #endif
 
@@ -531,7 +542,7 @@ final class EffectManager {
         #if os(visionOS)
         let screenBounds = keyboardFrame
         #else
-        let screenBounds = activeWindowFrame() ?? UIScreen.main.bounds
+        guard let screenBounds = activeWindowFrame() else { return 0 }
         #endif
 
         // Calculate how much of the keyboard is visible on screen
@@ -549,18 +560,8 @@ final class EffectManager {
         #if os(visionOS)
         return nil
         #else
-        let scenes = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-        let foregroundScene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        guard let windowScene = foregroundScene else {
-            return nil
-        }
-
-        if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
-            return keyWindow.frame
-        }
-
-        return windowScene.windows.first?.frame
+        guard let window = KeyboardTracker.shared.inputOwnerWindow else { return nil }
+        return window.convert(window.bounds, to: window.screen.coordinateSpace)
         #endif
     }
 
@@ -585,6 +586,7 @@ final class EffectManager {
         for effect in availableEffects {
             effect.themeColors = themeColors
         }
+        backdropEffect.themeColors = themeColors
 
         if activeEffect != nil {
             effectDidChange.send()
@@ -596,6 +598,7 @@ final class EffectManager {
     private func registerBuiltInEffects() {
         registerEffect(AquariumEffect())
         registerEffect(AuroraEffect())
+        registerEffect(ThemeGradientEffect())
         registerEffect(SolarGraphEffect())
         registerEffect(FirefliesEffect())
         registerEffect(ButterfliesEffect())

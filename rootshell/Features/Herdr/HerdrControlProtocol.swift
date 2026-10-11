@@ -17,8 +17,8 @@ nonisolated enum HerdrControl {
 
     /// Lowest `terminal_control_stream` capability value this client can drive.
     static let requiredStreamProtocol = 1
-    /// Stream protocol this client speaks in full (shared attaches, geometry ownership).
-    static let preferredStreamProtocol = 2
+    /// Preferred stream protocol; version 3 adds independent pane sizing.
+    static let preferredStreamProtocol = 3
 
     // MARK: - Requests
 
@@ -61,6 +61,47 @@ nonisolated enum HerdrControl {
         /// false stores this client's size without taking the tab's geometry.
         /// Omitted (nil) for servers that predate ownership; they always claim.
         var claim: Bool?
+    }
+
+    struct PaneTerminalSize: Codable, Sendable, Equatable {
+        let cols: Int
+        let rows: Int
+        let cell_width_px: Int
+        let cell_height_px: Int
+
+        init(cols: Int, rows: Int, cell_width_px: Int, cell_height_px: Int) {
+            self.cols = cols
+            self.rows = rows
+            self.cell_width_px = cell_width_px
+            self.cell_height_px = cell_height_px
+        }
+
+        private enum CodingKeys: String, CodingKey { case cols, rows, cell_width_px, cell_height_px }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            cols = try values.decode(Int.self, forKey: .cols)
+            rows = try values.decode(Int.self, forKey: .rows)
+            cell_width_px = try values.decode(Int.self, forKey: .cell_width_px)
+            cell_height_px = try values.decode(Int.self, forKey: .cell_height_px)
+            guard (1...65535).contains(cols), (1...65535).contains(rows),
+                  (1...65535).contains(cell_width_px), (1...65535).contains(cell_height_px) else {
+                throw DecodingError.dataCorruptedError(forKey: .cols, in: values,
+                    debugDescription: "Herdr terminal grids and cell metrics must be positive 16-bit values")
+            }
+        }
+    }
+
+    /// A distinct method prevents old servers from silently ignoring pane sizes.
+    struct TabPaneGeometryParams: Encodable {
+        let geometry: TabGeometryParams
+        let panes: [String: PaneTerminalSize]
+
+        func encode(to encoder: Encoder) throws {
+            try geometry.encode(to: encoder)
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            try values.encode(panes, forKey: .panes)
+        }
+        private enum CodingKeys: String, CodingKey { case panes }
     }
 
     struct ClaimGeometryParams: Encodable {
@@ -117,6 +158,13 @@ nonisolated enum HerdrControl {
 
         case pane(String)
         case split(direction: Direction, ratio: Double, first: Self, second: Self)
+
+        var paneIDs: [String] {
+            switch self {
+            case .pane(let id): return [id]
+            case .split(_, _, let first, let second): return first.paneIDs + second.paneIDs
+            }
+        }
 
         private enum CodingKeys: String, CodingKey {
             case type, pane_id, direction, ratio, first, second
@@ -240,12 +288,27 @@ nonisolated enum HerdrControl {
         let message: String
     }
 
-    /// Minimal discriminator decoded from every inbound line.
+    /// Minimal discriminator decoded from every inbound line. Output records
+    /// come along with it, so their base64 payload is parsed only once.
     struct LineHead: Decodable {
         let id: String?
         let type: String?
         let event: String?
         let error: ErrorBody?
+        let output: OutputRecord?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, type, event, error
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decodeIfPresent(String.self, forKey: .id)
+            type = try container.decodeIfPresent(String.self, forKey: .type)
+            event = try container.decodeIfPresent(String.self, forKey: .event)
+            error = try container.decodeIfPresent(ErrorBody.self, forKey: .error)
+            output = type == "terminal.output" ? try? OutputRecord(from: decoder) : nil
+        }
     }
 
     struct Response<Result: Decodable>: Decodable {
@@ -390,6 +453,10 @@ nonisolated enum HerdrControl {
         let pane_id: String
         let focused: Bool
         let rect: Rect
+        var terminal_size: PaneTerminalSize? = nil
+
+        var terminalCols: Int { terminal_size?.cols ?? rect.width }
+        var terminalRows: Int { terminal_size?.rows ?? rect.height }
     }
 
     struct LayoutSplit: Decodable, Sendable, Equatable {
@@ -840,14 +907,20 @@ nonisolated enum HerdrControl {
     /// Decodes a pushed record or event line. Returns nil for response lines
     /// (those carry an `id`), which the channel routes to their request.
     static func decodeInbound(_ line: Data) -> Inbound? {
-        guard let head = try? decoder.decode(LineHead.self, from: line) else {
+        decodeInbound(line, head: try? decoder.decode(LineHead.self, from: line))
+    }
+
+    /// Same, for a line whose head the caller already decoded (nil when
+    /// that failed).
+    static func decodeInbound(_ line: Data, head: LineHead?) -> Inbound? {
+        guard let head else {
             return .unknown(String(decoding: line.prefix(120), as: UTF8.self))
         }
         if head.id != nil, head.type == nil, head.event == nil {
             return nil
         }
         if let type = head.type {
-            return decodeRecord(type: type, line: line)
+            return decodeRecord(type: type, head: head, line: line)
         }
         if let event = head.event {
             return decodeEvent(event: event, line: line)
@@ -855,10 +928,10 @@ nonisolated enum HerdrControl {
         return .unknown(String(decoding: line.prefix(120), as: UTF8.self))
     }
 
-    private static func decodeRecord(type: String, line: Data) -> Inbound {
+    private static func decodeRecord(type: String, head: LineHead, line: Data) -> Inbound {
         switch type {
         case "terminal.output":
-            guard let record = try? decoder.decode(OutputRecord.self, from: line),
+            guard let record = head.output,
                   let bytes = Data(base64Encoded: record.bytes) else { return .unknown(type) }
             return .output(attachId: record.attach_id, seq: record.seq, bytes: bytes)
         case "terminal.snapshot":

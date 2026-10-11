@@ -10,6 +10,7 @@
 //  options (ephemeral, not persisted).
 //
 
+import AppKit
 import Foundation
 import NetworkExtension
 import os
@@ -23,6 +24,45 @@ final class VPNTunnelController {
 
     private let log = Logger(subsystem: "com.kk2.rootshellvpn.host", category: "manager")
 
+    /// Held so status notifications keep arriving for the tunnel.
+    private var watchedManager: NETunnelProviderManager?
+    private var lastStatus: NEVPNStatus = .invalid
+    private var isPoweringOff = false
+    /// An extension update stops the tunnel; that drop isn't a deliberate stop.
+    private var recoveryHeldUntil = Date.distantPast
+
+    func holdRecoveryForExtensionUpdate() {
+        recoveryHeldUntil = Date().addingTimeInterval(60)
+    }
+
+    /// The sysext can't reach the app group and the app may be closed, so the
+    /// host clears auto recovery when a tunnel drops outside a restart,
+    /// shutdown or extension update.
+    func watchForStops() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { VPNTunnelController.shared.isPoweringOff = true }
+        }
+        NotificationCenter.default.addObserver(forName: .NEVPNStatusDidChange, object: nil, queue: .main) { note in
+            guard let status = (note.object as? NEVPNConnection)?.status else { return }
+            MainActor.assumeIsolated { VPNTunnelController.shared.noteStatus(status) }
+        }
+        Task {
+            watchedManager = try? await loadManager()
+            lastStatus = watchedManager?.connection.status ?? .invalid
+        }
+    }
+
+    /// Same rule as the app: a failed connect (from `.connecting`) keeps the marker.
+    private func noteStatus(_ status: NEVPNStatus) {
+        defer { lastStatus = status }
+        guard status == .disconnected || status == .invalid, !isPoweringOff, Date() >= recoveryHeldUntil,
+              lastStatus == .connected || lastStatus == .reasserting || lastStatus == .disconnecting else { return }
+        log.info("tunnel stopped; clearing auto recovery")
+        VPNControlPaths.clearAutoRecovery()
+    }
+
     private func loadManager() async throws -> NETunnelProviderManager {
         let managers = try await NETunnelProviderManager.loadAllFromPreferences()
         return managers.first ?? NETunnelProviderManager()
@@ -32,7 +72,7 @@ final class VPNTunnelController {
     /// JSON-encoded `VPNResolvedConfig` from the Catalyst app.
     /// `usesAgentSigning` runs the agent signing broker loop alongside the
     /// tunnel (agent-backed SSH key; the sysext asks us for signatures).
-    func start(profileID: UUID, transportType: String, resolvedConfig: Data, usesAgentSigning: Bool = false) async throws {
+    func start(profileID: UUID, transportType: String, resolvedConfig: Data, usesAgentSigning: Bool = false, captureConfig: Data? = nil) async throws {
         var manager = try await loadManager()
 
         // Idempotent start: calling startVPNTunnel on a live session throws, and
@@ -84,17 +124,22 @@ final class VPNTunnelController {
 
         try await manager.saveToPreferences()
         try await manager.loadFromPreferences()
+        watchedManager = manager
 
         // Secrets travel through options (not persisted), unlike providerConfiguration.
         // Old extensions require "resolvedConfig". Withhold that key for a
         // relay start, so they fail closed instead of ignoring unknown routing
         // fields and dialing the target directly.
         let configKey = transportType == "tssh-relay" ? "relayResolvedConfig" : "resolvedConfig"
-        try manager.connection.startVPNTunnel(options: [
+        var options: [String: NSObject] = [
             "profileID": profileID.uuidString as NSString,
             "transportType": transportType as NSString,
             configKey: resolvedConfig as NSData,
-        ])
+        ]
+        if let captureConfig {
+            options["captureConfig"] = captureConfig as NSData
+        }
+        try manager.connection.startVPNTunnel(options: options)
         log.info("startVPNTunnel issued for profile \(profileID.uuidString.prefix(8), privacy: .public)")
 
         if usesAgentSigning {
@@ -105,6 +150,7 @@ final class VPNTunnelController {
     }
 
     func stop() async throws {
+        VPNControlPaths.clearAutoRecovery()
         let manager = try await loadManager()
         manager.connection.stopVPNTunnel()
         VPNAgentBrokerLoop.shared.stop()
@@ -154,23 +200,30 @@ final class VPNTunnelController {
     /// request must still complete, or the app's status call (and its stats
     /// polling) wedges indefinitely.
     func providerStatusJSON() async -> String? {
+        guard let data = await sendProviderMessage(Data("getStatus".utf8), timeoutSeconds: 5) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Send a provider message and return its reply; nil when not connected,
+    /// on failure, or after `timeoutSeconds`.
+    func sendProviderMessage(_ message: Data, timeoutSeconds: Int) async -> Data? {
         guard let manager = try? await loadManager() else {
-            log.error("providerStatusJSON: loadManager failed")
+            log.error("sendProviderMessage: loadManager failed")
             return nil
         }
         guard let session = manager.connection as? NETunnelProviderSession else {
-            log.error("providerStatusJSON: connection is not NETunnelProviderSession")
+            log.error("sendProviderMessage: connection is not NETunnelProviderSession")
             return nil
         }
         guard session.status == .connected || session.status == .reasserting else {
             let raw = session.status.rawValue
-            log.info("providerStatusJSON: session status \(raw), skipping")
+            log.info("sendProviderMessage: session status \(raw), skipping")
             return nil
         }
         return await withCheckedContinuation { continuation in
             let resumed = OSAllocatedUnfairLock(initialState: false)
             // Returns true only for the first caller; exactly one resume.
-            let finish: @Sendable (String?) -> Bool = { value in
+            let finish: @Sendable (Data?) -> Bool = { value in
                 let first = resumed.withLock { done -> Bool in
                     if done { return false }
                     done = true
@@ -180,19 +233,19 @@ final class VPNTunnelController {
                 return first
             }
             do {
-                try session.sendProviderMessage(Data("getStatus".utf8)) { data in
+                try session.sendProviderMessage(message) { data in
                     if data == nil {
-                        Self.timeoutLog.error("provider getStatus completion delivered nil data")
+                        Self.timeoutLog.error("provider message completion delivered nil data")
                     }
-                    _ = finish(data.flatMap { String(data: $0, encoding: .utf8) })
+                    _ = finish(data)
                 }
             } catch {
                 self.log.error("sendProviderMessage failed: \(error.localizedDescription, privacy: .public)")
                 _ = finish(nil)
             }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
+            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(timeoutSeconds)) {
                 if finish(nil) {
-                    Self.timeoutLog.error("provider getStatus reply timed out after 5s")
+                    Self.timeoutLog.error("provider message reply timed out after \(timeoutSeconds)s")
                 }
             }
         }

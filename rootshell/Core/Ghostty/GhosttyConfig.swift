@@ -250,7 +250,8 @@ extension Ghostty {
                 blur: transparencyManager.usesGlass ? 0 : Int(transparencyManager.backgroundBlurRadius)
             )
 #else
-            return (opacity: 1.0, blur: 0)
+            // Glass is a SwiftUI layer over the backdrop; there is no radius blur.
+            return (opacity: TransparencyManager.shared.effectiveBackgroundOpacity, blur: 0)
 #endif
         }
 
@@ -314,8 +315,10 @@ extension Ghostty {
             configLines.append("clipboard-write = allow")
 
             // Auto-copy selected text to clipboard (default on, matches macOS Ghostty)
+            // `primary` is the selection clipboard, which writeClipboard treats as
+            // copy-on-select; upstream maps `true` to the standard clipboard.
             let copyOnSelect = SettingsStore.shared.value(Settings.Selection.copyOnSelect)
-            configLines.append("copy-on-select = \(copyOnSelect)")
+            configLines.append("copy-on-select = \(copyOnSelect ? "primary" : "none")")
 
             // Option key as Alt setting (matches Ghostty's macos-option-as-alt)
             let optionAsAlt = SettingsStore.shared.value(Settings.Keyboard.optionKeyAsAlt)
@@ -480,8 +483,10 @@ extension Ghostty {
             configLines.append("clipboard-write = allow")
 
             // Auto-copy selected text to clipboard (default on, matches macOS Ghostty)
+            // `primary` is the selection clipboard, which writeClipboard treats as
+            // copy-on-select; upstream maps `true` to the standard clipboard.
             let copyOnSelect = SettingsStore.shared.value(Settings.Selection.copyOnSelect)
-            configLines.append("copy-on-select = \(copyOnSelect)")
+            configLines.append("copy-on-select = \(copyOnSelect ? "primary" : "none")")
 
             // Option key as Alt setting (matches Ghostty's macos-option-as-alt)
             let optionAsAlt = SettingsStore.shared.value(Settings.Keyboard.optionKeyAsAlt)

@@ -8,11 +8,12 @@
 import Foundation
 
 extension ProfileSortOrder: SettingValue {}
+extension PanelPresentation: SettingValue {}
 extension KeyAuthRequirement: SettingValue {}
 extension KeyStorageLevel: SettingValue {}
 extension TmuxAutoMode: SettingValue {}
 extension HerdrAutoMode: SettingValue {}
-extension TmuxTabCloseAction: SettingValue {}
+extension MultiplexerTabCloseAction: SettingValue {}
 extension SessionDiscoverySortOrder: SettingValue {}
 extension MoshConfig.PredictionMode: SettingValue {}
 extension TrzszConfig.TransportMode: SettingValue {}
@@ -21,6 +22,7 @@ extension ScreenSharingPanningDefault: SettingValue {}
 extension ScreenSharingPointerModeDefault: SettingValue {}
 extension ScreenSharingCursorRenderingDefault: SettingValue {}
 extension ScreenSharingCursorSizeDefault: SettingValue {}
+extension PasteInsertFormat: SettingValue {}
 
 nonisolated extension Settings {
     enum Connections {
@@ -34,7 +36,7 @@ nonisolated extension Settings {
             "sshHealthMonitoringEnabled", default: true, group: .connections, configKey: "ssh-health-monitoring-enabled",
             title: String(localized: "Connection Health Monitoring", comment: "Setting title"))
         static let healthProbeInterval = SettingKey(
-            "sshHealthProbeInterval", default: 15, group: .connections, configKey: "ssh-health-probe-interval",
+            "sshHealthProbeInterval", default: 15, group: .connections, configKey: "ssh-health-probe-interval", range: 1...3600,
             title: String(localized: "Probe Interval", comment: "Setting title"))
         static let publicKeyAuthProbe = SettingKey(
             "sshPublicKeyAuthProbeEnabled", default: false, group: .connections, configKey: "ssh-public-key-auth-probe-enabled",
@@ -46,7 +48,7 @@ nonisolated extension Settings {
             "autoReconnectEnabled", default: true, group: .connections, configKey: "auto-reconnect-enabled",
             title: String(localized: "Auto Reconnect", comment: "Setting title"))
         static let autoReconnectMaxAttempts = SettingKey(
-            "autoReconnectMaxAttempts", default: 5, group: .connections, configKey: "auto-reconnect-max-attempts",
+            "autoReconnectMaxAttempts", default: 5, group: .connections, configKey: "auto-reconnect-max-attempts", range: 0...100,
             title: String(localized: "Reconnect Attempts", comment: "Setting title"))
         static let profilesSortOrder = SettingKey(
             "profilesSortOrder", default: ProfileSortOrder.name, group: .connections, configKey: "profiles-sort-order",
@@ -134,9 +136,12 @@ nonisolated extension Settings {
         static let tmuxDiscoveryAttachMode = SettingKey(
             "tmuxDiscoveryAttachMode", default: TmuxAutoMode.regular, group: .multiplexer, configKey: "tmux-discovery-attach-mode",
             title: String(localized: "tmux Attach Mode", comment: "Setting title"))
-        static let tmuxTabCloseAction = SettingKey(
-            "tmuxTabCloseAction", default: TmuxTabCloseAction.closeWindow, group: .multiplexer, configKey: "tmux-tab-close-action",
-            title: String(localized: "tmux Close Tab Action", comment: "Setting title"))
+        // Persisted name and group predate herdr support; keep them so stored
+        // values, sync records, and group pins carry over.
+        static let tabCloseAction = SettingKey(
+            "tmuxTabCloseAction", default: MultiplexerTabCloseAction.closeWindow, group: .multiplexer,
+            configKey: "multiplexer-tab-close-action",
+            title: String(localized: "Multiplexer Close Tab Action", comment: "Setting title"))
         static let zellijSessionDiscovery = SettingKey(
             "zellijSessionDiscoveryEnabled", default: true, group: .multiplexer, configKey: "zellij-session-discovery-enabled",
             title: String(localized: "Discover zellij Sessions", comment: "Setting title"))
@@ -180,6 +185,9 @@ nonisolated extension Settings {
         static let tabExposeMultiplexer = SettingKey(
             "tabExposeMultiplexerEnabled", default: true, group: .multiplexer, configKey: "tab-expose-multiplexer-enabled",
             title: String(localized: "Show Multiplexer Tabs in Exposé", comment: "Setting title"))
+        static let detachBanner = SettingKey(
+            "muxDetachBannerEnabled", default: true, group: .multiplexer, configKey: "mux-detach-banner-enabled",
+            title: String(localized: "Show Detach Banner", comment: "Setting title"))
         static let tmuxHiddenWindowsBySession = AnySettingDefinition.opaque(
             "tmuxHiddenWindowsBySession", group: .multiplexer,
             title: String(localized: "tmux Hidden Windows", comment: "Setting title"))
@@ -190,12 +198,12 @@ nonisolated extension Settings {
         static let all: [AnySettingDefinition] = [
             tmuxSessionName.erased, tmuxCustomCommand.erased, tmuxSessionDiscovery.erased,
             tmuxAutoHideGatewayOnAttach.erased, tmuxDiscoveryAttachMode.erased,
-            tmuxTabCloseAction.erased, zellijSessionDiscovery.erased, herdrSessionName.erased,
+            tabCloseAction.erased, zellijSessionDiscovery.erased, herdrSessionName.erased,
             herdrCustomCommand.erased, herdrSessionDiscovery.erased,
             herdrDiscoveryAttachMode.erased, herdrAutoHideGatewayOnAttach.erased, herdrControlHistoryLimitBytes.erased,
             zmxSessionName.erased, zmxCustomCommand.erased, zmxSessionDiscovery.erased, localSessionDiscovery.erased,
             remoteSessionDiscovery.erased, sessionDiscoverySortOrder.erased, tabExposeMultiplexer.erased,
-            tmuxHiddenWindowsBySession, tmuxLastSessionByConnection,
+            detachBanner.erased, tmuxHiddenWindowsBySession, tmuxLastSessionByConnection,
         ]
     }
 
@@ -253,10 +261,10 @@ nonisolated extension Settings {
             configKey: "trzsz-default-transport-mode",
             title: String(localized: "Default Transport", comment: "Setting title"))
         static let trzszUDPPortMin = SettingKey(
-            "trzszDefaultUDPPortMin", default: 61000, group: .roam, configKey: "trzsz-default-udp-port-min",
+            "trzszDefaultUDPPortMin", default: 61000, group: .roam, configKey: "trzsz-default-udp-port-min", range: 1...65535,
             title: String(localized: "UDP Port Range Min", comment: "Setting title"))
         static let trzszUDPPortMax = SettingKey(
-            "trzszDefaultUDPPortMax", default: 61999, group: .roam, configKey: "trzsz-default-udp-port-max",
+            "trzszDefaultUDPPortMax", default: 61999, group: .roam, configKey: "trzsz-default-udp-port-max", range: 1...65535,
             title: String(localized: "UDP Port Range Max", comment: "Setting title"))
         static let trzszKeepPendingInput = SettingKey(
             "trzszKeepPendingInput", default: false, group: .roam, configKey: "trzsz-keep-pending-input",
@@ -291,7 +299,7 @@ nonisolated extension Settings {
             title: String(localized: "Default Pointer Mode", comment: "Setting title"))
         static let pointerSpeed = SettingKey(
             "screenSharingPointerSpeed", default: 1.0, group: .screenSharing,
-            configKey: "screen-sharing-pointer-speed",
+            configKey: "screen-sharing-pointer-speed", range: 0.1...10,
             title: String(localized: "Pointer Speed", comment: "Setting title"))
         static let cursorRenderingDefault = SettingKey(
             "screenSharingCursorRenderingDefault", default: ScreenSharingCursorRenderingDefault.local, group: .screenSharing,
@@ -315,6 +323,63 @@ nonisolated extension Settings {
             "crocMachineID", default: nil, group: .transfer, policy: .deviceOnly,
             title: String(localized: "Croc Machine ID", comment: "Setting title"))
 
-        static let all: [AnySettingDefinition] = [crocMachineID.erased]
+        static let fileManagerPresentation = SettingKey(
+            "fileManager.presentation", default: PanelPresentation.sidebar, group: .transfer,
+            configKey: "file-manager-presentation",
+            title: String(localized: "File Manager Presentation", comment: "Setting title"))
+        static let fileManagerSidebarWidth = SettingKey(
+            "fileManager.sidebar.width", default: 460.0, group: .transfer, policy: .deviceOnly,
+            title: String(localized: "File Manager Sidebar Width", comment: "Setting title"))
+        static let fileManagerHUDWidth = SettingKey(
+            "fileManager.hud.width", default: 1000.0, group: .transfer, policy: .deviceOnly,
+            title: String(localized: "File Manager Overlay Width", comment: "Setting title"))
+        static let fileManagerHUDHeight = SettingKey(
+            "fileManager.hud.height", default: 680.0, group: .transfer, policy: .deviceOnly,
+            title: String(localized: "File Manager Overlay Height", comment: "Setting title"))
+        static let fileManagerShowHidden = SettingKey(
+            "fileManager.showHidden", default: false, group: .transfer,
+            configKey: "file-manager-show-hidden",
+            title: String(localized: "Show Hidden Files", comment: "Setting title"))
+        static let fileManagerConcurrentJobs = SettingKey(
+            "fileManager.concurrentJobs", default: 2, group: .transfer,
+            configKey: "file-manager-concurrent-transfers", range: 1...16,
+            title: String(localized: "Concurrent Transfers", comment: "Setting title"))
+        static let fileManagerPreserveAttributes = SettingKey(
+            "fileManager.preserveAttributes", default: true, group: .transfer,
+            configKey: "file-manager-preserve-attributes",
+            title: String(localized: "Preserve Permissions and Dates", comment: "Setting title"))
+        static let fileManagerIdleDisconnectMinutes = SettingKey(
+            "fileManager.idleDisconnectMinutes", default: 10, group: .transfer,
+            configKey: "file-manager-idle-disconnect", range: 0...1440,
+            title: String(localized: "Disconnect Idle Hosts After (Minutes)", comment: "Setting title"))
+        static let fileManagerPaneState = SettingKey<String?>(
+            "fileManager.paneState", default: nil, group: .transfer, policy: .deviceOnly,
+            title: String(localized: "File Manager Last Locations", comment: "Setting title"))
+        static let fileManagerShortcutsTipShown = SettingKey(
+            "fileManager.shortcutsTipShown", default: false, group: .transfer, policy: .deviceOnly,
+            title: String(localized: "File Manager Shortcuts Tip Shown", comment: "Setting title"))
+
+        static let attachmentUploadConfirm = SettingKey(
+            "attachmentUpload.confirm", default: true, group: .transfer,
+            configKey: "attachment-upload-confirm",
+            title: String(localized: "Ask Before Uploading", comment: "Setting title"))
+        static let attachmentUploadFormat = SettingKey(
+            "attachmentUpload.format", default: PasteInsertFormat.pathOnly, group: .transfer,
+            configKey: "attachment-upload-format",
+            title: String(localized: "Insert Uploads As", comment: "Setting title"))
+        static let attachmentUploadDirectory = SettingKey(
+            "attachmentUpload.directory", default: "/tmp/rootshell-uploads/", group: .transfer,
+            configKey: "attachment-upload-directory",
+            title: String(localized: "Default Upload Directory", comment: "Setting title"))
+
+        static let all: [AnySettingDefinition] = [
+            crocMachineID.erased,
+            fileManagerPresentation.erased, fileManagerSidebarWidth.erased,
+            fileManagerHUDWidth.erased, fileManagerHUDHeight.erased,
+            fileManagerShowHidden.erased, fileManagerConcurrentJobs.erased,
+            fileManagerPreserveAttributes.erased, fileManagerIdleDisconnectMinutes.erased,
+            fileManagerPaneState.erased, fileManagerShortcutsTipShown.erased,
+            attachmentUploadConfirm.erased, attachmentUploadFormat.erased, attachmentUploadDirectory.erased,
+        ]
     }
 }

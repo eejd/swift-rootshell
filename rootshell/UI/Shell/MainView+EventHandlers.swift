@@ -275,7 +275,7 @@ extension MainView {
                 if UIDevice.current.userInterfaceIdiom == .pad {
                     createLocalShellTabInternal()
                     LaunchSignposts.event("mainView.firstShell.local")
-                } else {
+                } else if !deferConnectionSheetForKeyboardChooser() {
                     addNewTab()
                     LaunchSignposts.event("mainView.firstShell.sheet")
                 }
@@ -322,6 +322,12 @@ extension MainView {
     func performWindowCleanup(reason: String) {
         guard !didCleanUpWindow else { return }
         didCleanUpWindow = true
+
+        // Release this window's file manager connections; queued transfers keep their own.
+        fileManagerModel?.tearDown()
+        #if !CHINA_BUILD
+        httpCaptureModel?.tearDown()
+        #endif
 
         // Release this window's overlay keyboard-preservation claim (no-op
         // unless it owns the latch) so surviving windows don't stay frozen
@@ -434,8 +440,10 @@ extension MainView {
               let newTab = tabsModel.tab(withID: newValue) else { return }
         let oldTab = oldValue.flatMap { tabsModel.tab(withID: $0) }
 
-        // Mark all surfaces in old tab as occluded to stop their IOSDisplayLink
-        if let oldTab {
+        // Mark all surfaces in old tab as occluded to stop their IOSDisplayLink.
+        // While it is still displayed (the new tab hasn't drawn yet), occluding
+        // would empty its frame on screen; handleDisplayedTabChange does it.
+        if let oldTab, oldTab.id != tabsModel.displayedTabID {
             for terminal in oldTab.splitTree {
                 terminal.setOcclusion(false)
             }
@@ -559,6 +567,29 @@ extension MainView {
         }
     }
 
+    /// Occludes the tab a reveal just replaced, which handleSelectedTabChange
+    /// left visible. Delayed so the swap is on screen before its renderer
+    /// empties the frame.
+    func handleDisplayedTabChange(oldValue: UUID?, newValue: UUID?) {
+        guard let oldValue, oldValue != newValue else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [self] in
+            occludeTabIfNoLongerShown(oldValue)
+        }
+    }
+
+    /// A tab a swipe, exposé or hover preview still shows is left to that
+    /// path: a committed swipe calls this for its source, a cancelled one
+    /// occludes its target.
+    func occludeTabIfNoLongerShown(_ id: UUID) {
+        guard tabsModel.selectedTabID != id,
+              tabsModel.displayedTabID != id,
+              appTabSwipeState?.sourceTabID != id,
+              appTabSwipeState?.targetTabID != id,
+              tabHoverPreview.previewedTabID != id,
+              !(tabExpose.isActive && tabExpose.liveTabIDs.contains(id)) else { return }
+        setTabOcclusion(tabID: id, visible: false)
+    }
+
     func handleShowConnectionSheetChange(oldValue: Bool, newValue: Bool) {
         Ghostty.logger.info("onChange(showConnectionSidebar): \(oldValue) -> \(newValue)")
         #if targetEnvironment(macCatalyst)
@@ -584,7 +615,14 @@ extension MainView {
             // empty state with no way to connect (no tab bar + button to tap).
             if terminals.isEmpty && tabBarHidden {
                 Ghostty.logger.info("Sheet dismissed with no terminals (tab bar hidden) - re-showing")
+                pendingFileManagerOpen = nil
                 showConnectionSidebar = true
+                return
+            }
+
+            // A Files-tab choice takes focus instead of the terminal.
+            if pendingFileManagerOpen != nil {
+                if !connectionViewIsSheet { flushPendingFileManagerOpen() }
                 return
             }
 
@@ -643,6 +681,12 @@ extension MainView {
                 tabsModel?.selectedTab?.focusedTerminal
             }
         }
+    }
+
+    var hudFieldOwnsKeyboard: Bool {
+        guard terminals.indices.contains(selectedTabIndex),
+              let window = terminals[selectedTabIndex].focusedTerminal?.window else { return false }
+        return DraggableHUDHostView.ownsFirstResponder(in: window)
     }
 
     private func applyWindowFocusState(_ isFocused: Bool) {

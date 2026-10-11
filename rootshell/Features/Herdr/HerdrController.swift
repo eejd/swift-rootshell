@@ -205,9 +205,12 @@ final class HerdrController {
     /// Attaches that asked for another snapshot while one was in flight.
     var snapshotRetryWanted: Set<String> = []
     var lastLayouts: [String: HerdrControl.LayoutSnapshot] = [:]
+    /// Full topology reads for tabs first encountered while already zoomed.
+    var zoomedLayoutRequests: [String: UUID] = [:]
     /// Inner pane rectangles from the raw stream, rather than the generic
     /// snapshot's layout in the server TUI's viewport.
     var controlLayouts: [String: HerdrControl.LayoutSnapshot] = [:]
+    static let maxOrphanLayouts = 16
     var tabGeometryStates: [String: HerdrTabGeometryState] = [:]
     var panesNeedingSnapshot: Set<String> = []
     /// Panes whose surface left the server's grid without a layout, keyed
@@ -447,6 +450,9 @@ final class HerdrController {
             guard try await prepareLocalControlAttachment() else { return }
             #endif
             guard !didEnd, !Task.isCancelled else { return }
+            // Exec channels share tsshd's input-discard-on-roam; keep typing
+            // across a resume. Re-asserted per connect like tmux's reconcile.
+            TmuxController.gatewayTrzszSession(for: gateway.session)?.enableControlModeKeepPendingInput()
             if SettingsStore.shared.value(Settings.System.herdrForceFallback) {
                 startLegacyMode(reason: "fallback forced in Debug settings", forced: true)
                 return
@@ -791,9 +797,19 @@ final class HerdrController {
 
     /// User-initiated detach: ends control mode, optionally closing the
     /// gateway tab too. The herdr session keeps running on the host.
-    func detach(closeGateway: Bool) {
+    func detach(closeGateway: Bool, announce: Bool = true) {
         let gatewayView = gateway
         let windowId = hostWindowId
+        // Same choke point as tmux `requestGracefulDetach`: menu, ESC, and
+        // Detach Session all show the reconnect banner.
+        if announce, isActive || !didEnd {
+            MuxSessionDetach.notifyControlModeDetached(
+                type: .herdr,
+                sessionName: sessionName,
+                windowId: windowId,
+                terminal: gatewayView
+            )
+        }
         stop()
         guard closeGateway, let gatewayView else { return }
         // Same routing a dying tab uses: the .closeSplit observer resolves
@@ -882,6 +898,8 @@ final class HerdrController {
         pruneAll()
         Self.controllers.removeValue(forKey: gatewayUUID)
         if let gateway {
+            // The plain shell honours the user's own setting again.
+            TmuxController.gatewayTrzszSession(for: gateway.session)?.disableControlModeKeepPendingInput()
             gateway.herdrController = nil
             gateway.updateHerdrGatewayOverlay()
             #if targetEnvironment(macCatalyst)
@@ -925,7 +943,7 @@ final class HerdrController {
                 for pane in layout.panes {
                     guard let terminalID = paneInfos[pane.pane_id]?.terminal_id,
                           let view = paneViews[terminalID], let old = view.herdrTargetGrid,
-                          old.cols != pane.rect.width || old.rows != pane.rect.height,
+                          old.cols != pane.terminalCols || old.rows != pane.terminalRows,
                           let session = paneSessions[terminalID], let attachID = session.attachId else { continue }
                     guard view.window != nil, !view.suppressPTYSizeUpdates,
                           !Ghostty.isAppBackgroundedAtomic,
@@ -956,14 +974,14 @@ final class HerdrController {
                 paneSessions[terminalID]?.readFence = nil
                 paneSessions[terminalID]?.invalidateParserGrid()
                 if failedDrains.contains(terminalID) || resizeRecoveries[terminalID] != nil {
-                    invalidateResizeOutput(terminalID: terminalID, cols: pane.rect.width, rows: pane.rect.height)
+                    invalidateResizeOutput(terminalID: terminalID, cols: pane.terminalCols, rows: pane.terminalRows)
                 }
                 if let attachID = attachIds[terminalID] {
                     sourceRouter.updateGrid(attachId: attachID, cols: 0, rows: 0)
                 }
             }
         }
-        controlLayouts[layout.tab_id] = layout
+        retainLayout(layout, in: &controlLayouts)
         applyGeometryController(layout.geometry_controller, tabId: layout.tab_id, carried: layout.carriesRealGeometry)
         applyLayout(layout, barrier: barrier)
         if layoutReleases[barrier] == nil {
@@ -993,6 +1011,7 @@ final class HerdrController {
         topologyRefreshTask?.cancel()
         topologyRefreshTask = nil
         topologyRefreshWanted = false
+        zoomedLayoutRequests.removeAll()
         for task in attachRetries.values { task.cancel() }
         attachRetries.removeAll()
         for task in geometryTasks.values { task.cancel() }
@@ -1009,6 +1028,7 @@ final class HerdrController {
         snapshotRetryWanted.removeAll()
         tabGeometryStates.removeAll()
         controlLayouts.removeAll()
+        lastLayouts = lastLayouts.filter { tabs[$0.key] != nil }
         panesNeedingSnapshot.removeAll()
         resizeRecoveries.removeAll()
         clientDetourMinimums.removeAll()

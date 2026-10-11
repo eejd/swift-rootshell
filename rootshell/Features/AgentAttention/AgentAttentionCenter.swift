@@ -129,6 +129,21 @@ final class AgentAttentionCenter {
         let displayName: String?
     }
     @ObservationIgnored private var pendingHerdrReports: [UUID: PendingHerdrReport] = [:]
+    /// herdr's newest report per pane, reapplied when an OSC 7501 program
+    /// hands the pane back. (id=program-status-authority)
+    @ObservationIgnored private var latestHerdrReports: [UUID: PendingHerdrReport] = [:]
+
+    /// OSC 7501 program status that arrived before its pane had a monitor,
+    /// and the panes whose state a program currently reports.
+    /// (id=program-status-authority)
+    private struct PendingProgramStatus {
+        let status: AgentAttentionStatus
+        let agentID: String
+        let displayName: String
+        let message: String?
+    }
+    @ObservationIgnored private var pendingProgramStatus: [UUID: PendingProgramStatus] = [:]
+    @ObservationIgnored private var programStatusPanes: Set<UUID> = []
     @ObservationIgnored private var pendingHerdrProjectPaths: [UUID: String] = [:]
 
     /// Gateways with a pane-directory query outstanding. One query answers for
@@ -365,8 +380,29 @@ final class AgentAttentionCenter {
         refreshRelevantRepositoryFacts(now: Date())
     }
 
+    private var topologyBatchDepth = 0
+    private var topologyChangedInBatch = false
+
+    /// Defer `topologyDidChange` until the matching `endTopologyBatch`, then
+    /// run it once: a multiplexer reconcile touches every tab's tree, and a
+    /// full pass per tab is quadratic.
+    func beginTopologyBatch() {
+        topologyBatchDepth += 1
+    }
+
+    func endTopologyBatch() {
+        topologyBatchDepth = max(0, topologyBatchDepth - 1)
+        guard topologyBatchDepth == 0, topologyChangedInBatch else { return }
+        topologyChangedInBatch = false
+        topologyDidChange()
+    }
+
     func topologyDidChange() {
         guard started else { return }
+        guard topologyBatchDepth == 0 else {
+            topologyChangedInBatch = true
+            return
+        }
         guard wasEnabled, foregroundActive,
               AgentAttentionSettings.anyDetectionEnabled else {
             publishPresentationRollups(now: Date())
@@ -804,6 +840,10 @@ final class AgentAttentionCenter {
             guard monitor.project == nil,
                   monitor.terminal?.tmuxPaneBinding == nil,
                   monitor.terminal?.herdrPaneBinding == nil else { return nil }
+            // Inside a raw multiplexer `noteProject` rejects every directory,
+            // so whatever the token lookup finds (the multiplexer client's cwd)
+            // would be discarded. Asking anyway is pure remote cost. (#565)
+            guard !monitor.isInsideRawMultiplexer else { return nil }
             // REMOTE panes only. The lookup identifies a pane by its position
             // in the ssh process tree; run locally it walks the helper's own
             // ancestors and returns some unrelated process's directory, which
@@ -998,7 +1038,13 @@ final class AgentAttentionCenter {
         // pane with a project and no branch, and the floor stamped by this very
         // probe stranded it -- which is why, of two sessions recovering at
         // once, one resolved and the other never did. (id=agent-project)
-        guard monitor.agent != nil, repositoryNeedsRefresh else { return }
+        //
+        // Only with a project. `needsRepositoryRefresh` is true for a pane
+        // without one, but then there is no directory to ask about: the
+        // follow-up could only repeat the discovery that just failed, and with
+        // the floor cleared below it did so back to back, one probe after
+        // another for as long as the agent stayed on screen. (#565)
+        guard monitor.agent != nil, monitor.project != nil, repositoryNeedsRefresh else { return }
         // A probe just completed for this pane, so the floor has served its
         // purpose; clearing it lets the follow-up run now rather than in 8s.
         monitor.lastProjectRequestAt = nil
@@ -1145,6 +1191,12 @@ final class AgentAttentionCenter {
         for monitor in touched where monitor.agent != nil {
             requestRepositoryFacts(for: monitor)
         }
+    }
+
+    /// The coding agent detected in a pane, if any. Tasks do not count.
+    func detectedAgentName(for terminal: Ghostty.TerminalView) -> String? {
+        guard let agent = monitors[terminal.uuid]?.agent, agent.kind == .agent else { return nil }
+        return agent.displayName
     }
 
     /// herdr reported a pane's directory (snapshot or `pane_updated`).
@@ -1297,12 +1349,30 @@ final class AgentAttentionCenter {
         applyHerdrReport(report, to: monitor)
     }
 
-    private func applyHerdrReport(_ report: PendingHerdrReport, to monitor: AgentPaneMonitor) {
+    @discardableResult
+    private func applyHerdrReport(_ report: PendingHerdrReport, to monitor: AgentPaneMonitor) -> Bool {
+        latestHerdrReports[monitor.paneUUID] = report
+        // herdr finds agents from the screen too, so it can't name one the
+        // pane has heard from over OSC 7501, nor drop its unread result.
+        // (id=program-status-authority)
+        let suppressed = report.agentID.map { monitor.programStatusAgentIDs.contains($0) } == true
+        let report = suppressed
+            ? PendingHerdrReport(status: .unknown, agentID: nil, displayName: nil)
+            : report
         let now = Date()
+        // An OSC 7501 program outranks herdr while it has records.
+        guard !programStatusPanes.contains(monitor.paneUUID) else {
+            if refreshProject(for: monitor, now: now) {
+                publish(now: now)
+                return true
+            }
+            return false
+        }
         let changed = monitor.applyExternalReport(
             status: report.status,
             agentID: report.agentID,
             displayName: report.displayName,
+            keepCompletion: suppressed,
             now: now,
             seq: nextSeq
         )
@@ -1310,6 +1380,87 @@ final class AgentAttentionCenter {
         // for panes never visited/rendered and after an early probe failure.
         let projectChanged = refreshProject(for: monitor, now: now)
         if changed || projectChanged {
+            publish(now: now)
+            return true
+        }
+        return false
+    }
+
+    /// OSC 7501 program status for a pane, reduced by the pane to its most
+    /// urgent record (nil once it has none). While a program has records it
+    /// outranks herdr and screen and title detection; afterwards herdr's
+    /// latest report, or detection, resumes. A blocked or error report's
+    /// message is the notification's question or failure reason.
+    /// (id=program-status-authority)
+    func applyProgramStatus(
+        terminal: Ghostty.TerminalView,
+        status: AgentAttentionStatus?,
+        app: String?,
+        message: String?
+    ) {
+        let log = ProgramStatusDebugLogger.shared
+        guard let status else {
+            pendingProgramStatus[terminal.uuid] = nil
+            guard programStatusPanes.remove(terminal.uuid) != nil,
+                  let monitor = monitors[terminal.uuid] else {
+                if log.isEnabled { log.event("INBOX", "pane=\(terminal.uuid) no status, pane not held") }
+                return
+            }
+            if log.isEnabled {
+                log.event("INBOX", "pane=\(terminal.uuid) no status, releasing (herdr=\(latestHerdrReports[terminal.uuid] != nil))")
+            }
+            if let herdr = latestHerdrReports[terminal.uuid] {
+                let hadMessage = monitor.promptSummary != nil || monitor.failureSummary != nil
+                monitor.notePromptSummary(nil)
+                monitor.noteFailureSummary(nil)
+                if !applyHerdrReport(herdr, to: monitor), hadMessage { publish(now: Date()) }
+                return
+            }
+            let now = Date()
+            if monitor.releaseExternalReport(now: now) { publish(now: now) }
+            return
+        }
+        let name = app.flatMap { $0.isEmpty ? nil : $0 }
+        let known = name.flatMap { AgentDetectionManifest.bundled.agent(forProgramStatusApp: $0) }
+        let report = PendingProgramStatus(
+            status: status,
+            agentID: known?.id ?? name ?? "program-status",
+            displayName: name ?? String(
+                localized: "Program",
+                comment: "Agent inbox name for a program that reports its status (OSC 7501) without naming itself"),
+            message: message.flatMap { $0.isEmpty ? nil : $0 })
+        guard let monitor = monitors[terminal.uuid] else {
+            if log.isEnabled {
+                log.event("INBOX", "pane=\(terminal.uuid) status=\(status) agent=\(report.agentID) pending (no monitor)")
+            }
+            pendingProgramStatus[terminal.uuid] = report
+            return
+        }
+        if log.isEnabled {
+            log.event("INBOX", "pane=\(terminal.uuid) status=\(status) agent=\(report.agentID) applied")
+        }
+        applyProgramReport(report, to: monitor)
+    }
+
+    private func applyProgramReport(_ report: PendingProgramStatus, to monitor: AgentPaneMonitor) {
+        programStatusPanes.insert(monitor.paneUUID)
+        monitor.noteProgramStatusAgent(report.agentID)
+        let now = Date()
+        // Set the message first so a blocked or failed notification can carry it.
+        let question = report.status == .blocked && AgentAttentionSettings.notificationPromptEnabled
+            ? report.message : nil
+        let failure = report.status == .failed ? report.message : nil
+        let messageChanged = monitor.promptSummary != question || monitor.failureSummary != failure
+        monitor.notePromptSummary(question)
+        monitor.noteFailureSummary(failure)
+        let changed = monitor.applyExternalReport(
+            status: report.status,
+            agentID: report.agentID,
+            displayName: report.displayName,
+            now: now,
+            seq: nextSeq
+        )
+        if changed || messageChanged {
             publish(now: now)
         }
     }
@@ -1322,6 +1473,9 @@ final class AgentAttentionCenter {
         }
         if let report = pendingHerdrReports.removeValue(forKey: monitor.paneUUID) {
             applyHerdrReport(report, to: monitor)
+        }
+        if let report = pendingProgramStatus.removeValue(forKey: monitor.paneUUID) {
+            applyProgramReport(report, to: monitor)
         }
     }
 
@@ -1342,7 +1496,7 @@ final class AgentAttentionCenter {
         let manifest = AgentDetectionManifest.bundled
         let now = Date()
         if monitor.agent == nil {
-            if let found = manifest.identifyAgent(fromTitle: title) {
+            if let found = manifest.identifyAgent(fromTitle: title, excluding: monitor.programStatusAgentIDs) {
                 monitor.adoptAgent(found, source: .title, now: now)
                 resetProjectForNewAgent(monitor)
                 requestProjectIfNeeded(for: monitor)
@@ -1715,6 +1869,9 @@ final class AgentAttentionCenter {
             }
         }
         pendingHerdrReports = pendingHerdrReports.filter { live.contains($0.key) || monitors[$0.key] == nil }
+        latestHerdrReports = latestHerdrReports.filter { live.contains($0.key) || monitors[$0.key] == nil }
+        pendingProgramStatus = pendingProgramStatus.filter { live.contains($0.key) || monitors[$0.key] == nil }
+        programStatusPanes = programStatusPanes.filter { live.contains($0) || monitors[$0] == nil }
         pendingHerdrProjectPaths = pendingHerdrProjectPaths.filter { live.contains($0.key) || monitors[$0.key] == nil }
         for uuid in monitors.keys where !live.contains(uuid) {
             topologyChanged = true
@@ -1769,10 +1926,12 @@ final class AgentAttentionCenter {
     /// mutex for long stretches, and a parked main thread is what turned
     /// into the 0x8BADF00D watchdog kills on build 131.
     private func scan(_ monitor: AgentPaneMonitor, now: Date) -> Bool {
-        if monitor.externalAuthority, monitor.agent != nil {
+        // herdr owns identity and state, but not claude's background-agent
+        // list: the screen read below only feeds the fleet.
+        let herdrOwned = monitor.externalAuthority && monitor.agent != nil
+        if herdrOwned {
             monitor.lastScanAt = now
             refreshProject(for: monitor, now: now)
-            return true
         }
         guard let terminal = monitor.terminal, let surface = terminal.surface,
               let size = terminal.surfaceSize
@@ -1790,7 +1949,13 @@ final class AgentAttentionCenter {
             surface: surface,
             busy: &readBusy
         )
-        if readBusy { return false }
+        // A contended read costs a herdr pane one fleet sample, not a retry.
+        if readBusy { return herdrOwned }
+        if herdrOwned {
+            let input = AgentDetectionInput(lines: (text ?? "").components(separatedBy: "\n"))
+            noteFleet(monitor, input: input, now: now)
+            return true
+        }
 
         // Fresh alt-screen state at read time; weak-signature presence
         // hinges on it.
@@ -1826,7 +1991,7 @@ final class AgentAttentionCenter {
 
         if monitor.agent == nil {
             if AgentAttentionSettings.detectionEnabled, !monitor.externalAuthority,
-               let found = manifest.identifyAgent(from: input) {
+               let found = manifest.identifyAgent(from: input, excluding: monitor.programStatusAgentIDs) {
                 monitor.adoptAgent(found, source: .screen, now: now)
                 resetProjectForNewAgent(monitor)
                 requestProjectIfNeeded(for: monitor)
@@ -1856,7 +2021,8 @@ final class AgentAttentionCenter {
                 return true
             }
         } else if let held = monitor.agent,
-                  let taking = manifest.supersedingAgent(held, in: input) {
+                  let taking = manifest.supersedingAgent(
+                      held, in: input, excluding: monitor.programStatusAgentIDs) {
             // Another agent is plainly on screen and this one is not. Hand
             // the pane over now rather than waiting out a no-signal streak
             // the held agent's own rules keep resetting.
@@ -1977,9 +2143,7 @@ final class AgentAttentionCenter {
         // Background agents: claude keeps its idle-looking input box on
         // screen while its fleet runs, so the only live evidence is the
         // fleet rows' own timers advancing between scans.
-        let fleetRows = AgentFleetRows.rows(in: lines)
-        let waitingCount = AgentFleetRows.waitingCount(in: lines)
-        monitor.noteFleet(rows: fleetRows, waitingCount: waitingCount, now: now)
+        noteFleet(monitor, input: input, now: now)
 
         // Agents print their own task timer ("(2m 49s · …") — sync our
         // elapsed clock to it so the card matches the TUI.
@@ -2112,6 +2276,16 @@ final class AgentAttentionCenter {
     private func fleetElapsed(_ monitor: AgentPaneMonitor) -> TimeInterval? {
         guard monitor.isFleetWorking() else { return nil }
         return monitor.fleetMaxElapsed
+    }
+
+    private func noteFleet(
+        _ monitor: AgentPaneMonitor, input: AgentDetectionInput, now: Date
+    ) {
+        monitor.noteFleet(
+            // Border-stripped: a pane frame's closing edge breaks the row anchor.
+            rows: AgentFleetRows.rows(in: input.lines),
+            waitingCount: AgentFleetRows.waitingCount(in: input),
+            now: now)
     }
 
     // MARK: - Seen + publish
@@ -2259,7 +2433,10 @@ final class AgentAttentionCenter {
             for tab in model.tabs {
                 var statuses: [AgentAttentionStatus] = []
                 var bestRow: AgentRowState?
+                var focusedAgentID: String?
                 var agentPaneIDs: [UUID] = []
+                // Same pane the tab title follows.
+                let titlePane = tab.focusedPane ?? tab.splitTree.first
                 for terminal in tab.splitTree.terminalLeaves {
                     let monitor = monitors[terminal.uuid]
                     let usesHerdrStatus = monitor?.externalAuthority == true && monitor?.agent != nil
@@ -2289,6 +2466,9 @@ final class AgentAttentionCenter {
                         statuses.append(status)
                     }
                     let agentRow = terminal.presentation.agentRow
+                    if terminal === titlePane {
+                        focusedAgentID = agentRow?.agentID
+                    }
                     if let agentRow {
                         agentPaneIDs.append(terminal.uuid)
                         if bestRow == nil
@@ -2310,6 +2490,10 @@ final class AgentAttentionCenter {
                 }
                 if tab.agentRow != bestRow {
                     tab.agentRow = bestRow
+                    changed = true
+                }
+                if tab.agentID != focusedAgentID {
+                    tab.agentID = focusedAgentID
                     changed = true
                 }
             }

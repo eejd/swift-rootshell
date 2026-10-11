@@ -90,12 +90,13 @@ struct RootShellApp: App {
 
     var body: some Scene {
         WindowGroup(id: "main-terminal") {
-            MainView()
+            DuoSceneHost { MainView() }
                 .overlay { MCPApprovalOverlay() }
                 .environmentObject(ghosttyApp)
                 .preferredColorScheme(appearanceManager.colorScheme)
                 .statusBarStyleForTerminalTheme()
                 .immersiveChromeForFullScreen()
+                .fullScreenLaunchNotice()
                 .alwaysOnDisplay()
                 .task {
                     guard ProtectedDataGuard.isAvailable else { return }
@@ -108,6 +109,17 @@ struct RootShellApp: App {
                     guard !Self.didRunAppStartupTasks else { return }
                     Self.didRunAppStartupTasks = true
                     LaunchSignposts.event("app.startupTask.begin")
+
+                    // Bring back the VPN a reboot or app update took down, early
+                    // so restored sessions can reach hosts behind it.
+                    #if !CHINA_BUILD && (!targetEnvironment(macCatalyst) || STANDALONE)
+                    Task { await VPNManager.shared.recoverLastVPNIfNeeded() }
+                    #endif
+
+                    // Tailscale inside rootshell (no VPN), when it was left on.
+                    #if !CHINA_BUILD
+                    TailnetInAppEngine.shared.appDidLaunch()
+                    #endif
 
                     // Register notification categories (deferred from App.init —
                     // not required before first paint).

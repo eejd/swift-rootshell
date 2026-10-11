@@ -292,6 +292,9 @@ nonisolated enum AgentDetectionManifestData {
           "id": "claude",
           "displayName": "Claude Code",
           "identity": {
+            "programStatusApps": [
+              "claude-code"
+            ],
             "titlePatterns": [
               "^\\u{2733} "
             ],
@@ -476,7 +479,7 @@ nonisolated enum AgentDetectionManifestData {
               "region": "osc_title",
               "visibleWorking": true,
               "regex": [
-                "^[\\u{2800}-\\u{28FF}] "
+                "^[\\u{2800}-\\u{28FF}◐◓◑◒] "
               ]
             },
             {
@@ -923,7 +926,7 @@ nonisolated enum AgentDetectionManifestData {
               "id": "background_agents_working_local",
               "state": "working",
               "priority": 962,
-              "region": "bottom_non_empty_lines(20)",
+              "region": "last_block_above_prompt_box",
               "visibleWorking": true,
               "lineRegex": [
                 "(?i)^\\s*[·✢✳✶✻✽]\\s+waiting for \\d"
@@ -1847,6 +1850,10 @@ nonisolated enum AgentDetectionManifestData {
           ]
         },
         {
+          "id": "helix",
+          "displayName": "Helix"
+        },
+        {
           "id": "omp",
           "displayName": "oh-my-pi",
           "identity": {
@@ -2373,6 +2380,10 @@ nonisolated enum AgentDetectionManifestData {
               ]
             }
           ]
+        },
+        {
+          "id": "vim",
+          "displayName": "Vim"
         }
       ]
     }

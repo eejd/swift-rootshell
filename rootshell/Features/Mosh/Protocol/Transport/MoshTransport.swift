@@ -48,32 +48,6 @@ final class MoshTransport {
         @MainActor func transport(_ transport: MoshTransport, didEncounterError error: MoshError)
     }
 
-    /// Health metrics for reactive hole-punch monitoring
-    struct HealthMetrics: Sendable {
-        /// Last time we received any UDP data (monotonic timestamp ms)
-        let lastReceiveTimeMs: UInt64
-
-        /// Number of packets sent
-        let packetsSent: Int
-
-        /// Number of packets received
-        let packetsReceived: Int
-
-        /// Current RTT estimate in milliseconds (nil if unknown)
-        let currentRTTMs: Int?
-
-        /// Time since last receive in milliseconds
-        var timeSinceLastReceiveMs: UInt64 {
-            let now = ProtocolTiming.monotonicNowMs()
-            return now &- lastReceiveTimeMs
-        }
-
-        /// Whether the connection appears healthy (received data recently)
-        func isHealthy(timeoutMs: UInt64) -> Bool {
-            timeSinceLastReceiveMs < timeoutMs
-        }
-    }
-
     // MARK: - Properties
 
     /// Current transport state
@@ -113,6 +87,21 @@ final class MoshTransport {
     /// Network connection
     private var connection: NWConnection?
 
+    #if !CHINA_BUILD
+    /// Set at connect when the host is reached through in-app Tailscale.
+    private var useTailnet = false
+    private var tailnetSocket: TailnetDatagramSocket?
+    /// Bumps per dial so a late result from an older attempt is dropped.
+    private var tailnetGeneration = 0
+    #endif
+
+    private var hasPath: Bool {
+        #if !CHINA_BUILD
+        if tailnetSocket != nil { return true }
+        #endif
+        return connection != nil
+    }
+
     /// Crypto session
     private var crypto: MoshCryptoSession?
 
@@ -140,12 +129,6 @@ final class MoshTransport {
     /// Last time we received any UDP data (monotonic ms)
     private var lastReceiveTime: UInt64 = 0
 
-    /// Number of packets sent
-    private var packetsSent: Int = 0
-
-    /// Number of packets received
-    private var packetsReceived: Int = 0
-
     /// Last known path satisfaction
     private var pathSatisfied = true
 
@@ -161,8 +144,8 @@ final class MoshTransport {
     /// Fragment assembler for incoming packets
     private let fragmentAssembler = MoshFragmentAssembler()
 
-    /// Packet builder for outgoing packets
-    private var packetBuilder: MoshPacketBuilder?
+    /// The server timestamp the next outgoing packet echoes back
+    private var timestampEcho = MoshTimestampEcho()
 
     /// Connection timeout in seconds
     private let connectionTimeout: TimeInterval = 15.0
@@ -175,7 +158,7 @@ final class MoshTransport {
 
     /// Whether we should attempt to send (includes roaming/connecting)
     var canSend: Bool {
-        guard connection != nil else { return false }
+        guard hasPath else { return false }
         switch state {
         case .failed, .disconnected:
             return false
@@ -197,7 +180,6 @@ final class MoshTransport {
         self.port = port
         self.requestedLocalPort = localPort
         self.addressFamily = addressFamily
-        self.packetBuilder = MoshPacketBuilder(direction: .toServer)
     }
 
     // MARK: - Connection
@@ -247,6 +229,9 @@ final class MoshTransport {
         }
         lastReceiveTime = ProtocolTiming.monotonicNowMs()
 
+        #if !CHINA_BUILD
+        useTailnet = await TailnetDialer.route(host) != nil
+        #endif
         beginConnection()
 
         // Wait for connection with timeout
@@ -281,17 +266,6 @@ final class MoshTransport {
         return (outgoing, incoming)
     }
 
-    /// Returns current health metrics for monitoring
-    func getHealthMetrics() -> HealthMetrics {
-        let rtt = rttEstimator.latencyMs
-        return HealthMetrics(
-            lastReceiveTimeMs: lastReceiveTime,
-            packetsSent: packetsSent,
-            packetsReceived: packetsReceived,
-            currentRTTMs: rtt
-        )
-    }
-
     /// Checks if the connection is healthy (received data within timeout)
     /// - Parameter timeoutMs: Timeout in milliseconds
     /// - Returns: true if healthy, false if possibly disconnected
@@ -312,6 +286,10 @@ final class MoshTransport {
         // Cancel connection after setting allowReconnect
         connection?.cancel()
         connection = nil
+        #if !CHINA_BUILD
+        tailnetSocket?.close()
+        tailnetSocket = nil
+        #endif
 
         setState(.disconnected)
     }
@@ -331,19 +309,21 @@ final class MoshTransport {
             throw MoshError.sessionNotStarted
         }
 
-        guard let conn = connection, canSend else {
+        guard canSend else {
             throw MoshError.sendFailed(reason: "Not connected")
         }
 
         // Fragment the payload (mosh requires fragment header even for single fragments)
         let fragments = try MoshFragment.fragment(payload)
-        let replyTimestamp = packetBuilder?.currentReplyTimestamp ?? 0
 
         for (index, fragment) in fragments.enumerated() {
             let timestamp = MoshTimestamp.now
             if index == 0 {
                 rttEstimator.recordSent(timestamp: timestamp)
             }
+            // Consume the pending echo once, so only the first fragment can
+            // carry it, corrected for how long it was held.
+            let replyTimestamp = timestampEcho.takeReply(nowMs: ProtocolTiming.monotonicNowMs())
 
             // Build plaintext: timestamps (4 bytes) + fragment header (10 bytes) + payload
             var plaintext = MoshTimestamp.encode(
@@ -356,8 +336,14 @@ final class MoshTransport {
             // Encrypt
             let encrypted = try crypto.encrypt(plaintext)
 
+            #if !CHINA_BUILD
+            if let tailnetSocket {
+                tailnetSocket.send(encrypted)
+                continue
+            }
+            #endif
             // Send via connection
-            conn.send(content: encrypted, completion: .contentProcessed { [weak self] error in
+            connection?.send(content: encrypted, completion: .contentProcessed { [weak self] error in
                 if let error = error {
                     Task { @MainActor [weak self] in
                         guard let self = self else { return }
@@ -365,9 +351,6 @@ final class MoshTransport {
                     }
                 }
             })
-
-            // Track packets sent
-            packetsSent += 1
         }
     }
 
@@ -469,6 +452,14 @@ final class MoshTransport {
             existing.cancel()
             connection = nil
         }
+        #if !CHINA_BUILD
+        tailnetSocket?.close()
+        tailnetSocket = nil
+        if useTailnet {
+            beginTailnetConnection()
+            return
+        }
+        #endif
         // Create endpoint
         let endpoint = NWEndpoint.hostPort(
             host: NWEndpoint.Host(host),
@@ -540,6 +531,51 @@ final class MoshTransport {
         // Start connection
         conn.start(queue: networkQueue)
     }
+
+    #if !CHINA_BUILD
+    /// Opens the UDP flow over in-app Tailscale; there is no path or bind
+    /// state to watch, and the tailnet handles roaming itself.
+    private func beginTailnetConnection() {
+        setState(.connecting)
+        tailnetGeneration += 1
+        let generation = tailnetGeneration
+        let host = host
+        let port = port
+        Task { @MainActor [weak self] in
+            do {
+                let socket = try await TailnetDatagramSocket.open(host: host, port: port)
+                guard let self, self.allowReconnect, self.tailnetGeneration == generation else {
+                    socket.close()
+                    return
+                }
+                self.tailnetSocket = socket
+                // At most one drain is pending; the socket bounds the backlog.
+                socket.startReceiving { [weak self] in
+                    Task { @MainActor [weak self] in
+                        for datagram in socket.takeReceived() {
+                            guard let self, self.tailnetSocket === socket else { return }
+                            self.handleReceivedData(
+                                datagram.data,
+                                receiveTimestamp: MoshTimestamp.at(ms: datagram.receivedAtMs),
+                                receivedAtMs: datagram.receivedAtMs
+                            )
+                        }
+                    }
+                }
+                Self.logger.info("UDP over Tailscale ready to \(host):\(port)")
+                self.reconnectAttempts = 0
+                self.reconnectTask?.cancel()
+                self.reconnectTask = nil
+                self.setState(.connected)
+            } catch {
+                guard let self, self.tailnetGeneration == generation else { return }
+                Self.logger.error("UDP over Tailscale failed: \(error.localizedDescription, privacy: .public)")
+                self.setState(.failed(reason: error.localizedDescription))
+                self.scheduleReconnect(reason: error.localizedDescription)
+            }
+        }
+    }
+    #endif
 
     /// Maximum reconnect attempts before giving up
     private static let maxReconnectAttempts = 30
@@ -625,6 +661,7 @@ final class MoshTransport {
             // Capture timestamp immediately on the network queue, before MainActor hop.
             // This avoids inflating RTT due to scheduling delays.
             let receiveTimestamp = content == nil ? nil : MoshTimestamp.now
+            let receivedAtMs = ProtocolTiming.monotonicNowMs()
 
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
@@ -636,7 +673,7 @@ final class MoshTransport {
                 }
 
                 if let data = content, let receiveTimestamp = receiveTimestamp {
-                    self.handleReceivedData(data, receiveTimestamp: receiveTimestamp)
+                    self.handleReceivedData(data, receiveTimestamp: receiveTimestamp, receivedAtMs: receivedAtMs)
                 }
 
                 // Continue receiving as long as the connection exists
@@ -651,9 +688,11 @@ final class MoshTransport {
     private static let minimumPacketSize = 24
 
     /// Handles received data
-    /// - Parameter data: The received UDP packet data
-    /// - Parameter receiveTimestamp: The local timestamp captured at packet arrival (before async hops)
-    private func handleReceivedData(_ data: Data, receiveTimestamp: UInt16) {
+    /// - Parameters:
+    ///   - data: The received UDP packet data
+    ///   - receiveTimestamp: The local timestamp captured at packet arrival (before async hops)
+    ///   - receivedAtMs: Monotonic arrival time, so the echo can be corrected for hold time
+    private func handleReceivedData(_ data: Data, receiveTimestamp: UInt16, receivedAtMs: UInt64) {
         lastReceiveTime = ProtocolTiming.monotonicNowMs()
 
         // Silently drop packets that are too small to be valid mosh packets
@@ -667,7 +706,7 @@ final class MoshTransport {
 
         do {
             // Decrypt packet
-            let (plaintext, nonce) = try crypto.decrypt(data)
+            let (plaintext, nonce, isInOrder) = try crypto.decrypt(data)
 
             // Need at least 4 bytes timestamps + 10 bytes fragment header = 14 bytes
             guard plaintext.count >= 14 else {
@@ -679,6 +718,19 @@ final class MoshTransport {
             // Parse timestamps (first 4 bytes)
             guard let (timestamp, replyTimestamp) = MoshTimestamp.decode(plaintext) else {
                 throw MoshError.invalidPacketFormat(reason: "Failed to decode timestamps")
+            }
+
+            // Update timestamps for each packet that advances the incoming
+            // sequence, even before fragment assembly completes. Ignore older
+            // or duplicate packets so they cannot skew RTT or replace the echo.
+            if isInOrder {
+                // Skip the 0xFFFF sentinel. Use the pre-captured receiveTimestamp
+                // to avoid inflated RTT from async delays.
+                if replyTimestamp != UInt16.max {
+                    rttEstimator.recordReply(replyTimestamp: replyTimestamp, receiveTimestamp: receiveTimestamp)
+                }
+                // Save the server's timestamp for the next outgoing packet to echo
+                timestampEcho.save(timestamp, receivedAtMs: receivedAtMs)
             }
 
             // Parse fragment (everything after 4-byte timestamp)
@@ -700,20 +752,8 @@ final class MoshTransport {
                 payload: payload
             )
 
-            // Update RTT estimate from reply timestamp (skip sentinel 0xFFFF).
-            // Pass the pre-captured receiveTimestamp to avoid inflated RTT from async delays.
-            if packet.replyTimestamp != UInt16.max {
-                rttEstimator.recordReply(replyTimestamp: packet.replyTimestamp, receiveTimestamp: receiveTimestamp)
-            }
-
             // Get the updated RTT estimate to pass to delegate (for synchronous sendInterval update)
             let estimatedRTT = rttEstimator.estimatedRTT
-
-            // Update packet builder with received timestamp for echo
-            packetBuilder?.setReplyTimestamp(packet.timestamp)
-
-            // Track packets received
-            packetsReceived += 1
 
             // Deliver to delegate with RTT for immediate sendInterval update
             delegate?.transport(self, didReceivePacket: packet, estimatedRTT: estimatedRTT)
@@ -786,5 +826,8 @@ final class MoshTransport {
         reconnectTask?.cancel()
         bindRetryTask?.cancel()
         connection?.cancel()
+        #if !CHINA_BUILD
+        tailnetSocket?.close()
+        #endif
     }
 }

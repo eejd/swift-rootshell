@@ -119,6 +119,9 @@ final class KeybindCommandGenerator: ObservableObject {
 
     /// Determine if a binding should have a UIKeyCommand generated
     private func shouldGenerateCommand(for binding: Keybind) -> Bool {
+        #if CHINA_BUILD
+        if binding.action == .toggle_http_capture { return false }
+        #endif
         switch binding.action {
         // App actions need UIKeyCommands to trigger
         case .toggle_visor, .new_local_shell, .new_tab, .new_window, .close_tab, .duplicate_ssh_tab,
@@ -126,10 +129,12 @@ final class KeybindCommandGenerator: ObservableObject {
              .select_tab_4, .select_tab_5, .select_tab_6, .select_tab_7, .select_tab_8,
              .select_tab_9, .split_right, .split_down, .navigate_split_left,
              .navigate_split_right, .navigate_split_up, .navigate_split_down,
-             .toggle_split_zoom, .equalize_splits, .open_settings, .toggle_quick_settings, .open_in_folder, .browse_hosts,
-             .browse_profiles, .toggle_ai_agent, .toggle_voice_agent, .toggle_tab_bar, .toggle_group_mode, .toggle_tab_switcher,
+             .toggle_split_zoom, .equalize_splits, .choose_pane_to_zoom, .choose_pane_to_swap,
+             .open_settings, .toggle_quick_settings, .open_in_folder,
+             .toggle_file_manager, .toggle_ip_lookup, .toggle_http_capture, .browse_hosts,
+             .browse_profiles, .toggle_ai_agent, .toggle_voice_agent, .toggle_dictation, .toggle_tab_bar, .toggle_group_mode, .toggle_tab_switcher,
              .toggle_tab_expose, .previous_group, .next_group, .show_tmux_sessions, .discover_sessions,
-             .detach_other_clients,
+             .detach_session, .detach_other_clients,
              .toggle_transparency, .toggle_titlebar, .toggle_auto_redact, .toggle_background_effect, .toggle_compose,
              .toggle_full_screen, .toggle_mouse_capture, .cycle_input_source,
              .increase_font_size, .decrease_font_size,

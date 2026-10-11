@@ -399,6 +399,13 @@ extension LocalShellSession {
             return
         }
 
+        #if !CHINA_BUILD
+        if lowerCommand.hasPrefix("vpn ") || lowerCommand == "vpn" {
+            handleVPNCommand(trimmedCommand)
+            return
+        }
+        #endif
+
         // Route `wasm <file>` and any bare `*.wasm` invocation to the WASM
         // runtime, including forms with a leading shell-assignment prefix
         // like `FOO=bar wasm tool.wasm` — `wasmInvocationKind` peels off
@@ -1700,7 +1707,7 @@ extension LocalShellSession {
     /// arguments — e.g., `whatismyip "$(printf "1'2\"3")"` would falsely
     /// surface an "unsupported characters" error even though ios_system can
     /// tokenise the shellEscape form produced by the runScript fallback.
-    nonisolated static let nativeRoutedCommandNames: Set<String> = [
+    nonisolated static let nativeRoutedCommandNames = Set<String>([
         "ssh", "scp", "sftp", "ssh-copy-id",
         "mosh", "roam",
         "tssh", "trzsz",
@@ -1712,7 +1719,14 @@ extension LocalShellSession {
         "rf",
         "imgcat",
         "croc"
-    ]
+    ]).union(vpnCommandNames)
+
+    /// China builds exclude the vpn command source file.
+    #if CHINA_BUILD
+    nonisolated private static let vpnCommandNames: Set<String> = []
+    #else
+    nonisolated private static let vpnCommandNames: Set<String> = ["vpn"]
+    #endif
 
     /// Commands whose top-level Rootshell router provides behavior users
     /// expect aliases to inherit. Most stay fully native; `git` and report-mode
@@ -1720,7 +1734,7 @@ extension LocalShellSession {
     /// routing decisions as direct commands. Leading aliases are pre-expanded
     /// for this set and when they shadow a shell function. Other aliases
     /// (`ls='ls --color'`) still expand exactly once inside ios_system.
-    private static let aliasPreExpansionCommandNames: Set<String> = [
+    private static let aliasPreExpansionCommandNames = Set<String>([
         "clear", "exit", "logout",
         "ssh", "scp", "sftp", "ssh-copy-id",
         "mosh", "roam",
@@ -1733,7 +1747,7 @@ extension LocalShellSession {
         "rf",
         "imgcat",
         "croc"
-    ]
+    ]).union(vpnCommandNames)
 
     /// If `argv` is a `bash`/`sh -c <body> [name [args…]]` invocation, return
     /// the script body. Skips POSIX flag bundles (`-eu`, `-l`, etc.) up to the

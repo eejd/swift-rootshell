@@ -150,7 +150,7 @@ extension HerdrController {
 
     /// Do not replay a snapshot at the placeholder grid or the TUI geometry
     /// from session.snapshot. The raw layout and its native surface must agree.
-    func paneGeometryIsReady(_ terminalId: String) -> Bool {
+    func paneGeometryIsReady(_ terminalId: String, requireConfirmed: Bool = true) -> Bool {
         guard let view = paneViews[terminalId], let binding = view.herdrPaneBinding,
               let target = view.herdrTargetGrid, let size = view.surfaceSize,
               let parsed = paneSessions[terminalId]?.parserGrid else { return false }
@@ -161,12 +161,23 @@ extension HerdrController {
             // Another client sized the tab: our surfaces follow its layout,
             // whatever our container measures.
             return surfaceMatches && layout.panes.contains { $0.pane_id == view.herdrPaneBinding?.paneId
-                && $0.rect.width == target.cols && $0.rect.height == target.rows }
+                && $0.terminalCols == target.cols && $0.terminalRows == target.rows }
         }
-        guard geometry.isConfirmed,
+        guard geometry.isConfirmed || !requireConfirmed,
               let measured = tabGeometry(from: view), geometry.desired == measured,
-              layout.area.width == measured.cols, layout.area.height == measured.rows else { return false }
+              layout.area.width == measured.cols, layout.area.height == measured.rows,
+              measured.panes.allSatisfy({ id, size in layout.panes.contains { $0.pane_id == id && $0.terminal_size == size } }) else { return false }
         return surfaceMatches
+    }
+
+    /// A live pane already at the server's layout can show its cached screen
+    /// while a re-selection claim is still in flight, as a tmux pane does.
+    func paneCanRevealCachedFrame(_ terminalId: String) -> Bool {
+        if paneGeometryIsReady(terminalId) { return true }
+        return attachIds[terminalId] != nil
+            && !panesNeedingSnapshot.contains(terminalId)
+            && !layoutReleases.values.contains { $0.expected[terminalId] != nil }
+            && paneGeometryIsReady(terminalId, requireConfirmed: false)
     }
 
     private func updateRouterGrid(terminalId: String) {
@@ -515,10 +526,11 @@ extension HerdrController {
                 // changes wait for the size to hold still for one tick, but
                 // a live drag still sends every 200 ms so the pane never lags
                 // far behind the window; each round trip resizes the server
-                // model under every pane's lock.
+                // model under every pane's lock. A selection's claim skips
+                // the settle: it rarely changes the size.
                 let desired = self.tabGeometryStates[tabId]?.desired
                 var overdue = false
-                if self.tabGeometryStates[tabId]?.hasRequested == true {
+                if self.tabGeometryStates[tabId]?.hasRequested == true, self.claimGeneration(for: tabId) == nil {
                     do { try await Task.sleep(for: .milliseconds(100)) }
                     catch { return }
                     if self.tabGeometryStates[tabId]?.desired != desired {
@@ -558,7 +570,12 @@ extension HerdrController {
                 if self.capabilities.supportsSharedViewing { params.claim = claims }
                 Self.logger.info("herdr tab.set_geometry \(tabId) \(size.cols)x\(size.rows) claim=\(claims)")
                 do {
-                    try await channel.request("tab.set_geometry", params)
+                    if self.capabilities.supports(.paneGeometry), !size.panes.isEmpty {
+                        try await channel.request("tab.set_pane_geometry",
+                            HerdrControl.TabPaneGeometryParams(geometry: params, panes: size.panes))
+                    } else {
+                        try await channel.request("tab.set_geometry", params)
+                    }
                     guard !Task.isCancelled, self.streamGeneration == generation,
                           self.channel === channel, self.tabs[tabId] === tab else { return }
                     self.tabGeometryStates[tabId]?.finish(request, succeeded: true)
@@ -623,7 +640,7 @@ extension HerdrController {
                 guard let terminalId = paneInfos[pane.pane_id]?.terminal_id,
                       let attachId = attachIds[terminalId] else { continue }
                 let size = paneSessions[terminalId]?.parserGrid
-                if size.map({ $0.cols != pane.rect.width || $0.rows != pane.rect.height }) ?? true {
+                if size.map({ $0.cols != pane.terminalCols || $0.rows != pane.terminalRows }) ?? true {
                     router.invalidate(attachId: attachId)
                     panesNeedingSnapshot.insert(terminalId)
                 }
@@ -635,7 +652,7 @@ extension HerdrController {
         var expected: [String: (cols: Int, rows: Int)] = [:]
         for pane in layout.panes {
             guard let terminalId = paneInfos[pane.pane_id]?.terminal_id else { continue }
-            let wanted = (cols: pane.rect.width, rows: pane.rect.height)
+            let wanted = (cols: pane.terminalCols, rows: pane.terminalRows)
             // A zoomed-away or detached pane cannot acknowledge a native
             // resize. Recover it when hosted again without holding up the
             // other panes' redraw for the entire deadline.

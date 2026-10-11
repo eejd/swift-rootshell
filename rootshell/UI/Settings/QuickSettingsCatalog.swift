@@ -136,6 +136,7 @@ enum QuickSettingsCatalog {
             choices(Settings.Theme.appearanceMode, label: { $0.displayName }, set: { AppearanceManager.shared.currentAppearanceMode = $0 }),
             toggle(Settings.Theme.themedUI, set: { AppearanceManager.shared.themedUIEnabled = $0 }),
             toggle(Settings.Theme.imNoFun),
+            toggle(Settings.Theme.hostTint),
             entry(Settings.Theme.selected, .choices {
                 ThemeManager.shared.availableThemes.map { .init(id: $0.name, title: $0.name, value: .string($0.name)) }
             }, keywords: "appearance colors colour scheme", set: { ThemeManager.shared.currentTheme = $0 })
@@ -185,6 +186,9 @@ enum QuickSettingsCatalog {
             entry(Settings.Selection.backgroundHex, .color, set: { SelectionManager.shared.customBackgroundHex = $0 })
                 .requiring { SelectionManager.shared.selectionMode == .custom ? nil : String(localized: "Choose Custom Selection Style first.") },
             choices(Settings.Shaders.animationMode, label: { $0.displayName }, set: { ShaderManager.shared.animationMode = $0 }),
+            toggle(Settings.Shaders.themeGradientBackdrop, set: { EffectManager.shared.isBackdropEnabled = $0 }),
+            number(Settings.Transparency.backgroundOpacity, 0...1, step: 0.01, set: { TransparencyManager.shared.backgroundOpacity = $0 }),
+            toggle(Settings.Transparency.pinnedSidebarTransparency, set: { TransparencyManager.shared.pinnedSidebarTransparencyEnabled = $0 }),
             toggle(Settings.Selection.copyOnSelect, set: {
                 SettingsStore.shared.set(Settings.Selection.copyOnSelect, $0)
                 // Local writes do not dispatch SettingsRefreshHub. Push the
@@ -200,6 +204,9 @@ enum QuickSettingsCatalog {
             entry(Settings.Window.splitFocusBorderCustomColor, .color).requiring {
                 SettingsStore.shared.get(Settings.Window.splitFocusBorderColor) == .custom ? nil : String(localized: "Choose Custom Split Border Color first.")
             },
+            toggle(Settings.Window.roundedPanes),
+            toggle(Settings.Window.confirmBeforeClosingPane),
+            toggle(Settings.Window.confirmBeforeClosingTab),
         ]
         entries += [
             choices(Settings.Tabs.newTabAction, label: { $0.displayName }),
@@ -214,6 +221,20 @@ enum QuickSettingsCatalog {
             toggle(Settings.Sidebar.largeControls),
             integer(Settings.Sidebar.rowLines, 1...3),
         ]
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+        if #available(iOS 27.1, *) {
+            entries += [
+                choices(Settings.Tabs.duoFrontDisplayMode, label: { $0.displayName })
+                    .annotated(String(localized: "Applies to Duo's front display when closed.")),
+                toggle(Settings.Tabs.duoBehindCameraShowsTabs)
+                    .requiring {
+                        SettingsStore.shared.get(Settings.Tabs.duoFrontDisplayMode) == .behindCamera
+                            ? nil : String(localized: "Choose Behind Camera first.")
+                    }
+                    .annotated(String(localized: "Text behind the camera will be hidden.")),
+            ]
+        }
+        #endif
         entries += [
             choices(Settings.Power.maxRefreshRate, label: { $0.displayName }, set: { PowerManager.shared.maxRefreshRate = $0 }),
             choices(Settings.Power.batteryRefreshRate, label: { $0.displayName }, set: { PowerManager.shared.batteryRefreshRate = $0 })
@@ -263,8 +284,9 @@ enum QuickSettingsCatalog {
             toggle(Settings.Multiplexer.zmxSessionDiscovery),
             toggle(Settings.Multiplexer.remoteSessionDiscovery),
             choices(Settings.Multiplexer.sessionDiscoverySortOrder, label: { $0.displayName }),
-            choices(Settings.Multiplexer.tmuxTabCloseAction, label: { $0.displayName }),
+            choices(Settings.Multiplexer.tabCloseAction, label: { $0.displayName }),
             toggle(Settings.Multiplexer.tabExposeMultiplexer),
+            toggle(Settings.Multiplexer.detachBanner),
         ]
         entries += [
             toggle(Settings.Roam.holePunch),
@@ -276,6 +298,8 @@ enum QuickSettingsCatalog {
             toggle(Settings.ScreenSharing.routeReservedShortcutsToVNCDefault),
             choices(Settings.ScreenSharing.clipboardSyncDefault, label: { $0.displayName }),
             choices(Settings.ScreenSharing.panningDefault, label: { $0.displayName }),
+            toggle(Settings.Transfer.attachmentUploadConfirm),
+            choices(Settings.Transfer.attachmentUploadFormat, label: { $0.displayName }),
         ]
         entries += [
             toggle(Settings.CodingAgents.detectionEnabled, set: {
@@ -350,12 +374,9 @@ enum QuickSettingsCatalog {
         #else
         entries += [
             toggle(Settings.Multiplexer.localSessionDiscovery),
-            number(Settings.Transparency.backgroundOpacity, 0...1, step: 0.01, set: { TransparencyManager.shared.backgroundOpacity = $0 }),
-            toggle(Settings.Transparency.pinnedSidebarTransparency, set: { TransparencyManager.shared.pinnedSidebarTransparencyEnabled = $0 }),
+            toggle(Settings.Transparency.backdropTransparency, set: { TransparencyManager.shared.backdropTransparencyEnabled = $0 })
+                .requiring { EffectManager.shared.isBackdropEnabled ? nil : String(localized: "Turn on the Theme Gradient backdrop first.") },
         ]
-        if TransparencyManager.isGlassAvailable {
-            entries.append(choices(Settings.Transparency.blurStyle, label: { $0.title }, set: { TransparencyManager.shared.blurStyle = $0 }))
-        }
         if TransparencyManager.useSandboxBlur {
             entries.append(toggle(Settings.Transparency.blurEnabled, set: { TransparencyManager.shared.blurEnabled = $0 })
                 .requiring { TransparencyManager.shared.usesGlass ? String(localized: "Choose Standard Blur Style first.") : nil })
@@ -364,6 +385,9 @@ enum QuickSettingsCatalog {
                 .requiring { TransparencyManager.shared.usesGlass ? String(localized: "Choose Standard Blur Style first.") : nil })
         }
         #endif
+        if TransparencyManager.isGlassAvailable {
+            entries.append(choices(Settings.Transparency.blurStyle, label: { $0.title }, set: { TransparencyManager.shared.blurStyle = $0 }))
+        }
         if UIDevice.current.userInterfaceIdiom != .phone {
             entries += [
                 toggle(Settings.Tabs.hoverPreviews),

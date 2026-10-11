@@ -66,22 +66,6 @@ struct LicenseRow: View {
 struct LicenseAcknowledgementsView: View {
     var body: some View {
         List {
-            Section {
-                HStack(alignment: .center, spacing: 8) {
-                    Image("AppIconImage")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                        .cornerRadius(6)
-
-                    Text("Terminal emulator based on libghostty by Mitchell Hashimoto")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .themedRow()
-            }
-
             Section("Core") {
                 ForEach(coreLicenses) { entry in
                     LicenseRow(entry: entry)
@@ -109,6 +93,33 @@ struct LicenseAcknowledgementsView: View {
                         .themedRow()
                 }
             }
+
+            Section("Cloud Storage") {
+                ForEach(storageLicenses) { entry in
+                    LicenseRow(entry: entry)
+                        .themedRow()
+                }
+            }
+
+            #if canImport(FluidAudio) && !CHINA_BUILD
+            Section("Speech Recognition") {
+                ForEach(speechLicenses) { entry in
+                    LicenseRow(entry: entry)
+                        .themedRow()
+                }
+            }
+
+            Section {
+                ForEach(speechModelLicenses) { entry in
+                    LicenseRow(entry: entry)
+                        .themedRow()
+                }
+            } header: {
+                Text("Speech Models")
+            } footer: {
+                Text("Downloaded on demand when you turn on dictation, not included in the app.")
+            }
+            #endif
 
             Section("Sounds") {
                 ForEach(soundLicenses) { entry in
@@ -177,13 +188,6 @@ struct LicenseAcknowledgementsView: View {
                 copyright: "Copyright (c) 2020 Blaž Hrastnik and Helix contributors",
                 repositoryURL: "https://github.com/helix-editor/helix",
                 licenseText: mpl2LicenseText
-            ),
-            LicenseEntry(
-                name: "gitoxide",
-                licenseType: "MIT / Apache 2.0",
-                copyright: "Copyright (c) Sebastian Thiel and gitoxide contributors",
-                repositoryURL: "https://github.com/GitoxideLabs/gitoxide",
-                licenseText: mitApache2LicenseText
             ),
             LicenseEntry(
                 name: "bat",
@@ -279,11 +283,18 @@ struct LicenseAcknowledgementsView: View {
                 licenseText: mitLicenseText
             ),
             LicenseEntry(
-                name: "CryptoSwift",
-                licenseType: "zlib",
-                copyright: "Copyright (c) 2014 Marcin Krzyżanowski",
-                repositoryURL: "https://github.com/krzyzanowskim/CryptoSwift",
-                licenseText: cryptoSwiftLicenseText
+                name: "Tailscale",
+                licenseType: "BSD 3-Clause",
+                copyright: "Copyright (c) 2020 Tailscale Inc & AUTHORS",
+                repositoryURL: "https://github.com/tailscale/tailscale",
+                licenseText: bsd3ClauseLicenseText
+            ),
+            LicenseEntry(
+                name: "wireguard-go",
+                licenseType: "MIT",
+                copyright: "Copyright (C) 2017-2025 WireGuard LLC",
+                repositoryURL: "https://github.com/tailscale/wireguard-go",
+                licenseText: mitLicenseText
             ),
             LicenseEntry(
                 name: "YubiKit",
@@ -336,6 +347,82 @@ struct LicenseAcknowledgementsView: View {
         ))
         #endif
         return entries
+    }
+
+    /// The dictation-only FluidAudio fork and its native text-normalization dependency.
+    /// TTS/G2P and diarization dependencies are excluded by the fork's package manifests.
+    private var speechLicenses: [LicenseEntry] {
+        [
+            LicenseEntry(
+                name: "FluidAudio",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) FluidInference",
+                repositoryURL: "https://github.com/kitknox/fluidaudio-rootshell",
+                licenseText: apache2LicenseText
+            ),
+            LicenseEntry(
+                name: "text-processing-rs",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) FluidInference. Grammars derived from NVIDIA NeMo Text Processing, Copyright (c) NVIDIA CORPORATION & AFFILIATES.",
+                repositoryURL: "https://github.com/FluidInference/text-processing-rs",
+                licenseText: apache2LicenseText + "\n\n" + nemoTextProcessingNoticeText
+            ),
+            LicenseEntry(
+                name: "NVIDIA NeMo Text Processing",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) NVIDIA CORPORATION & AFFILIATES.",
+                repositoryURL: "https://github.com/NVIDIA/NeMo-text-processing",
+                licenseText: apache2LicenseText
+            ),
+            LicenseEntry(
+                name: "rustfst",
+                licenseType: "MIT / Apache 2.0",
+                copyright: "Copyright (c) Alexandre Caulier and the rustfst contributors",
+                repositoryURL: "https://github.com/Garvys/rustfst",
+                licenseText: mitApache2LicenseText
+            ),
+            LicenseEntry(
+                name: "flate2",
+                licenseType: "MIT / Apache 2.0",
+                copyright: "Copyright (c) Alex Crichton and the flate2 contributors",
+                repositoryURL: "https://github.com/rust-lang/flate2-rs",
+                licenseText: mitApache2LicenseText
+            ),
+        ]
+    }
+
+    /// Models fetched from Hugging Face at runtime; attribution per their licenses.
+    private var speechModelLicenses: [LicenseEntry] {
+        [
+            LicenseEntry(
+                name: "NVIDIA Parakeet TDT 0.6B v3 and v2, Parakeet TDT-CTC 110M",
+                licenseType: "CC BY 4.0",
+                copyright: "Copyright (c) NVIDIA Corporation. Converted to Core ML by FluidInference.",
+                repositoryURL: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+                licenseText: ccBy4LicenseText
+            ),
+            LicenseEntry(
+                name: "Parakeet Ultra and Parakeet Redux",
+                licenseType: "CC BY 4.0",
+                copyright: "By moondream, derived from NVIDIA Parakeet TDT 0.6B v3. Converted to Core ML by FluidInference.",
+                repositoryURL: "https://huggingface.co/moondream/parakeet-ultra",
+                licenseText: ccBy4LicenseText
+            ),
+            LicenseEntry(
+                name: "SenseVoiceSmall",
+                licenseType: "FunASR Model License 1.1",
+                copyright: "Copyright (C) 2023-2028 Alibaba Group. FunAudioLLM SenseVoiceSmall, converted to Core ML by FluidInference.",
+                repositoryURL: "https://huggingface.co/FunAudioLLM/SenseVoiceSmall",
+                licenseText: funASRModelLicenseText
+            ),
+            LicenseEntry(
+                name: "Silero VAD",
+                licenseType: "MIT",
+                copyright: "Copyright (c) 2020-present Silero Team. Converted to Core ML by FluidInference.",
+                repositoryURL: "https://github.com/snakers4/silero-vad",
+                licenseText: mitLicenseText
+            ),
+        ]
     }
 
     private var soundLicenses: [LicenseEntry] {
@@ -537,30 +624,6 @@ struct LicenseAcknowledgementsView: View {
         """
     }
 
-    private var cryptoSwiftLicenseText: String {
-        """
-        This software is provided 'as-is', without any express or implied warranty. \
-        In no event will the authors be held liable for any damages arising from the \
-        use of this software.
-
-        Permission is granted to anyone to use this software for any purpose, including \
-        commercial applications, and to alter it and redistribute it freely, subject to \
-        the following restrictions:
-
-        1) The origin of this software must not be misrepresented; you must not claim \
-        that you wrote the original software. If you use this software in a product, an \
-        acknowledgment in the product documentation is required.
-
-        2) Altered source versions must be plainly marked as such, and must not be \
-        misrepresented as being the original software.
-
-        3) This notice may not be removed or altered from any source or binary distribution.
-
-        4) Redistributions of any form whatsoever must retain the following acknowledgment: \
-        'This product includes software developed by Marcin Krzyzanowski.'
-        """
-    }
-
     private var mpl2LicenseText: String {
         """
         This Source Code Form is subject to the terms of the Mozilla Public \
@@ -599,6 +662,32 @@ struct LicenseAcknowledgementsView: View {
         """
     }
 
+    private var funASRModelLicenseText: String {
+        """
+        FunASR Model Open Source License Agreement, Version 1.1
+
+        Copyright (C) 2023-2028 Alibaba Group. All rights reserved.
+
+        [FunASR Software] refers to FunASR open-source model weights and their \
+        derivatives, including finetuned models.
+
+        License: You are free to use, copy, modify, and share [FunASR Software] \
+        under the terms of this agreement.
+
+        Restrictions: When using, copying, modifying, and sharing [FunASR \
+        Software], you must attribute the source and author information and \
+        retain relevant model names in [FunASR Software].
+
+        Responsibility and Risk: [FunASR Software] is provided for reference and \
+        learning purposes only, and Alibaba Group assumes no responsibility for \
+        any direct or indirect losses resulting from your use or modification of \
+        [FunASR Software]. You should assume all risks associated with using and \
+        modifying [FunASR Software].
+
+        Full text: https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE
+        """
+    }
+
     private var cc0LicenseText: String {
         """
         CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
@@ -629,6 +718,114 @@ struct LicenseAcknowledgementsView: View {
         """
     }
 
+    private var storageLicenses: [LicenseEntry] {
+        [
+            LicenseEntry(
+                name: "Soto for AWS",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) 2017-2026 the Soto project authors",
+                repositoryURL: "https://github.com/soto-project/soto",
+                licenseText: apache2LicenseText + "\n\n" + sotoNoticeText
+            ),
+            LicenseEntry(
+                name: "Soto Core",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) 2017-2026 the Soto project authors",
+                repositoryURL: "https://github.com/soto-project/soto-core",
+                licenseText: apache2LicenseText + "\n\n" + sotoCoreNoticeText
+            ),
+            LicenseEntry(
+                name: "Perfect-INIParser",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) 2017 - 2018 PerfectlySoft Inc. and the Perfect project authors",
+                repositoryURL: "https://github.com/PerfectlySoft/Perfect-INIParser",
+                licenseText: apache2LicenseText
+            ),
+            LicenseEntry(
+                name: "Expat",
+                licenseType: "MIT",
+                copyright: "Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper\nCopyright (c) 2001-2019 Expat maintainers",
+                repositoryURL: "https://github.com/libexpat/libexpat",
+                licenseText: mitLicenseText
+            ),
+            LicenseEntry(
+                name: "swift-extras-base64",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) the swift-extras-base64 project authors",
+                repositoryURL: "https://github.com/swift-extras/swift-extras-base64",
+                licenseText: apache2LicenseText
+            ),
+            LicenseEntry(
+                name: "fastbase64",
+                licenseType: "BSD 2-Clause",
+                copyright: "Copyright (c) 2015-2016, Wojciech Muła, Alfred Klomp, Daniel Lemire",
+                repositoryURL: "https://github.com/lemire/fastbase64",
+                licenseText: bsd2ClauseLicenseText
+            ),
+            LicenseEntry(
+                name: "stringencoders (modp_b64)",
+                licenseType: "MIT",
+                copyright: "Copyright (c) 2016 Nick Galbreath",
+                repositoryURL: "https://github.com/client9/stringencoders",
+                licenseText: mitLicenseText
+            ),
+            LicenseEntry(
+                name: "JMESPath for Swift",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) Adam Fowler",
+                repositoryURL: "https://github.com/jmespath/jmespath.swift",
+                licenseText: apache2LicenseText
+            ),
+            LicenseEntry(
+                name: "AsyncHTTPClient",
+                licenseType: "Apache 2.0",
+                copyright: "Copyright (c) Apple Inc. and the AsyncHTTPClient project authors",
+                repositoryURL: "https://github.com/swift-server/async-http-client",
+                licenseText: apache2LicenseText
+            ),
+        ]
+    }
+
+    private var sotoNoticeText: String {
+        """
+        NOTICE
+
+        This product uses HummingbirdMustache to generate its source files
+
+          * LICENSE (Apache-2.0):
+            * https://github.com/hummingbird-project/hummingbird-mustache/blob/main/LICENSE
+          * HOMEPAGE:
+            * https://github.com/hummingbird-project/hummingbird-mustache
+        """
+    }
+
+    private var sotoCoreNoticeText: String {
+        """
+        NOTICE
+
+        This product contains a copy of INIParser from PerfectlySoft
+
+          * LICENSE (Apache License 2.0):
+            * https://github.com/PerfectlySoft/Perfect-INIParser/blob/master/LICENSE
+          * HOMEPAGE:
+            * https://github.com/PerfectlySoft/Perfect-INIParser
+
+        This product contains a copy of libexpat
+
+          * LICENSE (MIT):
+            * https://github.com/libexpat/libexpat/blob/master/expat/COPYING
+          * HOMEPAGE:
+            * https://libexpat.github.io/
+
+        This product contains a copy of base64.swift from swift-extras-base64
+
+          * LICENSE (Apache License 2.0):
+            * https://github.com/swift-extras/swift-extras-base64/blob/main/LICENSE
+          * HOMEPAGE:
+            * https://github.com/swift-extras/swift-extras-base64
+        """
+    }
+
     private var gplv2LinkingExceptionText: String {
         """
         In addition to the permissions in the GNU General Public License, \
@@ -651,6 +848,28 @@ struct LicenseAcknowledgementsView: View {
 
         You should have received a copy of the GNU General Public License \
         along with this library; if not, see <https://www.gnu.org/licenses/>.
+        """
+    }
+
+    private var ccBy4LicenseText: String {
+        """
+        This work is licensed under the Creative Commons Attribution 4.0 \
+        International License. To view a copy of this license, visit \
+        https://creativecommons.org/licenses/by/4.0/
+
+        Changes: the original checkpoints were converted to Core ML and \
+        quantized by FluidInference (https://huggingface.co/FluidInference). \
+        Rootshell uses them unmodified.
+        """
+    }
+
+    private var nemoTextProcessingNoticeText: String {
+        """
+        The NemoTextProcessing framework statically links rustfst and flate2 \
+        (MIT OR Apache-2.0) and their permissively licensed dependencies, \
+        including nom, miniz_oxide, bitflags and anyhow (MIT and/or Apache-2.0). \
+        Compiled grammars are derived from NVIDIA NeMo Text Processing \
+        (Apache-2.0, Copyright (c) NVIDIA CORPORATION & AFFILIATES).
         """
     }
 

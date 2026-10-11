@@ -58,6 +58,9 @@ extension MainView {
                 showConnectionSidebar = false
                 connectToProfile(profile, splitOption: splitOption)
             },
+            onFileManagerOpen: { endpoint, presentation in
+                openFileManagerFromConnectionView(endpoint, presentation: presentation)
+            },
             preventDismissal: terminals.isEmpty && tabBarHidden,
             initialTab: connectionSidebarInitialTab
         )
@@ -101,10 +104,35 @@ extension MainView {
                 showConnectionSidebar = false
                 connectToProfile(profile, splitOption: splitOption)
             },
+            onFileManagerOpen: { endpoint, presentation in
+                openFileManagerFromConnectionView(endpoint, presentation: presentation)
+            },
             preventDismissal: terminals.isEmpty && tabBarHidden,
             onClose: { showConnectionSidebar = false },
             initialTab: connectionSidebarInitialTab
         )
+    }
+
+    /// iPhone and visionOS present the connection view as a sheet; iPad and Mac as a side panel.
+    var connectionViewIsSheet: Bool {
+#if os(visionOS)
+        true
+#else
+        isPhone
+#endif
+    }
+
+    /// Opens after the connection view closes so the terminal's focus restore can't win:
+    /// the panel flushes from the close handler, a sheet from its onDismiss.
+    private func openFileManagerFromConnectionView(_ endpoint: FileEndpoint, presentation: PanelPresentation?) {
+        pendingFileManagerOpen = (endpoint, presentation)
+        showConnectionSidebar = false
+    }
+
+    func flushPendingFileManagerOpen() {
+        guard let pending = pendingFileManagerOpen else { return }
+        pendingFileManagerOpen = nil
+        openFileManager(at: pending.endpoint, presentation: pending.presentation)
     }
     
     private func handleSSHOrLocalConnection(config: SSHConfig?, splitOption: SSHConnectionView.SplitOption) {
@@ -173,9 +201,17 @@ extension MainView {
         let network = NetworkReachabilityMonitor.shared
         let supportsHighPerformance = network.isConnected
             && (network.connectionType == .wifi || network.connectionType == .wired)
+        #if !CHINA_BUILD
+        // In-app Tailscale carries the media itself, so the mesh-VPN caveat is moot.
+        let routing = TailnetRouting.shared
+        let meshCaveat = config.usesMeshVPNHostname
+            && !(routing.state.enabled && routing.looksLikeTailnet(config.host))
+        #else
+        let meshCaveat = config.usesMeshVPNHostname
+        #endif
 
         if config.quality == .adaptive,
-           !supportsHighPerformance || config.usesMeshVPNHostname {
+           !supportsHighPerformance || meshCaveat {
             alerts.handleVNCHighPerformanceTransportWarning(
                 MainAlertController.PendingVNCHighPerformanceConnection(
                     config: config,
@@ -270,6 +306,13 @@ extension MainView {
 
         var config = profile.sshConfig
         let connectionProtocol = profile.connectionProtocol
+
+        // Resume-or-focus: opening a mux auto-start profile while already
+        // attached to that host/session focuses the live UI instead of a
+        // second client (especially important for zmx — one PTY per name).
+        if focusLiveMuxAttachmentIfPresent(for: config) {
+            return
+        }
 
         let transportMode = profile.trzszTransportMode
         let profileMTU = profile.trzszMTU
@@ -418,6 +461,12 @@ extension MainView {
     #endif
 
     func connectWithConfig(_ config: SSHConfig, connectionProtocol: ConnectionProtocol = .ssh, splitOption: SSHConnectionView.SplitOption, trzszTransportMode: ProfileTransportMode = .default, trzszMTU: Int? = nil, trzszPortMin: Int? = nil, trzszPortMax: Int? = nil, trzszServerPath: String? = nil, sourceProfileID: UUID? = nil) {
+        // History / duplicate / deep-link paths also land here — resume before
+        // spawning another client to the same mux session.
+        if focusLiveMuxAttachmentIfPresent(for: config) {
+            return
+        }
+
         // Safety net: verify key is still resolvable before creating session
         if case .key(let keyID) = config.authMethod, SSHKeyManager.shared.findKey(id: keyID) == nil {
             let resolution = ConnectionKeyResolver.resolve(config: config)
@@ -541,7 +590,9 @@ extension MainView {
         }
 
         // Update profile auth method to reflect saved password preference
-        var updatedProfile = profile
+        // Reconnect can carry a temporary startup override. Save only the auth
+        // change to the stored profile, not that one-shot attachment target.
+        var updatedProfile = ConnectionProfileManager.shared.profile(for: profile.id) ?? profile
         updatedProfile.sshConfig.authMethod = savedSuccessfully ? .savedPassword : .password("")
         try? ConnectionProfileManager.shared.updateProfile(updatedProfile)
 

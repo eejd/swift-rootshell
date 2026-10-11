@@ -44,6 +44,9 @@ class EnvironmentBuilder {
         /// Stable pane identity supplied by the app for deterministic push
         /// notification routing.
         var paneToken: String?
+
+        /// Variables the app adds last, such as ALL_PROXY for in-app Tailscale.
+        var extraEnvironment: [String: String] = [:]
     }
 
     private let config: Config
@@ -168,11 +171,7 @@ class EnvironmentBuilder {
         // Only set LANG (not LC_ALL) to allow users to customize individual LC_* categories
         let locale = systemLocale
         env["LANG"] = locale
-
-        // LANGUAGE: Set for gettext translation priority if available
-        if let preferredLanguages = LocaleHelper.preferredLanguages {
-            env["LANGUAGE"] = preferredLanguages
-        }
+        // No LANGUAGE: gettext would skip English and use a second language (#596).
 
         // GHOSTTY_RESOURCES_DIR: Path to resources
         // Only set if shell integration is enabled, otherwise bash will try to
@@ -258,6 +257,8 @@ class EnvironmentBuilder {
                ?? Self.shellIntegrationDirectory(resourcesDir: config.resourcesDir) {
             env["GHOSTTY_SHELL_INTEGRATION_DIR"] = shellPath
         }
+
+        env.merge(config.extraEnvironment) { _, new in new }
 
         return env
     }

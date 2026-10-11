@@ -72,7 +72,7 @@ extension Notification.Name {
 }
 
 /// How the OpenAI slot authenticates: metered API key against api.openai.com,
-/// or a ChatGPT subscription via Codex OAuth. The modes are exclusive; flipping
+/// or ChatGPT plan usage via Sign in with ChatGPT. The modes are exclusive; flipping
 /// swaps both the model lineup and the provider implementation.
 enum OpenAIAuthMode: String, Codable, CaseIterable, Sendable {
     case apiKey
@@ -118,11 +118,23 @@ final class AICredentialsManager {
     /// Model IDs we no longer offer, mapped to their replacement. Stored selections
     /// are rewritten on launch — an unmapped ID resolves to no provider at all.
     private nonisolated static let legacyModelMigrations: [String: String] = [
-        "gpt-5.4": "gpt-5.6-sol",
-        "gpt-5.4-mini-2026-03-17": "gpt-5.6-terra",
-        "gpt-5.4-nano-2026-03-17": "gpt-5.6-luna",
-        "claude-opus-4-8": "claude-opus-5",
-        "bedrock-claude-opus-4-8": "bedrock-claude-opus-5",
+        "gpt-5.4": "gpt-6-astra",
+        "gpt-5.4-mini-2026-03-17": "gpt-6-sol",
+        "gpt-5.4-nano-2026-03-17": "gpt-6-luna",
+        "gpt-5.5-2026-04-23": "gpt-6-astra",
+        "gpt-5.6-sol": "gpt-6-astra",
+        "gpt-5.6-terra": "gpt-6-sol",
+        "gpt-5.6-luna": "gpt-6-luna",
+        "claude-opus-4-8": "claude-opus-5-5",
+        "claude-opus-5": "claude-opus-5-5",
+        "claude-sonnet-4-6": "claude-sonnet-5-5",
+        "claude-sonnet-5": "claude-sonnet-5-5",
+        "claude-haiku-4-5-20251001": "claude-haiku-5-5",
+        "bedrock-claude-opus-4-8": "bedrock-claude-opus-5-5",
+        "bedrock-claude-opus-5": "bedrock-claude-opus-5-5",
+        "bedrock-claude-sonnet-4-6": "bedrock-claude-sonnet-5-5",
+        "bedrock-claude-sonnet-5": "bedrock-claude-sonnet-5-5",
+        "bedrock-claude-haiku-4-5": "bedrock-claude-haiku-5-5",
     ]
 
     // Keychain accounts
@@ -199,7 +211,7 @@ final class AICredentialsManager {
     /// Which auth path the OpenAI slot uses.
     private var _openAIAuthMode: OpenAIAuthMode = .apiKey
 
-    /// Cached mirror of `ChatGPTCredentialStore.isSignedInCached` so SwiftUI
+    /// Cached mirror of `ChatGPTCredentialStore.isUsableCached` so SwiftUI
     /// observation fires on sign-in/out.
     private var _isChatGPTSignedIn: Bool = false
 
@@ -301,8 +313,14 @@ final class AICredentialsManager {
         _openAIAuthMode = UserDefaults.standard.string(forKey: openAIAuthModeKey)
             .flatMap(OpenAIAuthMode.init(rawValue:)) ?? .apiKey
         Task { [weak self] in
+            if await ChatGPTCredentialStore.shared.migrateLegacyCredential() {
+                ChatGPTModelStore.shared.reloadFromDefaults()
+            }
             let signedIn = await ChatGPTCredentialStore.shared.refreshCachedState()
             self?._isChatGPTSignedIn = signedIn
+            if signedIn {
+                await ChatGPTModelStore.shared.refreshIfStale()
+            }
         }
 
         SettingsRefreshHub.shared.register(keys: Self.storeKeyNames) { [weak self] keys in
@@ -405,6 +423,9 @@ final class AICredentialsManager {
             .flatMap(OpenAIAuthMode.init(rawValue:)) ?? .apiKey
         ChatGPTModelStore.shared.reloadFromDefaults()
         Task { [weak self] in
+            if await ChatGPTCredentialStore.shared.migrateLegacyCredential() {
+                ChatGPTModelStore.shared.reloadFromDefaults()
+            }
             let signedIn = await ChatGPTCredentialStore.shared.refreshCachedState()
             self?._isChatGPTSignedIn = signedIn
         }
@@ -495,8 +516,15 @@ final class AICredentialsManager {
     /// selected capability tier. Unrelated and custom model IDs are unchanged.
     private func migrateLegacyModelSelections() {
         let defaults = UserDefaults.standard
+        // Runs before `_openAIAuthMode` loads. ChatGPT sign-in discovers its own
+        // gpt-5.6 lineup, so shared selections of those IDs stay put in that mode.
+        let isChatGPTMode = defaults.string(forKey: openAIAuthModeKey) == OpenAIAuthMode.chatgptSignIn.rawValue
+        func sharedMigration(for id: String) -> String? {
+            if isChatGPTMode, id.hasPrefix("gpt-5.6") { return nil }
+            return Self.legacyModelMigrations[id]
+        }
 
-        if let migrated = Self.legacyModelMigrations[_globalSelectedModelID] {
+        if let migrated = sharedMigration(for: _globalSelectedModelID) {
             _globalSelectedModelID = migrated
             SettingsStore.shared.set(Settings.AI.globalSelectedModel, migrated)
         }
@@ -514,7 +542,7 @@ final class AICredentialsManager {
             }
         }
 
-        if let migrated = Self.legacyModelMigrations[_aiCommitMessageModelID] {
+        if let migrated = sharedMigration(for: _aiCommitMessageModelID) {
             _aiCommitMessageModelID = migrated
             SettingsStore.shared.set(Settings.AI.commitMessageModel, migrated)
         }
@@ -960,7 +988,7 @@ final class AICredentialsManager {
         }
     }
 
-    /// Whether a ChatGPT subscription credential is stored.
+    /// Whether the active ChatGPT account is signed in with plan usage granted.
     var hasChatGPTSignIn: Bool {
         _isChatGPTSignedIn
     }

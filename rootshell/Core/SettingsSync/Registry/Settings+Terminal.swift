@@ -15,6 +15,13 @@ extension UserPreferences.ClockFormat: SettingValue {}
 
 nonisolated extension Settings {
     enum Terminal {
+        static let programURLRequestReplayCache = SettingKey<Data?>(
+            "programURLRequestReplayCache", default: nil, group: .terminal, policy: .deviceOnly,
+            title: String(localized: "Program URL Request Replay Cache", comment: "Internal state"))
+        static let openLinksFromPrograms = SettingKey(
+            "openLinksFromPrograms", default: false, group: .terminal, policy: .localByDefault,
+            configKey: "open-links-from-programs",
+            title: String(localized: "Open Links from Programs", comment: "Setting title"))
         static let terminalTypeLocal = SettingKey(
             "terminalTypeLocal", default: TerminalTypeSettings.localFallback, group: .terminal, policy: .localByDefault,
             configKey: "terminal-type-local",
@@ -29,11 +36,11 @@ nonisolated extension Settings {
             title: String(localized: "Local Shell", comment: "Setting title"))
         static let paddingXOverride = SettingKey<Int?>(
             "windowPaddingXOverride", default: nil, group: .terminal, policy: .localByDefault,
-            configKey: "window-padding-x",
+            configKey: "window-padding-x", range: 0...1000,
             title: String(localized: "Horizontal Padding", comment: "Setting title"))
         static let paddingYOverride = SettingKey<Int?>(
             "windowPaddingYOverride", default: nil, group: .terminal, policy: .localByDefault,
-            configKey: "window-padding-y",
+            configKey: "window-padding-y", range: 0...1000,
             title: String(localized: "Vertical Padding", comment: "Setting title"))
         static let rcfileInProgress = SettingKey(
             "rcfile.inProgress", default: false, group: .terminal, policy: .deviceOnly,
@@ -46,6 +53,8 @@ nonisolated extension Settings {
             title: String(localized: "RC File Last Failure", comment: "Setting title"))
 
         static let all: [AnySettingDefinition] = [
+            programURLRequestReplayCache.erased,
+            openLinksFromPrograms.erased,
             terminalTypeLocal.erased, terminalTypeRemote.erased, localShellCommand.erased,
             paddingXOverride.erased, paddingYOverride.erased,
             rcfileInProgress.erased, rcfileConsecutiveFailures.erased, rcfileLastFailureTimestamp.erased,
@@ -67,7 +76,7 @@ nonisolated extension Settings {
             title: String(localized: "Rubber Band Scrolling", comment: "Setting title"))
         static let twoFingerLongPressDuration = SettingKey(
             "twoFingerLongPressDuration", default: 0.5, group: .gestures,
-            configKey: "two-finger-long-press-duration",
+            configKey: "two-finger-long-press-duration", range: 0...10,
             title: String(localized: "Two-Finger Long Press", comment: "Setting title"))
         static let tabExposeGesture = SettingKey(
             "tabExposeGestureEnabled", default: true, group: .gestures,

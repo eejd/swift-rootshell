@@ -25,6 +25,7 @@ enum TabHoverPreviewActivation: String, CaseIterable, Sendable {
     }
 }
 
+extension DuoFrontDisplayMode: SettingValue {}
 extension NewTabAction: SettingValue {}
 extension TabHoverPreviewActivation: SettingValue {}
 extension TopTabStyle: SettingValue {}
@@ -50,6 +51,13 @@ nonisolated extension Settings {
         static let topTabStyle = SettingKey(
             "topTabStyle", default: TopTabStyle.pills, group: .tabs, configKey: "top-tab-style",
             title: String(localized: "Tab Style", comment: "Setting title"))
+        // These choices describe this device's physical display, so never sync them.
+        static let duoFrontDisplayMode = SettingKey(
+            "duoFrontDisplayMode", default: DuoFrontDisplayMode.sideRail, group: .tabs, policy: .deviceOnly,
+            title: String(localized: "Duo Front Display", comment: "Setting title"))
+        static let duoBehindCameraShowsTabs = SettingKey(
+            "duoBehindCameraShowsTabs", default: true, group: .tabs, policy: .deviceOnly,
+            title: String(localized: "Show Top Tabs Behind Camera", comment: "Setting title"))
         static let compactPillSpacing = SettingKey(
             "compactPillTabSpacing", default: false, group: .tabs, configKey: "compact-pill-tab-spacing",
             title: String(localized: "Compact Tab Spacing", comment: "Setting title"))
@@ -64,7 +72,7 @@ nonisolated extension Settings {
             title: String(localized: "Tab Exposé Captions", comment: "Setting title"))
         /// Preview thumbnail scale set by pinching in the exposé; 1 = auto-fit.
         static let exposeZoom = SettingKey(
-            "tabExposeZoom", default: 1.0, group: .tabs, policy: .localByDefault, configKey: "tab-expose-zoom",
+            "tabExposeZoom", default: 1.0, group: .tabs, policy: .localByDefault, configKey: "tab-expose-zoom", range: 0.1...10,
             title: String(localized: "Tab Exposé Preview Size", comment: "Setting title"))
         /// Live thumbnail while the pointer rests on a tab (top bar or sidebar).
         static let hoverPreviews = SettingKey(
@@ -78,7 +86,7 @@ nonisolated extension Settings {
         /// Pinch-set hover preview scale; 1 = the default size.
         static let hoverPreviewZoom = SettingKey(
             "tabHoverPreviewZoom", default: 1.0, group: .tabs, policy: .localByDefault,
-            configKey: "tab-hover-preview-zoom",
+            configKey: "tab-hover-preview-zoom", range: 0.1...10,
             title: String(localized: "Tab Hover Preview Size", comment: "Setting title"))
         /// Open in Folder history, a JSON blob of folders per target.
         static let openInFolderRecents = SettingKey<Data?>(
@@ -89,12 +97,20 @@ nonisolated extension Settings {
             "openInFolder.placement", default: OpenInFolderPlacement.newTab, group: .tabs, policy: .localByDefault,
             configKey: "open-in-folder-placement",
             title: String(localized: "Open in Folder Placement", comment: "Setting title"))
+        static let openInFolderHUDWidth = SettingKey(
+            "openInFolder.hud.width", default: 720.0, group: .tabs, policy: .deviceOnly,
+            title: String(localized: "Open in Folder Width", comment: "Setting title"))
+        static let openInFolderHUDHeight = SettingKey(
+            "openInFolder.hud.height", default: 520.0, group: .tabs, policy: .deviceOnly,
+            title: String(localized: "Open in Folder Height", comment: "Setting title"))
 
         static let all: [AnySettingDefinition] = [
             newTabAction.erased, barHidden.erased, barAnimationsDisabled.erased, topTabStyle.erased, compactPillSpacing.erased,
+            duoFrontDisplayMode.erased, duoBehindCameraShowsTabs.erased,
             showScopeMenu.erased, showShortcutIndicators.erased, exposeShowsCaptions.erased, exposeZoom.erased,
             hoverPreviews.erased, hoverPreviewActivation.erased, hoverPreviewZoom.erased,
             openInFolderRecents.erased, openInFolderPlacement.erased,
+            openInFolderHUDWidth.erased, openInFolderHUDHeight.erased,
         ]
     }
 
@@ -103,7 +119,7 @@ nonisolated extension Settings {
             "tabSidebarAutoHideOnSelect", default: false, group: .sidebar, configKey: "tab-sidebar-auto-hide-on-select",
             title: String(localized: "Auto-Hide Sidebar After Selection", comment: "Setting title"))
         static let rowLines = SettingKey(
-            "tabSidebarRowLines", default: 1, group: .sidebar, configKey: "tab-sidebar-row-lines",
+            "tabSidebarRowLines", default: 1, group: .sidebar, configKey: "tab-sidebar-row-lines", range: 1...10,
             title: String(localized: "Sidebar Title Lines", comment: "Setting title"))
         static let largeControls = SettingKey(
             "tabSidebarLargeControls", default: SettingsPlatform.isPhone, group: .sidebar, policy: .localByDefault,
@@ -146,6 +162,9 @@ nonisolated extension Settings {
             "fullScreenModeEnabled", default: false, group: .window, policy: .localByDefault,
             configKey: "full-screen-mode-enabled",
             title: String(localized: "Full Screen Mode", comment: "Setting title"))
+        static let fullScreenLaunchNoticeDismissed = SettingKey(
+            "fullScreenLaunchNoticeDismissed", default: false, group: .window, policy: .deviceOnly,
+            title: String(localized: "Full Screen Reminder Dismissed", comment: "Setting title"))
         static let extendUnderHomeIndicator = SettingKey(
             "extendUnderHomeIndicator", default: false, group: .window, policy: .localByDefault,
             configKey: "extend-under-home-indicator",
@@ -162,6 +181,18 @@ nonisolated extension Settings {
             "splitFocusBorderCustomColor", default: "007AFF", group: .window,
             configKey: "split-focus-border-custom-color",
             title: String(localized: "Split Border Custom Color", comment: "Setting title"))
+        static let roundedPanes = SettingKey(
+            "roundedPanes", default: false, group: .window, policy: .localByDefault,
+            configKey: "rounded-panes",
+            title: String(localized: "Rounded Panes", comment: "Setting title"))
+        static let confirmBeforeClosingPane = SettingKey(
+            "confirmBeforeClosingPane", default: false, group: .window,
+            configKey: "confirm-before-closing-pane",
+            title: String(localized: "Confirm Before Closing Pane", comment: "Setting title"))
+        static let confirmBeforeClosingTab = SettingKey(
+            "confirmBeforeClosingTab", default: false, group: .window,
+            configKey: "confirm-before-closing-tab",
+            title: String(localized: "Confirm Before Closing Tab", comment: "Setting title"))
         static let lastWidth = SettingKey(
             "lastWindowWidth", default: 0.0, group: .window, policy: .deviceOnly,
             title: String(localized: "Last Window Width", comment: "Setting title"))
@@ -180,12 +211,21 @@ nonisolated extension Settings {
         static let titlebarLeadingInset = SettingKey(
             "titlebarLeadingInset", default: 0.0, group: .window, policy: .deviceOnly,
             title: String(localized: "Titlebar Leading Inset", comment: "Setting title"))
+        static let quickSettingsHUDWidth = SettingKey(
+            "quickSettings.hud.width", default: 520.0, group: .window, policy: .deviceOnly,
+            title: String(localized: "Quick Settings Overlay Width", comment: "Setting title"))
+        static let quickSettingsHUDHeight = SettingKey(
+            "quickSettings.hud.height", default: 560.0, group: .window, policy: .deviceOnly,
+            title: String(localized: "Quick Settings Overlay Height", comment: "Setting title"))
 
         static let all: [AnySettingDefinition] = [
-            hideTitleBar.erased, tabsInTitlebar.erased, fullScreenMode.erased, extendUnderHomeIndicator.erased,
+            hideTitleBar.erased, tabsInTitlebar.erased, fullScreenMode.erased,
+            fullScreenLaunchNoticeDismissed.erased, extendUnderHomeIndicator.erased,
             splitFocusBorderStyle.erased, splitFocusBorderColor.erased, splitFocusBorderCustomColor.erased,
+            roundedPanes.erased,
+            confirmBeforeClosingPane.erased, confirmBeforeClosingTab.erased,
             lastWidth.erased, lastHeight.erased, lastOriginX.erased, lastOriginY.erased, lastHasOrigin.erased,
-            titlebarLeadingInset.erased,
+            titlebarLeadingInset.erased, quickSettingsHUDWidth.erased, quickSettingsHUDHeight.erased,
         ]
     }
 
@@ -204,14 +244,14 @@ nonisolated extension Settings {
             title: String(localized: "Refresh Rate on Battery", comment: "Setting title"))
         static let alwaysOnDisplayMinutes = SettingKey(
             "alwaysOnDisplayMinutes", default: 0, group: .power, policy: .localByDefault,
-            configKey: "always-on-display-minutes",
+            configKey: "always-on-display-minutes", range: 0...31,
             title: String(localized: "Always On Display", comment: "Setting title"))
         static let alwaysOnDisplayEnabledLegacy = SettingKey(
             "alwaysOnDisplayEnabled", default: false, group: .power, policy: .deviceOnly,
             title: String(localized: "Always On Display (legacy)", comment: "Setting title"))
         static let brightnessGain = SettingKey(
             "brightnessGain", default: 1.0, group: .power, policy: .localByDefault,
-            configKey: "brightness-gain",
+            configKey: "brightness-gain", range: 1...16,
             title: String(localized: "Brightness Boost", comment: "Setting title"))
 
         static let all: [AnySettingDefinition] = [

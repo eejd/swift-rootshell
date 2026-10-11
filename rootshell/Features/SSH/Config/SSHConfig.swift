@@ -146,6 +146,9 @@ struct SSHConfig: Codable, Hashable {
     /// existing profiles decode unchanged.
     var gpgAgentConfig: GPGAgentConfig = .disabled
 
+    /// Remote credential requests (`rootshell-askpass`). Off by default.
+    var askpassConfig: RemoteAskpassConfig = .disabled
+
     /// SSH port forwarding configuration
     var portForwardConfig: PortForwardConfig = .none
 
@@ -176,6 +179,9 @@ struct SSHConfig: Codable, Hashable {
     /// nil or empty falls back to the global default, which is how every
     /// existing profile decodes.
     var multiplexerSessionName: String? = nil
+
+    /// Captured at detach and saved with tab state, never with a profile.
+    var muxResumeTarget: MuxSessionTarget? = nil
 
     /// Command to run when the session starts. The mode controls whether this is
     /// sent as terminal input or used as the initial PTY exec command.
@@ -578,7 +584,7 @@ struct SSHConfig: Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case host, port, username, authMethod, cachedIP, jumpHost
-        case hssShorthand, cloudInstanceLabel, agentConfig, gpgAgentConfig, portForwardConfig
+        case hssShorthand, cloudInstanceLabel, agentConfig, gpgAgentConfig, askpassConfig, portForwardConfig
         case tmuxAutoEnable, tmuxAutoMode, herdrAutoEnable, herdrAutoMode, zmxAutoEnable, launchCommand, launchCommandMode, fallbackKeyIDs, keyResolutionHints
         case terminalType, multiplexerSessionName
     }
@@ -596,6 +602,7 @@ struct SSHConfig: Codable, Hashable {
         cloudInstanceLabel = try container.decodeIfPresent(String.self, forKey: .cloudInstanceLabel)
         agentConfig = try container.decodeIfPresent(SSHAgentConfig.self, forKey: .agentConfig) ?? .disabled
         gpgAgentConfig = try container.decodeIfPresent(GPGAgentConfig.self, forKey: .gpgAgentConfig) ?? .disabled
+        askpassConfig = try container.decodeIfPresent(RemoteAskpassConfig.self, forKey: .askpassConfig) ?? .disabled
         portForwardConfig = try container.decodeIfPresent(PortForwardConfig.self, forKey: .portForwardConfig) ?? .none
         tmuxAutoEnable = try container.decodeIfPresent(Bool.self, forKey: .tmuxAutoEnable) ?? false
         tmuxAutoMode = try container.decodeIfPresent(TmuxAutoMode.self, forKey: .tmuxAutoMode) ?? .regular
@@ -976,7 +983,7 @@ struct SSHConfig: Codable, Hashable {
     /// Whether the channel replaced the interactive shell with a command.
     var hasExecTakeoverCommand: Bool {
         !MuxDetachGate.hasFallbackShell(
-            hasRemoteCommand: !(remoteCommand?.isEmpty ?? true),
+            hasRemoteCommand: !(remoteCommand?.isEmpty ?? true) || muxResumeTarget?.execCommand != nil,
             hasInitialCommandLaunch: initialLaunchCommand != nil,
             tmuxAutoEnable: tmuxAutoEnable,
             // Control mode keeps the interactive shell; herdr runs out of band.
@@ -1006,6 +1013,7 @@ struct SSHConfig: Codable, Hashable {
     /// multiplexer auto-start; precedence among multiplexers is tmux, then
     /// herdr, then zmx.
     private var baseExecCommand: String? {
+        if let muxResumeTarget { return muxResumeTarget.execCommand }
         if let remoteCommand, !remoteCommand.isEmpty {
             return Self.command(remoteCommand, applying: remoteCommandPolicy)
         }
@@ -1030,6 +1038,7 @@ struct SSHConfig: Codable, Hashable {
     }
 
     private var baseMoshSessionCommand: String {
+        if let muxResumeTarget { return muxResumeTarget.execCommand ?? "$SHELL -l" }
         if let remoteCommand, !remoteCommand.isEmpty {
             let script = remoteCommandPolicy == .prependPATH ? Self.remoteExecPathPrefix + remoteCommand : remoteCommand
             return LoginShellCommand.runInPOSIXShell(script, login: true)
@@ -1053,5 +1062,41 @@ struct SSHConfig: Codable, Hashable {
             return zmxExecCommandForConnection
         }
         return "$SHELL -l"
+    }
+}
+
+extension SSHConfig {
+    var tmuxSocketForResume: TmuxSocketIdentity? {
+        if let target = muxResumeTarget { return target.tmuxSocket }
+        if let remoteCommand, !remoteCommand.isEmpty {
+            return TmuxSocketIdentity.fromStartupCommand(remoteCommand)
+        }
+        if let initialLaunchCommand {
+            return TmuxSocketIdentity.fromStartupCommand(initialLaunchCommand)
+        }
+        if tmuxAutoEnable {
+            if let custom = Self.tmuxGlobalCustomCommand {
+                return TmuxSocketIdentity.fromStartupCommand(custom)
+            }
+            return .defaultServer
+        }
+        return launchCommand.flatMap(TmuxSocketIdentity.fromStartupCommand)
+    }
+
+    /// Keep connection/authentication settings while replacing startup behavior
+    /// with the attachment the user actually detached from.
+    func resumingMultiplexer(_ target: MuxSessionTarget) -> SSHConfig {
+        var config = self
+        config.muxResumeTarget = target
+        config.tmuxAutoEnable = target.type == .tmux
+        config.tmuxAutoMode = target.controlMode ? .control : .regular
+        config.herdrAutoEnable = target.type == .herdr
+        config.herdrAutoMode = target.controlMode ? .control : .regular
+        config.zmxAutoEnable = target.type == .zmx
+        config.multiplexerSessionName = target.sessionName
+        config.remoteCommand = nil
+        config.launchCommand = nil
+        config.launchCommandMode = .afterConnect
+        return config
     }
 }

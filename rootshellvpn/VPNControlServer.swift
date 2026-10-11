@@ -39,8 +39,8 @@ final class VPNControlServer: @unchecked Sendable {
     }
 
     /// Bind + accept, rebinding whenever the listener dies or the socket path
-    /// is deleted out from under us (app builds prior to 2026-07 sweep every
-    /// `*.sock` in the container when relaunching rootshell-helper, leaving
+    /// is deleted out from under us (older app builds sweep every `*.sock` in
+    /// the container when relaunching rootshell-helper, leaving
     /// this server accepting on an unlinked inode nobody can connect to).
     private func serverLoop(_ path: String) {
         while true {
@@ -143,7 +143,7 @@ final class VPNControlServer: @unchecked Sendable {
             log.error("\(request.command.rawValue, privacy: .public) -> error: \(response.error ?? "?", privacy: .public)")
         } else {
             switch request.command {
-            case .ping, .getStatus, .extensionStatus:
+            case .ping, .getStatus, .extensionStatus, .providerMessage:
                 log.debug("\(request.command.rawValue, privacy: .public) -> ok")
             default:
                 log.info("\(request.command.rawValue, privacy: .public) -> ok")
@@ -162,6 +162,9 @@ final class VPNControlServer: @unchecked Sendable {
             // Identify this build so the app can spot a stale running host.
             let info = VPNHostInfoResponse(
                 supportsTSSHRelay: true,
+                supportsHTTPCapture: true,
+                supportsTailscale: true,
+                supportsTailnetStateHandoff: true,
                 version: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
                 bundlePath: Bundle.main.bundlePath
             )
@@ -193,7 +196,8 @@ final class VPNControlServer: @unchecked Sendable {
                     profileID: start.profileID,
                     transportType: start.transportType,
                     resolvedConfig: resolved,
-                    usesAgentSigning: start.usesAgentSigning
+                    usesAgentSigning: start.usesAgentSigning,
+                    captureConfig: start.captureConfig
                 )
                 return VPNControlResponse(success: true)
             } catch {
@@ -219,6 +223,29 @@ final class VPNControlServer: @unchecked Sendable {
                 VPNTunnelStatusResponse(status: status, profileID: profileID, statusJSON: json)
             )
             return VPNControlResponse(success: true, payload: payload)
+
+        case .providerMessage:
+            guard let message = request.payload else {
+                return VPNControlResponse(success: false, error: "providerMessage requires a payload")
+            }
+            guard let reply = await VPNTunnelController.shared.sendProviderMessage(message, timeoutSeconds: 8) else {
+                return VPNControlResponse(success: false, error: "The VPN tunnel did not answer.")
+            }
+            return VPNControlResponse(success: true, payload: reply)
+
+        case .installCATrust, .removeCATrust:
+            guard let der = request.payload else {
+                return VPNControlResponse(success: false, error: "certificate required")
+            }
+            let install = request.command == .installCATrust
+            // Off the main actor: trust changes block on the password prompt.
+            let error = await Task.detached {
+                install ? CATrustInstaller.install(certificateDER: der) : CATrustInstaller.remove(certificateDER: der)
+            }.value
+            if let error {
+                return VPNControlResponse(success: false, error: error)
+            }
+            return VPNControlResponse(success: true)
         }
     }
 

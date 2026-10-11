@@ -59,6 +59,23 @@ extension Ghostty {
     /// True after a live scroll stream has entered top/bottom rubber-band overscroll.
     private var wasRubberBandingDuringScroll: Bool = false
 
+    #if !targetEnvironment(macCatalyst)
+    /// Fills the strip a rubber-band pull uncovers, so a translucent terminal
+    /// keeps its surface without stacking a fill beneath itself.
+    var overscrollFillColor: UIColor? {
+        didSet {
+            for fill in overscrollFills {
+                fill.backgroundColor = overscrollFillColor
+                fill.isHidden = overscrollFillColor == nil
+            }
+        }
+    }
+
+    /// Pinned above and below the terminal so they move with it in the same
+    /// layout pass; the scroll view clips them to the uncovered strip.
+    private let overscrollFills = [UIView(), UIView()]
+    #endif
+
     /// True while TerminalScrollView is applying terminal/core-driven offset changes.
     private var isApplyingTerminalScrollSync: Bool = false
 
@@ -640,6 +657,23 @@ extension Ghostty {
             // Height matches scroll view frame (visible area)
             terminalView.heightAnchor.constraint(equalTo: scrollView.frameLayoutGuide.heightAnchor)
         ])
+
+        let (topFill, bottomFill) = (overscrollFills[0], overscrollFills[1])
+        for fill in overscrollFills {
+            fill.translatesAutoresizingMaskIntoConstraints = false
+            fill.isUserInteractionEnabled = false
+            fill.isHidden = overscrollFillColor == nil
+            documentView.addSubview(fill)
+            NSLayoutConstraint.activate([
+                fill.leadingAnchor.constraint(equalTo: terminalView.leadingAnchor),
+                fill.trailingAnchor.constraint(equalTo: terminalView.trailingAnchor),
+                fill.heightAnchor.constraint(equalTo: terminalView.heightAnchor)
+            ])
+        }
+        NSLayoutConstraint.activate([
+            topFill.bottomAnchor.constraint(equalTo: terminalView.topAnchor),
+            bottomFill.topAnchor.constraint(equalTo: terminalView.bottomAnchor)
+        ])
         #endif
 
     }
@@ -855,37 +889,42 @@ extension Ghostty {
     }
 
     private func setupMoshRoamBannerObserver() {
-        // Listen for session changes on our terminal view
-        // The session is set asynchronously after view creation
+        // Listen for session changes on our terminal view, or on the gateway
+        // a tmux -CC / herdr pane mirrors. The session is set asynchronously
+        // after view creation.
         let sessionObserver = NotificationCenter.default.addObserver(
             forName: .ghosttySessionDidChange,
-            object: terminalView,
+            object: nil,
             queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                guard let self,
+                      let source = notification.object as? Ghostty.TerminalView,
+                      source === self.terminalView || source.uuid == self.projectedGatewayUUID else { return }
                 self.updateMoshSessionObserver()
             }
         }
         observers.append(sessionObserver)
 
         #if !targetEnvironment(macCatalyst)
-        // Listen for embedded Mosh session changes (from local shell)
-        let embeddedMoshObserver = NotificationCenter.default.addObserver(
-            forName: .ghosttyEmbeddedMoshSessionDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            // Delivered on .main, so the terminalView/session reads below are
-            // already on the main actor.
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                guard let localSession = notification.object as? LocalShellSession,
-                      localSession === self.terminalView.session else { return }
-                self.updateMoshSessionObserver()
+        // Listen for embedded Mosh/tssh session changes (from local shell)
+        for name in [Notification.Name.ghosttyEmbeddedMoshSessionDidChange, .ghosttyEmbeddedTrzszSessionDidChange] {
+            let embeddedObserver = NotificationCenter.default.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                // Delivered on .main, so the terminalView/session reads below are
+                // already on the main actor.
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    guard let localSession = notification.object as? LocalShellSession,
+                          localSession === self.roamBannerSourceView?.session else { return }
+                    self.updateMoshSessionObserver()
+                }
             }
+            observers.append(embeddedObserver)
         }
-        observers.append(embeddedMoshObserver)
         #endif
 
         // Suppress roam banner flash when returning from background
@@ -939,6 +978,23 @@ extension Ghostty {
         }
     }
 
+    /// Gateway terminal that owns this tmux -CC or herdr pane's connection.
+    private var projectedGatewayUUID: UUID? {
+        terminalView.tmuxPaneBinding?.parentUUID ?? terminalView.herdrPaneBinding?.gatewayUUID
+    }
+
+    /// The view whose session drives the roam banner. Projected panes have no
+    /// connection of their own, so they mirror their gateway's banner.
+    private var roamBannerSourceView: Ghostty.TerminalView? {
+        if let binding = terminalView.tmuxPaneBinding {
+            return TmuxWindowRegistry.gatewayView(ownerTerminalUUID: binding.parentUUID)
+        }
+        if let binding = terminalView.herdrPaneBinding {
+            return HerdrController.controller(forGateway: binding.gatewayUUID)?.gateway
+        }
+        return terminalView
+    }
+
     /// Updates the roaming session observer when the terminal's session changes
     private func updateMoshSessionObserver() {
         // The auth-banner card tracks the session through the exact same
@@ -956,28 +1012,30 @@ extension Ghostty {
         foregroundBannerGraceActive = false
         suppressedBannerState = nil
 
+        let session = roamBannerSourceView?.session
+
         // Check for direct MoshSession
-        if let moshSession = terminalView.session as? MoshSession {
+        if let moshSession = session as? MoshSession {
             observeMoshSession(moshSession)
             return
         }
 
         // Check for direct TrzszSession
-        if let trzszSession = terminalView.session as? TrzszSession {
+        if let trzszSession = session as? TrzszSession {
             observeTrzszSession(trzszSession)
             return
         }
 
         #if !targetEnvironment(macCatalyst)
         // Check for embedded Mosh via LocalShellSession (iOS/visionOS only)
-        if let localSession = terminalView.session as? LocalShellSession,
+        if let localSession = session as? LocalShellSession,
            let embeddedMosh = localSession.embeddedMoshSession {
             observeMoshSession(embeddedMosh)
             return
         }
 
         // Check for embedded Trzsz via LocalShellSession (iOS/visionOS only)
-        if let localSession = terminalView.session as? LocalShellSession,
+        if let localSession = session as? LocalShellSession,
            let embeddedTrzsz = localSession.embeddedTrzszSession {
             observeTrzszSession(embeddedTrzsz)
             return
@@ -1026,7 +1084,7 @@ extension Ghostty {
     private func observeTrzszSession(_ trzszSession: TrzszSession) {
         roamBannerCancellable = trzszSession.$roamBannerState
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] trzszState in
+            .sink { [weak self, weak trzszSession] trzszState in
                 // Convert TrzszRoamBannerState to MoshRoamBannerState for UI reuse
                 let moshState = trzszState.map { state in
                     MoshRoamBannerState(
@@ -1038,7 +1096,7 @@ extension Ghostty {
                     )
                 }
                 self?.updateRoamBanner(state: moshState)
-                if trzszSession.canRebuildJumpConnection {
+                if trzszSession?.canRebuildJumpConnection == true {
                     self?.roamBannerHostView?.rebuildJumpConnection = { [weak trzszSession] in
                         trzszSession?.rebuildJumpConnection()
                     }
@@ -1366,6 +1424,16 @@ extension Ghostty {
         }
 
         guard let scrollbar = terminalView.scrollbar else {
+            // Preserve geometry only when there is no tmux surface to query.
+            // An existing surface's query returns false for empty history;
+            // that must clear any previously observed scrollback geometry.
+            if TerminalScrollbarAvailabilityPolicy.preservesExistingDocument(
+                isTmuxPane: terminalView.isTmuxPane,
+                hasSurface: terminalView.surface != nil,
+                hasValidSample: lastObservedScrollbar != nil
+            ) {
+                return
+            }
             // Reset case (e.g., tmux tracking just ended with no native
             // scrollback to restore, or fresh terminal). Shrink the
             // document view back to the visible viewport so we don't

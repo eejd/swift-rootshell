@@ -1,6 +1,7 @@
 #if !targetEnvironment(macCatalyst)
 
 import Foundation
+import os
 import OSLog
 
 private struct ScreenControlDetector: Sendable {
@@ -219,11 +220,6 @@ extension LocalShellSession {
         // Only set LANG (not LC_ALL) to allow customization of individual LC_* categories
         if let effectiveLocale = LocaleHelper.effectiveLocale {
             ios_setenv("LANG", effectiveLocale, 1)
-
-            // Set LANGUAGE for gettext translation priority if available
-            if let preferredLanguages = LocaleHelper.effectivePreferredLanguages {
-                ios_setenv("LANGUAGE", preferredLanguages, 1)
-            }
         }
 
         // Set terminal identification for apps that check capabilities
@@ -293,14 +289,24 @@ extension LocalShellSession {
         ios_setenv("COLUMNS", String(size.cols), 1)
         ios_setenv("LINES", String(size.rows), 1)
 
-        // Configure PATH with ios_system commands
-        let paths = [
+        // ios_system resolves bundled commands from its command dictionary;
+        // PATH is only needed to find user-installed scripts and tools.
+        var paths = [
             documentsPath,
-            "\(documentsPath)/bin",
+            "\(documentsPath)/bin"
+        ]
+        // The simulator can read the Mac's /usr/bin/cd (a #!/bin/sh script).
+        // ios_system gives PATH scripts precedence over its builtins and tries
+        // to launch that script with dash, which we don't bundle. Keep host
+        // tools out of the simulator's PATH so cd and other builtins resolve
+        // exactly as they do on a device.
+        #if !targetEnvironment(simulator)
+        paths += [
             "/usr/bin",
             "/bin",
             "/usr/local/bin"
         ]
+        #endif
         ios_setenv("PATH", paths.joined(separator: ":"), 1)
     }
 
@@ -443,6 +449,9 @@ extension LocalShellSession {
         } else {
             ios_unsetenv("ROOTSHELL_USERNAME")
         }
+        #if !CHINA_BUILD
+        Self.refreshTailnetProxyEnvironment()
+        #endif
 
         // Redirect ios_system I/O to pipes. stdout and stderr get distinct
         // streams so top-level `2>` redirections can actually separate them —
@@ -789,5 +798,31 @@ extension LocalShellSession {
     }
 
 }
+
+#if !CHINA_BUILD
+extension LocalShellSession {
+    /// Values this app last set, so a value the user exported is left alone.
+    private nonisolated static let tailnetProxyOwned = OSAllocatedUnfairLock<[String: String]>(initialState: [:])
+
+    /// Points curl at in-app Tailscale's loopback proxy (ALL_PROXY), or clears
+    /// it. The environment is process-wide; this runs before each command.
+    nonisolated static func refreshTailnetProxyEnvironment() {
+        let wanted = TailnetRouting.shared.state.shellProxyEnvironment ?? [:]
+        tailnetProxyOwned.withLock { owned in
+            for name in ["ALL_PROXY", "NO_PROXY"] {
+                let current = ios_getenv(name).map { String(cString: $0) }
+                guard current == nil || current == owned[name] else { continue }
+                if let value = wanted[name] {
+                    if current != value { ios_setenv(name, value, 1) }
+                    owned[name] = value
+                } else if owned[name] != nil {
+                    ios_unsetenv(name)
+                    owned[name] = nil
+                }
+            }
+        }
+    }
+}
+#endif
 
 #endif // !targetEnvironment(macCatalyst)

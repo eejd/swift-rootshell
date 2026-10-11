@@ -136,36 +136,11 @@ struct HostMessage: Sendable {
     /// Deserializes from protobuf wire format
     nonisolated static func deserialize(_ data: Data) throws -> HostMessage {
         var message = HostMessage()
-        var offset = 0
-
-        while offset < data.count {
-            let (tag, newOffset) = try decodeVarint(data, from: offset)
-            offset = newOffset
-
-            let fieldNumber = Int(tag >> 3)
-            let wireType = WireType(rawValue: Int(tag & 0x7))
-
-            guard fieldNumber == 1, wireType == .lengthDelimited else {
-                offset = try skipField(data, from: offset, wireType: wireType ?? .varint)
-                continue
-            }
-
-            let (length, lengthOffset) = try decodeVarint(data, from: offset)
-            offset = lengthOffset
-
-            guard offset + Int(length) <= data.count else {
-                throw MoshError.protobufDeserializationFailed(
-                    messageType: "HostMessage",
-                    reason: "Instruction length exceeds data"
-                )
-            }
-
-            let instructionData = Data(data[offset..<(offset + Int(length))])
-            let instruction = try parseInstruction(instructionData)
-            message.instructions.append(instruction)
-            offset += Int(length)
-        }
-
+        message.instructions = try parseRepeatedSubmessages(
+            data: data,
+            messageType: "HostMessage",
+            parse: parseInstruction
+        )
         return message
     }
 
@@ -187,9 +162,7 @@ struct HostMessage: Sendable {
                         reason: "Expected message for hostbytes"
                     )
                 }
-                let (length, lengthOffset) = try decodeVarint(data, from: offset)
-                offset = lengthOffset
-                let hostData = Data(data[offset..<(offset + Int(length))])
+                let (hostData, _) = try decodeLengthDelimited(data, from: offset, messageType: "Instruction")
                 let bytes = try parseHostBytes(hostData)
                 return .hostBytes(bytes)
 
@@ -200,9 +173,7 @@ struct HostMessage: Sendable {
                         reason: "Expected message for resize"
                     )
                 }
-                let (length, lengthOffset) = try decodeVarint(data, from: offset)
-                offset = lengthOffset
-                let resizeData = Data(data[offset..<(offset + Int(length))])
+                let (resizeData, _) = try decodeLengthDelimited(data, from: offset, messageType: "Instruction")
                 let (width, height) = try parseResize(resizeData)
                 return .resize(width: width, height: height)
 
@@ -213,9 +184,7 @@ struct HostMessage: Sendable {
                         reason: "Expected message for echoack"
                     )
                 }
-                let (length, lengthOffset) = try decodeVarint(data, from: offset)
-                offset = lengthOffset
-                let ackData = Data(data[offset..<(offset + Int(length))])
+                let (ackData, _) = try decodeLengthDelimited(data, from: offset, messageType: "Instruction")
                 let ack = try parseEchoAck(ackData)
                 return .echoAck(ack)
 
@@ -243,10 +212,9 @@ struct HostMessage: Sendable {
 
             // Field 4: hoststring (bytes)
             if fieldNumber == 4, wireType == .lengthDelimited {
-                let (length, lengthOffset) = try decodeVarint(data, from: offset)
-                offset = lengthOffset
-                outputData = Data(data[offset..<(offset + Int(length))])
-                offset += Int(length)
+                let (bytes, endOffset) = try decodeLengthDelimited(data, from: offset, messageType: "HostBytes")
+                outputData = bytes
+                offset = endOffset
             } else {
                 offset = try skipField(data, from: offset, wireType: wireType ?? .varint)
             }
@@ -272,23 +240,31 @@ struct HostMessage: Sendable {
             offset = newOffset
 
             let fieldNumber = Int(tag >> 3)
+            let wireType = WireType(rawValue: Int(tag & 0x7))
 
             // Field 5: width, Field 6: height
-            if fieldNumber == 5 {
-                let (w, wOffset) = try decodeVarint(data, from: offset)
-                width = UInt32(w)
-                offset = wOffset
-            } else if fieldNumber == 6 {
-                let (h, hOffset) = try decodeVarint(data, from: offset)
-                height = UInt32(h)
-                offset = hOffset
+            if fieldNumber == 5, wireType == .varint {
+                (width, offset) = try decodeUInt32(data, from: offset, messageType: "ResizeMessage")
+            } else if fieldNumber == 6, wireType == .varint {
+                (height, offset) = try decodeUInt32(data, from: offset, messageType: "ResizeMessage")
             } else {
-                offset = try skipField(data, from: offset, wireType: .varint)
+                offset = try skipField(data, from: offset, wireType: wireType ?? .varint)
             }
+        }
+
+        // The framebuffer preconditions on a non-empty size. mosh-server sizes come
+        // from struct winsize (unsigned short), so nothing legitimate exceeds UInt16.
+        guard (1...maxResizeDimension).contains(width), (1...maxResizeDimension).contains(height) else {
+            throw MoshError.protobufDeserializationFailed(
+                messageType: "ResizeMessage",
+                reason: "Size \(width)x\(height) out of range"
+            )
         }
 
         return (width, height)
     }
+
+    nonisolated private static let maxResizeDimension = UInt32(UInt16.max)
 
     nonisolated private static func parseEchoAck(_ data: Data) throws -> EchoAck {
         var offset = 0
@@ -299,152 +275,18 @@ struct HostMessage: Sendable {
             offset = newOffset
 
             let fieldNumber = Int(tag >> 3)
+            let wireType = WireType(rawValue: Int(tag & 0x7))
 
             // Field 8: echo_ack_num
-            if fieldNumber == 8 {
+            if fieldNumber == 8, wireType == .varint {
                 let (n, nOffset) = try decodeVarint(data, from: offset)
                 echoNum = UInt64(bitPattern: Int64(n))
                 offset = nOffset
             } else {
-                offset = try skipField(data, from: offset, wireType: .varint)
+                offset = try skipField(data, from: offset, wireType: wireType ?? .varint)
             }
         }
 
         return EchoAck(echoNum: echoNum)
-    }
-}
-
-// MARK: - Convenience Methods
-
-extension HostMessage {
-    /// Extracts all terminal output from the message
-    var allOutput: Data {
-        var result = Data()
-        for instruction in instructions {
-            if case .hostBytes(let bytes) = instruction {
-                result.append(bytes.data)
-            }
-        }
-        return result
-    }
-
-    /// Returns true if this message contains any terminal output
-    var hasOutput: Bool {
-        instructions.contains { instruction in
-            if case .hostBytes = instruction { return true }
-            return false
-        }
-    }
-
-    /// Returns any resize instruction in the message
-    var resizeInfo: (width: UInt32, height: UInt32)? {
-        for instruction in instructions {
-            if case .resize(let w, let h) = instruction {
-                return (w, h)
-            }
-        }
-        return nil
-    }
-}
-
-// MARK: - Protobuf Helpers
-
-private enum WireType: Int {
-    case varint = 0
-    case fixed64 = 1
-    case lengthDelimited = 2
-    case startGroup = 3
-    case endGroup = 4
-    case fixed32 = 5
-}
-
-/// Appends a protobuf tag directly to data, avoiding intermediate allocation
-nonisolated private func appendTag(fieldNumber: Int, wireType: WireType, to data: inout Data) {
-    appendVarint(Int64((fieldNumber << 3) | wireType.rawValue), to: &data)
-}
-
-/// Encodes a varint directly into the given Data, avoiding intermediate allocation
-nonisolated private func appendVarint(_ value: Int64, to data: inout Data) {
-    var v = UInt64(bitPattern: value)
-
-    repeat {
-        var byte = UInt8(v & 0x7F)
-        v >>= 7
-        if v != 0 {
-            byte |= 0x80
-        }
-        data.append(byte)
-    } while v != 0
-}
-
-/// Legacy wrapper for compatibility - prefer appendVarint for new code
-nonisolated private func encodeTag(fieldNumber: Int, wireType: WireType) -> [UInt8] {
-    encodeVarint(Int64((fieldNumber << 3) | wireType.rawValue))
-}
-
-/// Legacy wrapper for compatibility - prefer appendVarint for new code
-nonisolated private func encodeVarint(_ value: Int64) -> [UInt8] {
-    var result: [UInt8] = []
-    var v = UInt64(bitPattern: value)
-
-    repeat {
-        var byte = UInt8(v & 0x7F)
-        v >>= 7
-        if v != 0 {
-            byte |= 0x80
-        }
-        result.append(byte)
-    } while v != 0
-
-    return result
-}
-
-nonisolated private func decodeVarint(_ data: Data, from offset: Int) throws -> (value: Int64, newOffset: Int) {
-    var result: Int64 = 0
-    var shift = 0
-    var currentOffset = offset
-
-    while currentOffset < data.count {
-        let byte = data[currentOffset]
-        currentOffset += 1
-
-        result |= Int64(byte & 0x7F) << shift
-        shift += 7
-
-        if byte & 0x80 == 0 {
-            return (result, currentOffset)
-        }
-
-        if shift > 63 {
-            throw MoshError.protobufDeserializationFailed(
-                messageType: "varint",
-                reason: "Varint too long"
-            )
-        }
-    }
-
-    throw MoshError.protobufDeserializationFailed(
-        messageType: "varint",
-        reason: "Unexpected end of data"
-    )
-}
-
-nonisolated private func skipField(_ data: Data, from offset: Int, wireType: WireType) throws -> Int {
-    switch wireType {
-    case .varint:
-        let (_, newOffset) = try decodeVarint(data, from: offset)
-        return newOffset
-    case .fixed64:
-        return offset + 8
-    case .lengthDelimited:
-        let (length, newOffset) = try decodeVarint(data, from: offset)
-        return newOffset + Int(length)
-    case .fixed32:
-        return offset + 4
-    case .startGroup, .endGroup:
-        throw MoshError.protobufDeserializationFailed(
-            messageType: "field",
-            reason: "Groups not supported"
-        )
     }
 }

@@ -6,7 +6,6 @@ struct TerminalOutputCoalescingConfig: Sendable {
     let inputDebounceMs: Int
     let minBatchIntervalMs: Int
     let maxBatchIntervalMs: Int
-    let useSynchronizedOutput: Bool
     let debug: Bool
 
     static func fromEnvironment(defaultMinMs: Int? = nil) -> TerminalOutputCoalescingConfig {
@@ -27,7 +26,6 @@ struct TerminalOutputCoalescingConfig: Sendable {
             inputDebounceMs: envInt("GHOSTTY_OUTPUT_COALESCE_INPUT_DEBOUNCE_MS") ?? 120,
             minBatchIntervalMs: minMs,
             maxBatchIntervalMs: maxMs,
-            useSynchronizedOutput: (envInt("GHOSTTY_OUTPUT_COALESCE_SYNC") ?? 0) != 0,
             debug: (envInt("GHOSTTY_OUTPUT_COALESCE_DEBUG") ?? 0) != 0
         )
     }
@@ -60,6 +58,8 @@ final class TerminalOutputPipeline {
     private let config: TerminalOutputCoalescingConfig
     private var isOutputCoalescingSuppressedByInput = false
     private var outputCoalescingResumeTimer: Timer?
+    private var onURLRequest: (@Sendable (URL) -> Void)?
+    private var urlRequestObserver: TerminalURLRequestObserver?
 
     let bufferedWriter: TerminalBufferedPipeWriter
     let scrollbackRestoreOutputGate = TerminalScrollbackRestoreOutputGate()
@@ -68,7 +68,6 @@ final class TerminalOutputPipeline {
         TerminalOutputCoalescer(
             minBatchIntervalMs: config.minBatchIntervalMs,
             maxBatchIntervalMs: config.maxBatchIntervalMs,
-            useSynchronizedOutput: config.useSynchronizedOutput,
             debug: config.debug,
             write: { [scrollbackRestoreOutputGate, bufferedWriter] data in
                 scrollbackRestoreOutputGate.writeOrBuffer(data, to: bufferedWriter)
@@ -106,11 +105,22 @@ final class TerminalOutputPipeline {
     }
 
     func writeSessionOutput(_ data: Data) {
+        urlRequestObserver?.consume(data)
         scrollbackRestoreOutputGate.writeOrBuffer(data, to: bufferedWriter)
     }
 
     func enqueueCoalescedOutput(_ data: Data) {
+        urlRequestObserver?.consume(data)
         outputCoalescer.enqueue(data)
+    }
+
+    func setURLRequestHandler(_ handler: @escaping @Sendable (URL) -> Void) {
+        onURLRequest = handler
+        resetURLRequestObserver()
+    }
+
+    func resetURLRequestObserver() {
+        urlRequestObserver = onURLRequest.map { TerminalURLRequestObserver(onURL: $0) }
     }
 
     func setOutputCoalescingEnabled(_ enabled: Bool) {
@@ -143,7 +153,7 @@ final class TerminalOutputPipeline {
 
         outputCoalescingResumeTimer?.invalidate()
         let debounceSeconds = Double(config.inputDebounceMs) / 1000.0
-        outputCoalescingResumeTimer = Timer.scheduledTimer(withTimeInterval: debounceSeconds, repeats: false) { _ in
+        outputCoalescingResumeTimer = Timer.scheduledTimer(withTimeInterval: debounceSeconds, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.isOutputCoalescingSuppressedByInput = false
@@ -182,6 +192,9 @@ final class TerminalOutputPipeline {
         let bufferedWriter = self.bufferedWriter
         let scrollbackRestoreOutputGate = self.scrollbackRestoreOutputGate
         let persistenceNotifyPending = OSAllocatedUnfairLock<Bool>(initialState: false)
+        // One fresh parser per adopted session. Saved scrollback and local
+        // redraws use writeDirect and cannot replay a browser request.
+        let urlObserver = onURLRequest.map { TerminalURLRequestObserver(onURL: $0) }
 
         let writeDirect: @Sendable (Data) -> Void = { data in
             scrollbackRestoreOutputGate.writeOrBuffer(data, to: bufferedWriter)
@@ -189,6 +202,7 @@ final class TerminalOutputPipeline {
 
         return { data in
             noteGatewayInboundBytes(data.count)
+            urlObserver?.consume(data)
 
             if let outputCoalescer {
                 outputCoalescer.enqueue(data)
@@ -217,133 +231,27 @@ final class TerminalOutputPipeline {
 // @unchecked Sendable: internal state is confined to the coalescer queue,
 // except for enabledForFastPath which uses os_unfair_lock for fast-path bypass.
 nonisolated final class TerminalOutputCoalescer: @unchecked Sendable {
-    private static let syncOutputStart = "\u{1B}[?2026h"
-    private static let syncOutputEnd = "\u{1B}[?2026l"
-
     private let queue = DispatchQueue(label: "com.rootshell.output.coalescer", qos: .userInitiated)
     private let minBatchInterval: DispatchTimeInterval
     private let maxBatchInterval: DispatchTimeInterval
-    private let useSynchronizedOutput: Bool
     private let debug: Bool
-    private let syncStart: Data
-    private let syncEnd: Data
     private let write: @Sendable (Data) -> Void
     private var pending = Data()
     private var timer: DispatchSourceTimer?
     private var firstEnqueueTime: DispatchTime?
     private var currentDeadline: DispatchTime?
-    private var parseState = VTParseState()
-    private var parseLock = os_unfair_lock()
     private var enabledForFastPath = false
     private var disableFlushInProgress = false
     private var transitionGeneration: UInt64 = 0
     private var fastPathLock = os_unfair_lock()
     private var isEnabled = false
 
-    private struct VTParseState {
-        private var escPending = false
-        private var escIntermediate = false
-        private var inCSI = false
-        private var inString = false
-        private var stringEsc = false
-
-        var isSafeForSync: Bool {
-            return !escPending && !escIntermediate && !inCSI && !inString
-        }
-
-        mutating func advance(_ byte: UInt8) {
-            if inString {
-                if stringEsc {
-                    stringEsc = false
-                    if byte == 0x5c {
-                        inString = false
-                    }
-                    return
-                }
-
-                if byte == 0x1b {
-                    stringEsc = true
-                    return
-                }
-
-                if byte == 0x07 || byte == 0x9c {
-                    inString = false
-                }
-                return
-            }
-
-            if inCSI {
-                if byte >= 0x40 && byte <= 0x7E {
-                    inCSI = false
-                }
-                return
-            }
-
-            if escIntermediate {
-                if byte >= 0x20 && byte <= 0x2F {
-                    return
-                }
-                escIntermediate = false
-                return
-            }
-
-            if escPending {
-                escPending = false
-                switch byte {
-                case 0x5b:
-                    inCSI = true
-                case 0x5d, 0x50, 0x5e, 0x5f, 0x58:
-                    inString = true
-                case 0x5c:
-                    break
-                default:
-                    if byte >= 0x20 && byte <= 0x2F {
-                        escIntermediate = true
-                    }
-                }
-                return
-            }
-
-            switch byte {
-            case 0x1b:
-                escPending = true
-            case 0x9b:
-                inCSI = true
-            case 0x9d, 0x90, 0x9e, 0x9f, 0x98:
-                inString = true
-            default:
-                break
-            }
-        }
-    }
-
-    private func updateParseState(_ data: Data) {
-        guard !data.isEmpty else { return }
-        os_unfair_lock_lock(&parseLock)
-        data.withUnsafeBytes { buffer in
-            for byte in buffer {
-                parseState.advance(byte)
-            }
-        }
-        os_unfair_lock_unlock(&parseLock)
-    }
-
-    private func isSafeForSynchronizedOutput() -> Bool {
-        os_unfair_lock_lock(&parseLock)
-        let safe = parseState.isSafeForSync
-        os_unfair_lock_unlock(&parseLock)
-        return safe
-    }
-
-    init(minBatchIntervalMs: Int, maxBatchIntervalMs: Int, useSynchronizedOutput: Bool, debug: Bool, write: @escaping @Sendable (Data) -> Void) {
+    init(minBatchIntervalMs: Int, maxBatchIntervalMs: Int, debug: Bool, write: @escaping @Sendable (Data) -> Void) {
         let minMs = max(1, minBatchIntervalMs)
         let maxMs = max(minMs, maxBatchIntervalMs)
         self.minBatchInterval = .milliseconds(minMs)
         self.maxBatchInterval = .milliseconds(maxMs)
-        self.useSynchronizedOutput = useSynchronizedOutput
         self.debug = debug
-        self.syncStart = Data(Self.syncOutputStart.utf8)
-        self.syncEnd = Data(Self.syncOutputEnd.utf8)
         self.write = write
     }
 
@@ -399,19 +307,16 @@ nonisolated final class TerminalOutputCoalescer: @unchecked Sendable {
                 let byteCount = data.count
                 Ghostty.logger.debug("OutputCoalescer direct bypass: \(byteCount) bytes")
             }
-            updateParseState(data)
             write(data)
             return
         }
 
         queue.async {
             if !self.isEnabled {
-                self.updateParseState(data)
                 self.write(data)
                 return
             }
 
-            self.updateParseState(data)
             self.pending.append(data)
             if self.firstEnqueueTime == nil {
                 self.firstEnqueueTime = .now()
@@ -455,16 +360,7 @@ nonisolated final class TerminalOutputCoalescer: @unchecked Sendable {
             return
         }
 
-        let shouldUseSync = useSynchronizedOutput && isSafeForSynchronizedOutput()
-        var output = Data()
-        if shouldUseSync {
-            output.append(syncStart)
-        }
-        output.append(pending)
-        if shouldUseSync {
-            output.append(syncEnd)
-        }
-
+        let output = pending
         pending.removeAll(keepingCapacity: true)
         cancelTimerLocked()
         firstEnqueueTime = nil
@@ -671,8 +567,14 @@ nonisolated final class TerminalBufferedPipeWriter: @unchecked Sendable {
     /// bound. On overflow the OLDEST chunks are dropped down to the low-water
     /// mark (halving amortizes the drop cost across writes) and the loss is
     /// reported via `onOverflow` once the queue next drains empty.
-    private static let maxBufferedBytes = 16 * 1024 * 1024
-    private static let overflowLowWaterBytes = maxBufferedBytes / 2
+    private static let foregroundMaxBufferedBytes = 16 * 1024 * 1024
+
+    /// Background jetsam limits are far tighter, so the cap shrinks while backgrounded.
+    private static func maxBufferedBytes() -> Int {
+        Ghostty.isAppBackgroundedAtomic
+            ? BackgroundExecutionPolicy.backgroundPipeWriterMaxBytes
+            : foregroundMaxBufferedBytes
+    }
     /// Prepended at the drop seam: the core parser may be mid-OSC/DCS whose
     /// terminator was just dropped and would swallow all subsequent output;
     /// a stray ST in ground state is a no-op.
@@ -732,6 +634,9 @@ nonisolated final class TerminalBufferedPipeWriter: @unchecked Sendable {
     func write(_ data: Data) {
         guard !data.isEmpty else { return }
 
+        let maxBufferedBytes = Self.maxBufferedBytes()
+        let overflowLowWaterBytes = maxBufferedBytes / 2
+
         os_unfair_lock_lock(&bufferLock)
 
         guard fd >= 0, let source = writeSource else {
@@ -743,7 +648,7 @@ nonisolated final class TerminalBufferedPipeWriter: @unchecked Sendable {
         let combinedSize = pendingByteCount + data.count
         var overflowToLog = 0
 
-        if combinedSize > Self.maxBufferedBytes {
+        if combinedSize > maxBufferedBytes {
             // Enforce the cap BEFORE storing so the pending bytes never
             // materialize above it. Drop exactly the bytes needed to reach
             // the low-water mark from the oldest end of the logical (queue +
@@ -754,11 +659,11 @@ nonisolated final class TerminalBufferedPipeWriter: @unchecked Sendable {
             // full scrollback restore passed as one Data).
             var incoming = data
             var dropped = 0
-            while pendingByteCount + incoming.count > Self.overflowLowWaterBytes,
+            while pendingByteCount + incoming.count > overflowLowWaterBytes,
                   headIndex < chunks.count {
                 let chunk = chunks[headIndex]
                 let remainder = chunk.count - headOffset
-                let excess = pendingByteCount + incoming.count - Self.overflowLowWaterBytes
+                let excess = pendingByteCount + incoming.count - overflowLowWaterBytes
                 if remainder <= excess {
                     chunks[headIndex] = Data()
                     headIndex += 1
@@ -774,10 +679,10 @@ nonisolated final class TerminalBufferedPipeWriter: @unchecked Sendable {
                 dropped += excess
                 break
             }
-            if incoming.count > Self.overflowLowWaterBytes {
-                dropped += incoming.count - Self.overflowLowWaterBytes
+            if incoming.count > overflowLowWaterBytes {
+                dropped += incoming.count - overflowLowWaterBytes
                 incoming = TerminalOutputChunkTuning.ownedSuffix(
-                    of: incoming, count: Self.overflowLowWaterBytes)
+                    of: incoming, count: overflowLowWaterBytes)
             }
             if headIndex == chunks.count {
                 chunks.removeAll(keepingCapacity: true)
@@ -807,7 +712,7 @@ nonisolated final class TerminalBufferedPipeWriter: @unchecked Sendable {
         os_unfair_lock_unlock(&bufferLock)
 
         if overflowToLog > 0 {
-            let cap = Self.maxBufferedBytes
+            let cap = maxBufferedBytes
             Ghostty.logger.error("BufferedPipeWriter: buffer exceeded \(cap) byte cap; dropping oldest \(overflowToLog) bytes (reader stalled or output firehose)")
         }
     }

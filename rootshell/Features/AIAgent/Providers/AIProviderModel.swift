@@ -32,7 +32,7 @@ struct AIProviderModel: Identifiable, Codable, Sendable, Hashable {
     /// Where the model configuration came from
     enum ModelSource: String, Codable, Sendable {
         case openAI         // Built-in OpenAI models
-        case chatGPT        // ChatGPT subscription models (discovered from the Codex backend)
+        case chatGPT        // ChatGPT plan models (from the signed-in account's catalog)
         case anthropic      // Built-in Anthropic models
         case bedrock        // Anthropic models served via AWS Bedrock
         case google         // Built-in Google Gemini models
@@ -87,14 +87,14 @@ struct AIProviderModel: Identifiable, Codable, Sendable, Hashable {
 extension AIProviderModel {
     /// Available OpenAI models
     static let openAIModels: [AIProviderModel] = [
-        // Premium tier - GPT-5.6 frontier model (recommended default)
+        // Premium tier - GPT-6 flagship (recommended default)
         .init(
-            id: "gpt-5.6-sol",
-            displayName: "GPT-5.6 Sol",
-            description: "Frontier model for complex professional work (Recommended)",
+            id: "gpt-6-astra",
+            displayName: "GPT-6 Astra",
+            description: "Most intelligent, state-of-the-art (Recommended)",
             tier: .premium,
             supportsTools: true,
-            supportsTemperature: false,
+            supportsTemperature: false,  // GPT-6 rejects temperature when reasoning is on
             supportsThinking: false,
             source: .openAI,
             maxCompletionTokens: 128_000,
@@ -103,9 +103,9 @@ extension AIProviderModel {
 
         // Standard tier - balanced intelligence and cost
         .init(
-            id: "gpt-5.6-terra",
-            displayName: "GPT-5.6 Terra",
-            description: "Balances intelligence and cost",
+            id: "gpt-6-sol",
+            displayName: "GPT-6 Sol",
+            description: "Strong reasoning for coding and agentic work",
             tier: .standard,
             supportsTools: true,
             supportsTemperature: false,
@@ -117,9 +117,9 @@ extension AIProviderModel {
 
         // Budget tier - cost-sensitive, high-volume workloads
         .init(
-            id: "gpt-5.6-luna",
-            displayName: "GPT-5.6 Luna",
-            description: "Optimized for cost-sensitive workloads",
+            id: "gpt-6-luna",
+            displayName: "GPT-6 Luna",
+            description: "Efficient, repeatable work at scale",
             tier: .budget,
             supportsTools: true,
             supportsTemperature: false,
@@ -128,24 +128,10 @@ extension AIProviderModel {
             maxCompletionTokens: 128_000,
             contextWindowTokens: 1_050_000
         ),
-
-        // Premium tier - GPT-5.5 flagship
-        .init(
-            id: "gpt-5.5-2026-04-23",
-            displayName: "GPT-5.5",
-            description: "Flagship reasoning model",
-            tier: .premium,
-            supportsTools: true,
-            supportsTemperature: false,  // GPT-5.x models only support temperature=1
-            supportsThinking: false,
-            source: .openAI,
-            maxCompletionTokens: 128_000,
-            contextWindowTokens: 1_050_000
-        ),
     ]
 
     /// Default model ID for new configurations
-    nonisolated static let defaultModelID = "gpt-5.6-sol"
+    nonisolated static let defaultModelID = "gpt-6-astra"
 
     /// Get model by ID
     static func openAIModel(id: String) -> AIProviderModel? {
@@ -230,11 +216,11 @@ extension AIProviderModel.ModelSource {
 extension AIProviderModel {
     /// Available Anthropic models
     static let anthropicModels: [AIProviderModel] = [
-        // Premium tier - Claude Opus 5 with adaptive thinking (1M context)
+        // Premium tier - Claude Fable 5.1, thinking always on (1M context)
         .init(
-            id: "claude-opus-5",
-            displayName: "Claude Opus 5",
-            description: "Most capable, 1M context, adaptive thinking",
+            id: "claude-fable-5-1",
+            displayName: "Claude Fable 5.1",
+            description: "Most capable, for the hardest long-running work",
             tier: .premium,
             supportsTools: true,
             supportsTemperature: true,
@@ -244,26 +230,12 @@ extension AIProviderModel {
             contextWindowTokens: 1_000_000
         ),
 
-        // Standard tier - Claude Sonnet 4.6 with adaptive thinking
+        // Premium tier - Claude Opus 5.5, thinking always on (1M context)
         .init(
-            id: "claude-sonnet-4-6",
-            displayName: "Claude Sonnet 4.6",
-            description: "Fast & capable, adaptive thinking",
-            tier: .standard,
-            supportsTools: true,
-            supportsTemperature: true,
-            supportsThinking: true,
-            source: .anthropic,
-            maxCompletionTokens: nil,
-            contextWindowTokens: 200_000
-        ),
-
-        // Standard tier - Claude Sonnet 5 with adaptive thinking
-        .init(
-            id: "claude-sonnet-5",
-            displayName: "Claude Sonnet 5",
-            description: "Near-Opus quality, fast & capable, adaptive thinking",
-            tier: .standard,
+            id: "claude-opus-5-5",
+            displayName: "Claude Opus 5.5",
+            description: "Frontier Opus, 1M context, adaptive thinking",
+            tier: .premium,
             supportsTools: true,
             supportsTemperature: true,
             supportsThinking: true,
@@ -272,10 +244,24 @@ extension AIProviderModel {
             contextWindowTokens: 1_000_000
         ),
 
-        // Budget tier - Claude Haiku 4.5 with thinking
+        // Standard tier - Claude Sonnet 5.5 with adaptive thinking
         .init(
-            id: "claude-haiku-4-5-20251001",
-            displayName: "Claude Haiku 4.5",
+            id: "claude-sonnet-5-5",
+            displayName: "Claude Sonnet 5.5",
+            description: "Near-Opus quality, fast & capable, adaptive thinking",
+            tier: .standard,
+            supportsTools: true,
+            supportsTemperature: true,
+            supportsThinking: true,
+            source: .anthropic,
+            maxCompletionTokens: 64_000,
+            contextWindowTokens: 1_000_000
+        ),
+
+        // Budget tier - Claude Haiku 5.5 with adaptive thinking
+        .init(
+            id: "claude-haiku-5-5",
+            displayName: "Claude Haiku 5.5",
             description: "Fastest, lowest cost",
             tier: .budget,
             supportsTools: true,
@@ -283,12 +269,12 @@ extension AIProviderModel {
             supportsThinking: true,
             source: .anthropic,
             maxCompletionTokens: nil,
-            contextWindowTokens: 200_000
+            contextWindowTokens: 1_000_000
         ),
     ]
 
     /// Default Anthropic model ID
-    static let defaultAnthropicModelID = "claude-sonnet-5"
+    static let defaultAnthropicModelID = "claude-sonnet-5-5"
 
     /// Get Anthropic model by ID
     static func anthropicModel(id: String) -> AIProviderModel? {
@@ -312,9 +298,9 @@ extension AIProviderModel {
     /// underlying model is the same — only the transport differs.
     static let bedrockModels: [AIProviderModel] = [
         .init(
-            id: "bedrock-claude-opus-5",
-            displayName: "Claude Opus 5 (Bedrock)",
-            description: "Most capable, 1M context, adaptive thinking",
+            id: "bedrock-claude-fable-5-1",
+            displayName: "Claude Fable 5.1 (Bedrock)",
+            description: "Most capable, for the hardest long-running work",
             tier: .premium,
             supportsTools: true,
             supportsTemperature: true,
@@ -324,22 +310,10 @@ extension AIProviderModel {
             contextWindowTokens: 1_000_000
         ),
         .init(
-            id: "bedrock-claude-sonnet-4-6",
-            displayName: "Claude Sonnet 4.6 (Bedrock)",
-            description: "Fast & capable, adaptive thinking",
-            tier: .standard,
-            supportsTools: true,
-            supportsTemperature: true,
-            supportsThinking: true,
-            source: .bedrock,
-            maxCompletionTokens: nil,
-            contextWindowTokens: 200_000
-        ),
-        .init(
-            id: "bedrock-claude-sonnet-5",
-            displayName: "Claude Sonnet 5 (Bedrock)",
-            description: "Near-Opus quality, fast & capable, adaptive thinking",
-            tier: .standard,
+            id: "bedrock-claude-opus-5-5",
+            displayName: "Claude Opus 5.5 (Bedrock)",
+            description: "Frontier Opus, 1M context, adaptive thinking",
+            tier: .premium,
             supportsTools: true,
             supportsTemperature: true,
             supportsThinking: true,
@@ -348,8 +322,20 @@ extension AIProviderModel {
             contextWindowTokens: 1_000_000
         ),
         .init(
-            id: "bedrock-claude-haiku-4-5",
-            displayName: "Claude Haiku 4.5 (Bedrock)",
+            id: "bedrock-claude-sonnet-5-5",
+            displayName: "Claude Sonnet 5.5 (Bedrock)",
+            description: "Near-Opus quality, fast & capable, adaptive thinking",
+            tier: .standard,
+            supportsTools: true,
+            supportsTemperature: true,
+            supportsThinking: true,
+            source: .bedrock,
+            maxCompletionTokens: 64_000,
+            contextWindowTokens: 1_000_000
+        ),
+        .init(
+            id: "bedrock-claude-haiku-5-5",
+            displayName: "Claude Haiku 5.5 (Bedrock)",
             description: "Fastest, lowest cost",
             tier: .budget,
             supportsTools: true,
@@ -357,12 +343,12 @@ extension AIProviderModel {
             supportsThinking: true,
             source: .bedrock,
             maxCompletionTokens: nil,
-            contextWindowTokens: 200_000
+            contextWindowTokens: 1_000_000
         )
     ]
 
     /// Default Bedrock model when the user first configures the provider.
-    static let defaultBedrockModelID = "bedrock-claude-sonnet-5"
+    static let defaultBedrockModelID = "bedrock-claude-sonnet-5-5"
 
     /// Get a Bedrock model entry by internal ID.
     static func bedrockModel(id: String) -> AIProviderModel? {

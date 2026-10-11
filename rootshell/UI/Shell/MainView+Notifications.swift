@@ -191,7 +191,12 @@ extension MainView {
             // events close the dying tab, not whichever tab the user has since
             // switched to. nil object → fall back to the focused split.
             let target = notification.object as? SplitPaneView
-            self.closeSplit(targeting: target)
+            let leaveMux = notification.userInfo?[MuxSessionDetach.leaveMuxSessionUserInfoKey] as? Bool ?? false
+            if notification.userInfo?[GhosttyCommandRouting.userInitiatedCloseSplitKey] as? Bool == true {
+                self.requestUserCloseSplit(targeting: target)
+            } else {
+                self.closeSplit(targeting: target, leaveMuxSession: leaveMux)
+            }
         }
 
         observerBag.observeOnMainActor(.vncToggleFullScreen) { [self] notification in
@@ -224,6 +229,27 @@ extension MainView {
             // Handle both UIKeyCommand (with terminal) and SwiftUI Commands (nil object)
             guard self.shouldHandleNotification(notification) else { return }
             self.equalizeSplits()
+        }
+
+        observerBag.observeOnMainActor(.choosePaneToZoom) { [self] notification in
+            guard self.shouldHandleNotification(notification),
+                  !isAnySheetPresented,
+                  terminals.indices.contains(selectedTabIndex) else { return }
+            let tab = terminals[selectedTabIndex]
+            // The remembered focus can be a hidden/detached pane while zoom
+            // or menu focus is settling. Any mounted leaf identifies the host.
+            let host = tab.focusedPane?.enclosingSplitHost
+                ?? tab.splitTree.terminalLeaves.compactMap(\.enclosingSplitHost).first
+            host?.showPaneZoomPicker()
+        }
+
+        observerBag.observeOnMainActor(.choosePaneToSwap) { [self] notification in
+            guard self.shouldHandleNotification(notification), !isAnySheetPresented,
+                  terminals.indices.contains(selectedTabIndex) else { return }
+            let tab = terminals[selectedTabIndex]
+            let host = tab.focusedPane?.enclosingSplitHost
+                ?? tab.splitTree.terminalLeaves.compactMap(\.enclosingSplitHost).first
+            host?.showPaneSwapPicker()
         }
 
         observerBag.observeOnMainActor(.focusSplit) { [self] notification in
@@ -335,9 +361,40 @@ extension MainView {
             self.discoverSessionsForSelectedTab(origin: notification.object as? Ghostty.TerminalView)
         }
 
+        observerBag.observeOnMainActor(.detachSession) { [self] notification in
+            guard self.shouldHandleNotification(notification) else { return }
+            self.detachSessionForSelectedTab()
+        }
+
         observerBag.observeOnMainActor(.detachOtherClients) { [self] notification in
             guard self.shouldHandleNotification(notification) else { return }
             self.detachOtherClientsForSelectedTab()
+        }
+
+        observerBag.observeOnMainActor(.muxSessionDidDetach) { [self] notification in
+            // Prefer windowId: tmux -CC prune can remove the notifying pane
+            // from the tab tree before (or as) this handler runs.
+            if let targetWindow = notification.userInfo?["windowId"] as? String {
+                guard targetWindow == self.windowId else { return }
+            } else if !self.shouldHandleNotification(notification) {
+                // No windowId and no pane object: only the focused window
+                // accepts the banner (Mac Catalyst often has >1 scene).
+                guard self.isWindowFocused || self.windowIsKeyWindow else { return }
+            }
+            guard SettingsStore.shared.get(Settings.Multiplexer.detachBanner) else { return }
+            let offer = notification.userInfo?["offer"] as? MuxSessionResume.ReconnectOffer
+            let name = offer?.displayName
+                ?? (notification.userInfo?["displayName"] as? String)
+                ?? String(localized: "session", comment: "Generic mux session label in detach banner")
+            self.muxDetachBanner = MuxDetachBannerState(
+                message: String(
+                    localized: "Detached from \(name). Session keeps running.",
+                    comment: "Post-detach banner message"
+                ),
+                offer: offer,
+                isDetach: true
+            )
+            self.scheduleMuxDetachBannerDismiss()
         }
 
         observerBag.observeOnMainActor(.increaseFontSize) { [self] notification in
@@ -470,6 +527,14 @@ extension MainView {
         }
         #endif
 
+        #if canImport(FluidAudio) && !CHINA_BUILD
+        observerBag.observeOnMainActor(.toggleDictation) { [self] notification in
+            // Keybinds post this directly, bypassing the menu's own check.
+            guard DictationSupport.isEnabled, self.shouldHandleNotification(notification) else { return }
+            self.toggleDictationHUD(from: notification.object as? Ghostty.TerminalView)
+        }
+        #endif
+
         observerBag.observeOnMainActor(.toggleQuickSettings) { [self] notification in
             guard self.shouldHandleNotification(notification) else { return }
             if self.showQuickSettingsOverlay {
@@ -480,6 +545,7 @@ extension MainView {
                 self.showThemePickerOverlay = false
                 self.showClipboardManager = false
                 self.showOpenInFolderOverlay = false
+                self.showIPLookup = false
                 guard !self.isSheetPresentedBesidesFloatingTabSidebar else { return }
                 if !self.tabSidebarIsDocked { self.showingTabSwitcher = false }
                 if self.terminals.indices.contains(self.selectedTabIndex) {
@@ -503,6 +569,7 @@ extension MainView {
             self.showThemePickerOverlay = false
             self.showClipboardManager = false
             self.showQuickSettingsOverlay = false
+            self.showIPLookup = false
             guard !self.isSheetPresentedBesidesFloatingTabSidebar else { return }
             if !self.tabSidebarIsDocked { self.showingTabSwitcher = false }
             if self.terminals.indices.contains(self.selectedTabIndex) {
@@ -519,10 +586,43 @@ extension MainView {
             self.setOverlayOwnsKeyboardForAllTerminals(true)
         }
 
+        observerBag.observeOnMainActor(.toggleFileManager) { [self] notification in
+            guard self.shouldHandleNotification(notification) else { return }
+            // Another sheet owns the screen; the manager's own sheets are fine.
+            if !self.showFileManager, self.isSheetPresentedBesidesFloatingTabSidebar { return }
+            self.toggleFileManager()
+        }
+
+        // Needs the VPN: not on China builds or the sandboxed Catalyst App Store build.
+        #if !CHINA_BUILD && (!targetEnvironment(macCatalyst) || STANDALONE)
+        observerBag.observeOnMainActor(.toggleHTTPCapture) { [self] notification in
+            guard self.shouldHandleNotification(notification) else { return }
+            if !self.showHTTPCapture, self.isSheetPresentedBesidesFloatingTabSidebar { return }
+            self.toggleHTTPCapture()
+        }
+        #endif
+
+        observerBag.observeOnMainActor(.toggleIPLookup) { [self] notification in
+            guard self.shouldHandleNotification(notification) else { return }
+            if self.showIPLookup {
+                self.showIPLookup = false
+                return
+            }
+            // Floating tools share the HUD's top-right anchor; yield like Open in Folder.
+            self.showThemePickerOverlay = false
+            self.showClipboardManager = false
+            self.showQuickSettingsOverlay = false
+            self.showOpenInFolderOverlay = false
+            guard !self.isSheetPresentedBesidesFloatingTabSidebar else { return }
+            self.ipLookupModel = IPLookupModel(clipboardText: UIPasteboard.general.getOpinionatedStringContents())
+            self.showIPLookup = true
+        }
+
         observerBag.observeOnMainActor(.toggleThemePicker) { [self] notification in
             guard self.shouldHandleNotification(notification) else { return }
             self.showQuickSettingsOverlay = false
             self.showOpenInFolderOverlay = false
+            self.showIPLookup = false
             self.showThemePickerOverlay.toggle()
         }
 

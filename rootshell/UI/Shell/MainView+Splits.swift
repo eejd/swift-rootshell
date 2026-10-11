@@ -267,6 +267,10 @@ extension MainView {
     func equalizeSplits() {
         guard terminals.indices.contains(selectedTabIndex) else { return }
         let tab = terminals[selectedTabIndex]
+        if tab.isTmuxWindow {
+            TmuxController.controller(forWindowTab: tab)?.requestEqualizeSplits(tab)
+            return
+        }
         // Herdr owns these ratios; a local edit is lost on its next layout.
         if tab.isHerdrWindow {
             HerdrController.controller(forTab: tab)?.requestEqualizeSplits(tab)
@@ -298,8 +302,8 @@ extension MainView {
         terminals[selectedTabIndex].splitTree = terminals[selectedTabIndex].splitTree.toggleZoom(for: currentNode)
     }
 
-    func closeSplit(targeting targetPane: SplitPaneView? = nil) {
-        Ghostty.logger.info("closeSplit() called (target=\(targetPane?.uuid.uuidString.prefix(8).description ?? "nil"))")
+    func closeSplit(targeting targetPane: SplitPaneView? = nil, leaveMuxSession: Bool = false) {
+        Ghostty.logger.info("closeSplit() called (target=\(targetPane?.uuid.uuidString.prefix(8).description ?? "nil"), leaveMux=\(leaveMuxSession))")
 
         // Resolve which tab + pane to close.
         // When a specific pane is provided (e.g. from `.closeSplit` posted by an
@@ -325,6 +329,15 @@ extension MainView {
             paneToClose = focused
         }
 
+        // An automatic session-end may win the race while the confirmation is
+        // visible. Dismiss the stale dialog before tearing down its target.
+        if pendingClosePaneID == paneToClose.uuid {
+            pendingClosePaneID = nil
+        }
+        if pendingTabClose?.lastPaneID == paneToClose.uuid {
+            pendingTabClose = nil
+        }
+
         // tmux control mode: route a tmux PANE close to the tmux server. tmux
         // tears the pane down and emits a topology change; the reconcile's prune
         // removes the pane view (and the tab/window when it was the last pane).
@@ -347,6 +360,15 @@ extension MainView {
         // herdr control mode: the server closes the pane and its topology
         // events retire the surface (and the tab when it was the last pane).
         if let terminalToClose = paneToClose.asTerminal, terminalToClose.isHerdrPane {
+            // Whole-tab close honors a non-default close action. The default
+            // keeps pane.close, which retires the tab with its last pane.
+            if MultiplexerTabCloseAction.current != .closeWindow,
+               let tab = terminals.first(where: { $0.splitTree.contains(where: { $0 === terminalToClose }) }),
+               tab.isHerdrWindow,
+               tab.splitTree.terminalLeaves.filter({ $0.isHerdrPane }).count == 1,
+               handleHerdrWindowTabClose(tab) {
+                return
+            }
             terminalToClose.requestHerdrClosePane()
             return
         }
@@ -396,6 +418,18 @@ extension MainView {
         let windowSceneToClose = isLastSplitInTab && isLastTab ? paneToClose.window?.windowScene : nil
         Ghostty.logger.info("closeSplit: tabIndex=\(tabIndex), isLastSplitInTab=\(isLastSplitInTab), isLastTab=\(isLastTab), capturedWindowScene=\(windowSceneToClose != nil)")
 
+        // Closing the tab: hold before cleanup frees the pane still on screen.
+        if isLastSplitInTab, !isLastTab,
+           holdCloseForSuccessor(ofTabAt: tabIndex, close: { [weak paneToClose] in
+               // A nil target would close whatever pane is focused instead.
+               guard let paneToClose,
+                     terminals.contains(where: { $0.splitTree.contains(where: { $0 === paneToClose }) })
+               else { return }
+               closeSplit(targeting: paneToClose, leaveMuxSession: leaveMuxSession)
+           }) {
+            return
+        }
+
         // Find a logical neighbor to focus before removing the node
         // This ensures we focus the "other side" of the split that is disappearing
         var nextFocusTarget: SplitPaneView?
@@ -420,9 +454,12 @@ extension MainView {
         // keep their user-close semantics (plus withdrawing any pending
         // keyboard-interactive prompt so its auth future doesn't park until
         // the login timeout); other panes take the generic close funnel.
+        // Mux detach posts leaveMuxSession so cleanup uses `.muxDetach`.
+        // Close Tab also leaves a zmx session running (closing the client
+        // is zmx’s detach path).
         if let terminalToClose = paneToClose.asTerminal {
             withdrawKeyboardInteractive(for: terminalToClose)
-            terminalToClose.cleanup(reason: .userClose)
+            terminalToClose.cleanup(reason: leaveMuxSession ? .muxDetach : .userClose)
         } else {
             paneToClose.prepareForClose()
         }
@@ -526,6 +563,60 @@ extension MainView {
                 setupTitleObservation(at: tabIndex)
             }
         }
+    }
+
+    /// Applies the optional confirmations only to an explicit Close Tab/Split
+    /// command: the pane one while another pane will remain, the tab one when
+    /// this is the tab's last pane. Automatic session-end teardown calls
+    /// `closeSplit` directly and never reaches here.
+    func requestUserCloseSplit(targeting targetPane: SplitPaneView? = nil) {
+        let resolved: (tabIndex: Int, pane: SplitPaneView)?
+        if let targetPane,
+           let tabIndex = terminals.firstIndex(where: {
+               $0.splitTree.contains(where: { $0 === targetPane })
+           }) {
+            resolved = (tabIndex, targetPane)
+        } else if terminals.indices.contains(selectedTabIndex),
+                  let focusedPane = terminals[selectedTabIndex].focusedPane {
+            resolved = (selectedTabIndex, focusedPane)
+        } else {
+            resolved = nil
+        }
+
+        guard let resolved else {
+            closeSplit(targeting: targetPane)
+            return
+        }
+        let tab = terminals[resolved.tabIndex]
+        let paneCount = tab.splitTree.count
+        if PaneCloseConfirmationPolicy.shouldConfirm(
+            isEnabled: SettingsStore.shared.value(Settings.Window.confirmBeforeClosingPane),
+            paneCount: paneCount
+        ) {
+            pendingClosePaneID = resolved.pane.uuid
+            return
+        }
+        if paneCount == 1, PaneCloseConfirmationPolicy.closeTabNeedsConfirm(
+            isEnabled: SettingsStore.shared.value(Settings.Window.confirmBeforeClosingTab),
+            closesViaMultiplexer: closesViaMultiplexer(tab)
+        ) {
+            pendingTabClose = PendingTabClose(tabID: tab.id, lastPaneID: resolved.pane.uuid)
+            return
+        }
+        closeSplit(targeting: resolved.pane)
+    }
+
+    /// Closes the pane captured when the confirmation was requested, rather
+    /// than whichever pane happens to be focused when the user responds.
+    func confirmPendingPaneClose() {
+        guard let paneID = pendingClosePaneID else { return }
+        pendingClosePaneID = nil
+
+        guard let pane = terminals.lazy.compactMap({ tab in
+            tab.splitTree.first(where: { $0.uuid == paneID })
+        }).first else { return }
+
+        closeSplit(targeting: pane)
     }
 
     /// Closes the current window/scene properly

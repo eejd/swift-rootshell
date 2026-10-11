@@ -56,6 +56,8 @@ enum MPTCPBootstrap {
 
     /// Create a pre-connected channel suitable for passing to SSHClient.connect(on:).
     /// No SSH handlers are added — Citadel adds those itself.
+    /// autoRead stays off until Citadel's `connect(on:)` installs them; an earlier read
+    /// would drop the server banner and hang the handshake (#535).
     ///
     /// Callers are responsible for pre-resolving CGNAT/`.local` hostnames to an
     /// IPv4 literal before invoking this function (see CitadelSSHSession and
@@ -68,8 +70,15 @@ enum MPTCPBootstrap {
         port: Int,
         timeout: TimeAmount = .seconds(30)
     ) async throws -> Channel {
+        #if !CHINA_BUILD
+        if let channel = try await TailnetDialer.channel(host: host, port: port, timeout: timeout) {
+            logger.info("tailnet connect \(host):\(port)")
+            return channel
+        }
+        #endif
         var bootstrap = NIOTSConnectionBootstrap(group: tsEventLoopGroup)
             .connectTimeout(timeout)
+            .channelOption(ChannelOptions.autoRead, value: false)
         let mode: String
         if isEnabled {
             bootstrap = bootstrap.withMultipath(.interactive)
@@ -85,7 +94,16 @@ enum MPTCPBootstrap {
             }
         }
         logger.info("\(mode) connect \(host):\(port) timeout=\(timeout.nanoseconds / 1_000_000_000)s")
-        let channel = try await bootstrap.connect(host: host, port: port).get()
+        let channel: Channel
+        do {
+            channel = try await bootstrap.connect(host: host, port: port).get()
+        } catch {
+            #if !CHINA_BUILD
+            throw TailnetDialer.explain(error, host: host)
+            #else
+            throw error
+            #endif
+        }
         let local = channel.localAddress?.description ?? "?"
         let remote = channel.remoteAddress?.description ?? "?"
         logger.info("\(mode) connected local=\(local) remote=\(remote)")

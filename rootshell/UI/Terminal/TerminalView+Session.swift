@@ -535,6 +535,18 @@ extension Ghostty.TerminalView {
     func applyConfiguredMultiplexerBinding() {
         guard let sshConfig = connectionConfig.sshConfigForHistory else { return }
 
+        if let target = sshConfig.muxResumeTarget {
+            if !target.controlMode {
+                if target.type.ownsAlternateScreen {
+                    bindRawMultiplexer(target.type, sessionName: target.sessionName, tmuxSocket: target.tmuxSocket,
+                                       tmuxSocketSelector: target.configuredTmuxSocket)
+                } else {
+                    bindPassthroughMultiplexer(target.type, sessionName: target.sessionName, canDetachSwitch: false)
+                }
+            }
+            return
+        }
+
         // Keep zmx's transparent identity separate from raw multiplexer
         // bindings, since raw bindings also suppress agent attention.
         if sshConfig.zmxAutoEnable, let name = sshConfig.zmxSessionNameForConnection {
@@ -546,7 +558,8 @@ extension Ghostty.TerminalView {
         // Auto-connect. Control mode gets its own surface per pane, so only
         // the plain mode collapses a whole session onto this one.
         if sshConfig.tmuxAutoEnable, sshConfig.tmuxAutoMode == .regular {
-            bindRawMultiplexer(.tmux, sessionName: sshConfig.tmuxSessionNameForConnection)
+            bindRawMultiplexer(.tmux, sessionName: sshConfig.tmuxSessionNameForConnection,
+                               tmuxSocket: sshConfig.tmuxSocketForResume)
             return
         }
 
@@ -560,7 +573,7 @@ extension Ghostty.TerminalView {
             .compactMap { $0 }
         for command in configured {
             if let type = Self.rawMultiplexerType(launching: command) {
-                bindRawMultiplexer(type, sessionName: nil)
+                bindRawMultiplexer(type, sessionName: nil, tmuxSocket: TmuxSocketIdentity.fromStartupCommand(command))
                 return
             }
         }
@@ -571,10 +584,12 @@ extension Ghostty.TerminalView {
     ///
     /// Binds only multiplexers that own the alternate screen; raw bindings
     /// suppress agent attention until ownership is released.
-    func bindRawMultiplexer(_ type: MultiplexerType, sessionName: String?) {
+    func bindRawMultiplexer(_ type: MultiplexerType, sessionName: String?, tmuxSocket: TmuxSocketIdentity? = .defaultServer,
+                           tmuxSocketSelector: TmuxSocketIdentity? = nil) {
         guard type.ownsAlternateScreen else { return }
         guard rawMultiplexer == nil else { return }
-        rawMultiplexer = .init(type: type, sessionName: sessionName)
+        rawMultiplexer = .init(type: type, sessionName: sessionName, tmuxSocket: tmuxSocket,
+                              tmuxSocketSelector: tmuxSocketSelector)
         AgentAttentionCenter.shared.topologyDidChange()
     }
 
@@ -826,7 +841,8 @@ extension Ghostty.TerminalView {
         //
         // A manual run overrides all of it: the user asked for the picker, so an
         // already-started multiplexer or launch command must not swallow it.
-        let multiplexerAutoStart = sshConfig.tmuxAutoEnable || sshConfig.herdrAutoEnable || sshConfig.zmxAutoEnable
+        let multiplexerAutoStart = sshConfig.muxResumeTarget != nil
+            || sshConfig.tmuxAutoEnable || sshConfig.herdrAutoEnable || sshConfig.zmxAutoEnable
         let allowSessionPickerOverlay = manual
             || (!hasLaunchCommand && !hasRemoteCommand && !wasResumed && !multiplexerAutoStart)
         let skipTmuxSessions = !tmuxEnabled || !allowSessionPickerOverlay
@@ -843,15 +859,16 @@ extension Ghostty.TerminalView {
 
         // Determine discovery strategy:
         // - CitadelSSHSession: reuse existing client (fast, no extra connection)
-        // - Trzsz/Mosh/other SSH sessions: create temporary connection using SSHConfig
+        // - TrzszSession: run over the tssh transport (no second authentication)
+        // - MoshSession: create temporary connection using SSHConfig
         let citadelSession = session as? CitadelSSHSession
-        let needsTemporaryConnection = citadelSession == nil
+        let trzszSession = session as? TrzszSession
 
         // Only support SSH-based sessions
-        guard citadelSession != nil || session is TrzszSession || session is MoshSession else { return }
+        guard citadelSession != nil || trzszSession != nil || session is MoshSession else { return }
 
         // Route a keyboard-interactive challenge during a temporary discovery
-        // connection (Mosh/Trzsz) to the shared prompt sheet, so a PAM/OTP/2FA
+        // connection (Mosh) to the shared prompt sheet, so a PAM/OTP/2FA
         // host can re-authenticate for discovery instead of failing. Captured
         // weakly so the escaping discovery task doesn't retain the terminal view.
         let discoveryKeyboardInteractive: (KeyboardInteractiveChallenge) async -> [String]? = { [weak self] challenge in
@@ -863,9 +880,21 @@ extension Ghostty.TerminalView {
         }
 
         startSessionDiscoveryTask(allowSessionPickerOverlay: allowSessionPickerOverlay, manual: manual) {
-            if let citadelSession, !needsTemporaryConnection {
+            if let citadelSession {
                 return try await SessionDiscoveryRunner.discover(
                     using: citadelSession,
+                    skipTmuxSessions: skipTmuxSessions,
+                    skipZellijSessions: skipZellijSessions,
+                    skipHerdrSessions: skipHerdrSessions,
+                    skipZmxSessions: skipZmxSessions,
+                    discoverTmuxBindings: discoverTmuxBindings,
+                    discoverZellijBindings: discoverZellijBindings
+                )
+            }
+
+            if let trzszSession {
+                return try await SessionDiscoveryRunner.discover(
+                    using: trzszSession,
                     skipTmuxSessions: skipTmuxSessions,
                     skipZellijSessions: skipZellijSessions,
                     skipHerdrSessions: skipHerdrSessions,

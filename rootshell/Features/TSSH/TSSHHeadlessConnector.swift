@@ -36,7 +36,8 @@ enum TrzszHeadlessConnector {
         connectTimeoutSec: Int? = nil,
         serverPath: String? = nil,
         displayName: String,
-        onHostKeyValidation: ((HostKeyValidationRequest) async -> HostKeyValidationResult)?
+        onHostKeyValidation: ((HostKeyValidationRequest) async -> HostKeyValidationResult)?,
+        onKeyboardInteractiveChallenge: ((KeyboardInteractiveChallenge) async -> [String]?)? = nil
     ) async throws -> TrzszGoTransport {
         let trzszConfig = TrzszConfig(
             sshConfig: sshConfig,
@@ -56,7 +57,8 @@ enum TrzszHeadlessConnector {
         let spawnResult = try await TrzszSpawnHelper.spawnTsshd(
             config: trzszConfig,
             resolvedHost: connectionHost,
-            onHostKeyValidation: onHostKeyValidation
+            onHostKeyValidation: onHostKeyValidation,
+            onKeyboardInteractiveChallenge: onKeyboardInteractiveChallenge
         )
 
         logger.info("TSSH: tsshd spawned on port \(spawnResult.serverInfo.port), mode=\(spawnResult.serverInfo.mode.rawValue)")
@@ -77,6 +79,7 @@ enum TrzszHeadlessConnector {
                 relayTransport: spawnResult.relayTransport
             )
             connectingTransport = transport
+            transport.markHeadless()
             try await transport.connect()
             try Task.checkCancellation()
         } catch {

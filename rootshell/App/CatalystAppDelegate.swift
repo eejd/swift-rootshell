@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import Combine
 import os
 import ObjectiveC
 import UniformTypeIdentifiers
@@ -226,6 +227,14 @@ extension UIApplication {
         sendAction(#selector(Ghostty.TerminalView.menuEqualizeSplits(_:)), to: nil, from: sender, for: nil)
     }
 
+    @objc func ghostty_choosePaneToZoom(_ sender: Any?) {
+        sendMenuAction(#selector(Ghostty.TerminalView.menuChoosePaneToZoom(_:)), from: sender)
+    }
+
+    @objc func ghostty_choosePaneToSwap(_ sender: Any?) {
+        sendMenuAction(#selector(Ghostty.TerminalView.menuChoosePaneToSwap(_:)), from: sender)
+    }
+
     @objc func ghostty_toggleTabBar(_ sender: Any?) {
         sendAction(#selector(Ghostty.TerminalView.menuToggleTabBar(_:)), to: nil, from: sender, for: nil)
     }
@@ -330,6 +339,10 @@ extension UIApplication {
         sendAction(#selector(Ghostty.TerminalView.menuToggleVoiceAgent(_:)), to: nil, from: sender, for: nil)
     }
 
+    @objc func ghostty_toggleDictation(_ sender: Any?) {
+        sendAction(#selector(Ghostty.TerminalView.menuToggleDictation(_:)), to: nil, from: sender, for: nil)
+    }
+
     // MARK: Tabs Menu Actions
 
     @objc func ghostty_previousTab(_ sender: Any?) {
@@ -346,6 +359,10 @@ extension UIApplication {
 
     @objc func ghostty_discoverSessions(_ sender: Any?) {
         sendAction(#selector(Ghostty.TerminalView.menuDiscoverSessions(_:)), to: nil, from: sender, for: nil)
+    }
+
+    @objc func ghostty_detachSession(_ sender: Any?) {
+        sendAction(#selector(Ghostty.TerminalView.menuDetachSession(_:)), to: nil, from: sender, for: nil)
     }
 
     @objc func ghostty_detachOtherClients(_ sender: Any?) {
@@ -539,6 +556,12 @@ class CatalystAppDelegate: AppDelegate {
     private var lastActivationSyncDate: Date?
     private let activationSyncInterval: TimeInterval = 180 // 3 minutes
 
+    // MARK: - Menu Shortcuts
+
+    /// Rebuilds the menu bar when keybinds change or shortcut recording starts
+    /// or stops, so key equivalents set in buildMenu(with:) stay current.
+    private var menuShortcutObserver: AnyCancellable?
+
     // MARK: - Application Lifecycle
 
     override func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -561,6 +584,7 @@ class CatalystAppDelegate: AppDelegate {
         // scenePhase and UIApplication.didBecomeActiveNotification don't fire reliably
         setupWorkspaceActivationObserver()
         setupApplicationHideObserver()
+        setupMenuShortcutObserver()
         // AppKit owns Continuity Camera's Services handoff even in Catalyst.
         // Install after launch, once the native NSApplication subclass exists.
         DispatchQueue.main.async { [weak self] in
@@ -688,6 +712,19 @@ class CatalystAppDelegate: AppDelegate {
             object: application
         )
         logger.info("Registered for NSApplication hide notifications")
+    }
+
+    /// MenuShortcutState republishes after every keybind change and whenever
+    /// shortcut recording starts or stops — exactly when the key equivalents
+    /// in buildMenu(with:) go stale. @Published emits before the value is
+    /// stored, so hop a runloop turn before asking for the rebuild.
+    private func setupMenuShortcutObserver() {
+        menuShortcutObserver = MenuShortcutState.shared.$shortcuts
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { _ in
+                UIMenuSystem.main.setNeedsRebuild()
+            }
     }
 
     #if STANDALONE
@@ -1010,14 +1047,18 @@ class CatalystAppDelegate: AppDelegate {
 
         // CRITICAL: Replace Close command (Cmd-W) to close tabs instead of windows
         // System default closes the entire window - we want to close tabs/splits first
+        //
+        // The key equivalent follows the close_tab keybind. AppKit dispatches
+        // menu key equivalents before any responder UIKeyCommand, so a fixed
+        // Cmd-W here would swallow bindings that remap it (e.g. an imported
+        // `keybind = cmd+w=text:\x1Bw`). No key equivalent while a shortcut is
+        // being recorded, so the recorder sees the physical chord.
+        let closeTitle = String(localized: "Close Tab")
+        let closeCommand = MenuShortcutState.shared.isRecordingCapture
+            ? UICommand(title: closeTitle, action: closeSelector)
+            : keybindMenuCommand(title: closeTitle, action: closeSelector, keybind: .close_tab)
         builder.replaceChildren(ofMenu: .close) { _ in
-            let closeCommand = UIKeyCommand(
-                title: String(localized: "Close Tab"),
-                action: closeSelector,
-                input: "w",
-                modifierFlags: [.command]
-            )
-            return [closeCommand]
+            [closeCommand]
         }
 
         // Rootshell is not document-based. The default Catalyst Document menu
@@ -1037,6 +1078,8 @@ class CatalystAppDelegate: AppDelegate {
             return [quitCommand]
         }
         #endif
+
+        releaseClaimedSystemKeyEquivalents(builder)
 
         // On macOS 26+ (macCatalyst 26.0): SwiftUI Commands handle the rest
         if #available(macCatalyst 26.0, *) {
@@ -1062,6 +1105,91 @@ class CatalystAppDelegate: AppDelegate {
         buildTabsMenu(builder)
         buildShellMenu(builder)
         buildTerminalMenu(builder)
+    }
+
+    // MARK: - Stock Menu Key Equivalents
+
+    /// Stock menus whose items are all system-provided.
+    private static let systemKeyEquivalentMenus: [UIMenu.Identifier] = [
+        .hide, .quit, .open, .minimizeAndZoom, .fullscreen, .help,
+    ]
+
+    /// Stock Edit menus, where only MenuKeyEquivalentPolicy.editSelectors are
+    /// touched so rootshell's own Edit commands keep their shortcuts.
+    private static let editKeyEquivalentMenus: [UIMenu.Identifier] = [
+        .undoRedo, .standardEdit,
+    ]
+
+    /// Drop the key equivalent from stock menu items (Quit, Hide, Minimize,
+    /// Paste, …) whose chord a keybind has claimed. AppKit dispatches menu key
+    /// equivalents before any responder UIKeyCommand, so an item keeping a
+    /// rebound chord swallows the binding. Unclaimed chords are untouched.
+    private func releaseClaimedSystemKeyEquivalents(_ builder: UIMenuBuilder) {
+        for identifier in Self.systemKeyEquivalentMenus {
+            releaseClaimedKeyEquivalents(in: identifier, builder, onlyEditSelectors: false)
+        }
+        for identifier in Self.editKeyEquivalentMenus {
+            releaseClaimedKeyEquivalents(in: identifier, builder, onlyEditSelectors: true)
+        }
+    }
+
+    private func releaseClaimedKeyEquivalents(
+        in identifier: UIMenu.Identifier,
+        _ builder: UIMenuBuilder,
+        onlyEditSelectors: Bool
+    ) {
+        guard let menu = builder.menu(for: identifier) else { return }
+        builder.replace(menu: identifier, with: releasingClaimedKeyEquivalents(
+            in: menu, onlyEditSelectors: onlyEditSelectors))
+    }
+
+    private func releasingClaimedKeyEquivalents(in menu: UIMenu, onlyEditSelectors: Bool) -> UIMenu {
+        menu.replacingChildren(menu.children.compactMap { element -> UIMenuElement? in
+            if let submenu = element as? UIMenu {
+                return releasingClaimedKeyEquivalents(in: submenu, onlyEditSelectors: onlyEditSelectors)
+            }
+            guard let command = element as? UIKeyCommand,
+                  let action = command.action,
+                  let trigger = KeyTrigger(uiKeyCommand: command) else {
+                return element
+            }
+            let selector = NSStringFromSelector(action)
+            if onlyEditSelectors, !MenuKeyEquivalentPolicy.editSelectors.contains(selector) {
+                return element
+            }
+            // Menus spell Shift+symbol chords as the symbol (Help is Cmd+?),
+            // while bindings may use either form (cmd+shift+slash).
+            let owners = KeybindManager.shared.activeBindings.filter { binding in
+                guard binding.action.isAvailableForVisorDispatch,
+                      let first = binding.sequence.first else { return false }
+                return first == trigger || first.shiftedSymbolEquivalent == trigger
+            }
+            switch MenuKeyEquivalentPolicy.resolution(
+                selector: selector,
+                owners: owners.map { $0.action.rawValue },
+                leadsSequence: owners.contains { $0.sequence.isSequence },
+                isRecording: MenuShortcutState.shared.isRecordingCapture
+            ) {
+            case .keep:
+                return element
+            case .remove:
+                logger.info("Removing menu item \(command.title) to release \(trigger.description)")
+                return nil
+            case .releaseKeyEquivalent:
+                break
+            }
+            logger.info("Releasing \(trigger.description) from menu item \(command.title)")
+            return UICommand(
+                title: command.title,
+                image: command.image,
+                action: action,
+                propertyList: command.propertyList,
+                alternates: command.alternates,
+                discoverabilityTitle: command.discoverabilityTitle,
+                attributes: command.attributes,
+                state: command.state
+            )
+        })
     }
 
     // MARK: - Legacy Menu Builders (pre-macOS 26)
@@ -1099,23 +1227,37 @@ class CatalystAppDelegate: AppDelegate {
             modifierFlags: [.command, .shift]
         )
 
-        let openInFolder: UICommand
-        if let sequence = KeybindManager.shared.sequence(for: .open_in_folder),
-           !sequence.isSequence, let trigger = sequence.first {
-            openInFolder = UIKeyCommand(
-                title: String(localized: "Open in Folder…"),
-                action: #selector(UIApplication.menuOpenInFolder(_:)),
-                input: trigger.uiKeyInput,
-                modifierFlags: trigger.uiModifierFlags
-            )
-        } else {
-            openInFolder = UICommand(title: String(localized: "Open in Folder…"),
-                                     action: #selector(UIApplication.menuOpenInFolder(_:)))
-        }
+        let openInFolder = keybindMenuCommand(
+            title: String(localized: "Open in Folder…"),
+            action: #selector(UIApplication.menuOpenInFolder(_:)),
+            keybind: .open_in_folder
+        )
+        let fileManager = keybindMenuCommand(
+            title: String(localized: "File Manager"),
+            action: #selector(UIApplication.menuToggleFileManager(_:)),
+            keybind: .toggle_file_manager
+        )
 
-        builder.replaceChildren(ofMenu: .newScene) { _ in
-            [newLocalShell, newTab, newWindow, duplicateSshTab, openInFolder]
+        var sceneItems: [UIMenuElement] = [newLocalShell, newTab, newWindow, duplicateSshTab, openInFolder, fileManager]
+        #if !CHINA_BUILD && STANDALONE
+        sceneItems.append(keybindMenuCommand(
+            title: String(localized: "HTTP Capture"),
+            action: #selector(UIApplication.menuToggleHTTPCapture(_:)),
+            keybind: .toggle_http_capture
+        ))
+        #endif
+        builder.replaceChildren(ofMenu: .newScene) { _ in sceneItems }
+    }
+
+    /// A menu item carrying the action's current single-chord binding, unless
+    /// that chord also starts a sequence that must reach KeySequenceTracker.
+    private func keybindMenuCommand(title: String, action: Selector, keybind: KeybindAction) -> UICommand {
+        if let sequence = KeybindManager.shared.sequence(for: keybind),
+           !sequence.isSequence, let trigger = sequence.first,
+           !KeybindManager.shared.isSequencePrefix(trigger) {
+            return UIKeyCommand(title: title, action: action, input: trigger.uiKeyInput, modifierFlags: trigger.uiModifierFlags)
         }
+        return UICommand(title: title, action: action)
     }
 
     private func buildEditMenu(_ builder: UIMenuBuilder) {
@@ -1306,7 +1448,11 @@ class CatalystAppDelegate: AppDelegate {
         )
 
         let splitManageGroup = UIMenu(title: "", options: .displayInline, children: [
-            toggleZoom, equalize
+            toggleZoom, equalize,
+            UICommand(title: String(localized: "Choose Pane to Zoom"),
+                      action: #selector(UIApplication.ghostty_choosePaneToZoom(_:))),
+            UICommand(title: String(localized: "Choose Pane to Swap"),
+                      action: #selector(UIApplication.ghostty_choosePaneToSwap(_:)))
         ])
 
         // Scroll commands
@@ -1419,6 +1565,13 @@ class CatalystAppDelegate: AppDelegate {
             input: "v",
             modifierFlags: [.command, .shift]
         )
+
+        let dictation = UIKeyCommand(
+            title: String(localized: "Dictation"),
+            action: #selector(UIApplication.ghostty_toggleDictation(_:)),
+            input: "r",
+            modifierFlags: [.command, .alternate]
+        )
         #endif
 
         let settings = UIKeyCommand(
@@ -1446,7 +1599,7 @@ class CatalystAppDelegate: AppDelegate {
         let shellMenu = UIMenu(
             title: String(localized: "Shell"),
             identifier: UIMenu.Identifier("com.rootshell.shell"),
-            children: [browseHosts, browseProfiles, aiAgent, voiceAgent, settings, quickSettings]
+            children: [browseHosts, browseProfiles, aiAgent, voiceAgent, dictation, settings, quickSettings]
         )
         #else
         let shellMenu = UIMenu(
@@ -1495,6 +1648,11 @@ class CatalystAppDelegate: AppDelegate {
             modifierFlags: [.command, .control]
         )
 
+        let detachSession = UICommand(
+            title: String(localized: "Detach Session"),
+            action: #selector(UIApplication.ghostty_detachSession(_:))
+        )
+
         let detachOtherClients = UIKeyCommand(
             title: String(localized: "Detach Other Clients"),
             action: #selector(UIApplication.ghostty_detachOtherClients(_:)),
@@ -1525,7 +1683,7 @@ class CatalystAppDelegate: AppDelegate {
 
         let navGroup = UIMenu(title: "", options: .displayInline, children: [
             toggleTabSwitcher, toggleTabExpose, previousTab, nextTab, previousGroup, nextGroup, tmuxSessions,
-            discoverSessions, detachOtherClients
+            discoverSessions, detachSession, detachOtherClients
         ])
 
         // Tab selection (1-9), each with its own action (see ghostty_selectTabN).

@@ -37,13 +37,13 @@ extension MainView {
         config.gestureEnabled = { TabExposeSettings.gestureEnabled() }
         config.canBeginReveal = { !isAnySheetPresented && appTabSwipeState == nil }
         // Nothing above the terminal: let the pull start in its top strip.
-        config.fallbackBandHeight = { tabBarHidden ? 28 : 0 }
+        config.fallbackBandHeight = { showsHorizontalTabHeader ? 0 : 28 }
         // The top bar spans the full window even when a pinned vertical tab
         // sidebar shifts this terminal-hosted overlay to the right.
-        config.topBarActivationSpansWindowWidth = { !tabBarHidden }
+        config.topBarActivationSpansWindowWidth = { showsHorizontalTabHeader }
         #if !targetEnvironment(macCatalyst)
         // Touch: one finger from the tab bar strip itself.
-        config.oneFingerBandHeight = { tabBarHidden ? 0 : TabMetrics.tabBarHeight }
+        config.oneFingerBandHeight = { showsHorizontalTabHeader ? TabMetrics.tabBarHeight : 0 }
         #endif
         return config
     }
@@ -67,7 +67,7 @@ extension MainView {
         appearance.showsCaptions = TabExposeSettings.showsCaptions()
         let palette = TmuxTabBadgePalette(theme: theme)
         let textColor = theme.tabText
-        let compact = UIDevice.current.userInterfaceIdiom == .phone
+        let compact = workspaceSizeClass != .regular
         let attentionDots = SettingsStore.shared.get(Settings.CodingAgents.attentionBadges)
         appearance.captionProvider = { tab, index in
             AnyView(
@@ -115,12 +115,22 @@ extension MainView {
         tabExpose.reduceMotion = {
             SettingsStore.shared.value(Settings.Tabs.barAnimationsDisabled) || UIAccessibility.isReduceMotionEnabled
         }
-        tabExpose.onWillPresent = { ids in
-            // Wake every scope tab's renderer so the mirrors are live. The
-            // secure-draw latch may drop these; the foreground reconcile
-            // re-asserts them (it treats exposé tabs as visible).
-            for id in ids { setTabOcclusion(tabID: id, visible: true) }
+        tabExpose.onWillPresent = { _ in
+            // Renderers wake per on-screen cell through onLiveTabsChanged;
+            // waking a whole large scope at once exhausts memory.
             installTabExposeKeyHandler()
+        }
+        tabExpose.onLiveTabsChanged = { woken, parked in
+            // Park first so released swap chains never overlap new ones. The
+            // secure-draw latch may drop the wakes; the foreground reconcile
+            // re-asserts them (it treats live exposé tabs as visible).
+            var keep: Set<UUID> = Set([tabsModel.selectedTabID, tabsModel.displayedTabID,
+                                       tabExpose.heroTabID, tabHoverPreview.previewedTabID].compactMap { $0 })
+            if let swipe = appTabSwipeState {
+                keep.formUnion([swipe.sourceTabID, swipe.targetTabID])
+            }
+            for id in parked where !keep.contains(id) { setTabOcclusion(tabID: id, visible: false) }
+            for id in woken { setTabOcclusion(tabID: id, visible: true) }
         }
         tabExpose.onDidDismiss = {
             removeTabExposeKeyHandler()
@@ -128,16 +138,14 @@ extension MainView {
             reassertSelectedTabVisibility(reason: "tabExpose")
         }
         tabExpose.onNavigateScope = { delta in navigateAppScope(by: delta) }
-        tabExpose.onScopePreviewChanged = { ids in
-            // A group swipe drags the neighbor's live mirrors in: wake them;
+        tabExpose.onScopePreviewChanged = { _ in
+            // The neighbor's on-screen mirrors wake through onLiveTabsChanged;
             // the reconcile re-occludes a preview that was replaced or ended.
-            for id in ids { setTabOcclusion(tabID: id, visible: true) }
             reconcileSurfaceOcclusion(reason: "tabExposePreview")
         }
-        tabExpose.onScopeDidChange = { ids in
-            // Newcomers must render live; the reconcile re-occludes leavers
-            // (it treats the controller's current scope as visible).
-            for id in ids { setTabOcclusion(tabID: id, visible: true) }
+        tabExpose.onScopeDidChange = { _ in
+            // Newcomers wake as their cells come on screen; the reconcile
+            // re-occludes leavers (it treats live exposé tabs as visible).
             reconcileSurfaceOcclusion(reason: "tabExposeScope")
             // A scope switch selects a tab in the new scope: the key hook must
             // move to that terminal or navigation keys leak into it.

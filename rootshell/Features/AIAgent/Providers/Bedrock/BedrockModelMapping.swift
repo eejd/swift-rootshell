@@ -18,36 +18,34 @@ import Foundation
 enum BedrockModelMapping {
     /// Per-model invocation metadata. Anthropic's Claude 4.x models on Bedrock
     /// are not invocable via their bare foundation IDs — each must go through
-    /// a cross-region inference profile (e.g., `us.anthropic.claude-opus-5`),
+    /// a cross-region inference profile (e.g., `us.anthropic.claude-opus-5-5`),
     /// and the set of available geographies differs per model. We pick the
     /// closest geographic profile to the user's chosen region; if the model
     /// doesn't have a profile in that geo we fall back to `global`, which is
     /// available for every Anthropic model on Bedrock today.
     private struct ModelDefinition {
-        /// Foundation model ID exactly as registered in Bedrock — note that
-        /// Haiku 4.5 includes a date stamp and `-v1:0` suffix, while the
-        /// Opus/Sonnet 4.x entries don't. These match what
+        /// Foundation model ID exactly as registered in Bedrock. These match what
         /// `aws bedrock list-foundation-models --by-provider anthropic` returns.
         let foundationID: String
         let geographies: Set<String>
     }
 
     private static let definitions: [String: ModelDefinition] = [
-        "bedrock-claude-opus-5": ModelDefinition(
-            foundationID: "anthropic.claude-opus-5",
-            geographies: ["us", "eu", "global"]
+        "bedrock-claude-fable-5-1": ModelDefinition(
+            foundationID: "anthropic.claude-fable-5-1",
+            geographies: ["us", "global"]
         ),
-        "bedrock-claude-sonnet-4-6": ModelDefinition(
-            foundationID: "anthropic.claude-sonnet-4-6",
-            geographies: ["us", "eu", "global"]
+        "bedrock-claude-opus-5-5": ModelDefinition(
+            foundationID: "anthropic.claude-opus-5-5",
+            geographies: ["us", "eu", "au", "jp", "global"]
         ),
-        "bedrock-claude-sonnet-5": ModelDefinition(
-            foundationID: "anthropic.claude-sonnet-5",
-            geographies: ["us", "eu", "global"]
-        ),
-        "bedrock-claude-haiku-4-5": ModelDefinition(
-            foundationID: "anthropic.claude-haiku-4-5-20251001-v1:0",
+        "bedrock-claude-sonnet-5-5": ModelDefinition(
+            foundationID: "anthropic.claude-sonnet-5-5",
             geographies: ["us", "eu", "au", "global"]
+        ),
+        "bedrock-claude-haiku-5-5": ModelDefinition(
+            foundationID: "anthropic.claude-haiku-5-5",
+            geographies: ["global"]
         )
     ]
 
@@ -62,15 +60,15 @@ enum BedrockModelMapping {
 
     /// Map the underlying Anthropic model family for an internal Bedrock model ID,
     /// returning the same ID `AnthropicProvider` knows about — e.g.,
-    /// `bedrock-claude-opus-5` → `claude-opus-5`. Used to look up the model's
+    /// `bedrock-claude-opus-5-5` → `claude-opus-5-5`. Used to look up the model's
     /// `AIProviderModel` (capabilities, max tokens) since Bedrock and direct
     /// share the same model capabilities.
     static func anthropicFamilyID(internalID: String) -> String? {
         switch internalID {
-        case "bedrock-claude-opus-5":     return "claude-opus-5"
-        case "bedrock-claude-sonnet-4-6": return "claude-sonnet-4-6"
-        case "bedrock-claude-sonnet-5":   return "claude-sonnet-5"
-        case "bedrock-claude-haiku-4-5":  return "claude-haiku-4-5-20251001"
+        case "bedrock-claude-fable-5-1": return "claude-fable-5-1"
+        case "bedrock-claude-opus-5-5":  return "claude-opus-5-5"
+        case "bedrock-claude-sonnet-5-5": return "claude-sonnet-5-5"
+        case "bedrock-claude-haiku-5-5": return "claude-haiku-5-5"
         default: return nil
         }
     }

@@ -284,7 +284,7 @@ nonisolated enum NativeLocalShellSpawner {
         }
         env["COLORTERM"] = "truecolor"
         env["LANG"] = LocaleHelper.posixLocale
-        if let preferredLanguages = LocaleHelper.preferredLanguages { env["LANGUAGE"] = preferredLanguages }
+        // No LANGUAGE: gettext would skip English and use a second language (upstream #596).
 
         if request.enableShellIntegration, let resourcesDir = request.resourcesDir {
             env["GHOSTTY_RESOURCES_DIR"] = resourcesDir

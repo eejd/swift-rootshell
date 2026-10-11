@@ -30,11 +30,6 @@ final class LifecycleDebugLogger: Sendable {
     /// UserDefaults key to enable/disable logging
     nonisolated static let enabledKey = "lifecycleDebugLoggingEnabled"
 
-    /// UserDefaults key for the old synchronous renderer drain behavior.
-    /// Disabled by default because the scene-update watchdog failures are
-    /// deadlock-shaped, and this path runs inside the FrontBoard scene update.
-    nonisolated static let syncRendererDrainEnabledKey = "lifecycleSyncRendererDrainEnabled"
-
     /// Max log file size before rotation (100MB).
     /// Lifecycle logging is opt-in and the goal is to capture rare wedges
     /// that may take many cycles to reproduce, so a generous ceiling matters
@@ -98,10 +93,6 @@ final class LifecycleDebugLogger: Sendable {
     /// Whether logging is enabled (checked on each write)
     nonisolated var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: Self.enabledKey)
-    }
-
-    nonisolated var isSyncRendererDrainEnabled: Bool {
-        UserDefaults.standard.bool(forKey: Self.syncRendererDrainEnabledKey)
     }
 
     // MARK: - Public API
@@ -313,10 +304,10 @@ final class LifecycleDebugLogger: Sendable {
 
         if FileManager.default.fileExists(atPath: logFileURL.path) {
             if let handle = try? FileHandle(forWritingTo: logFileURL) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.synchronizeFile()
-                handle.closeFile()
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.synchronize()
+                try? handle.close()
             }
         } else {
             try? data.write(to: logFileURL, options: .atomic)

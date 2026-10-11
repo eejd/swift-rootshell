@@ -24,6 +24,39 @@ nonisolated enum KeyboardToolbarOverflow {
 
 /// Platform-independent behavior shared by the touch surface and its tests.
 nonisolated enum TerminalTouchKeyboardModel {
+    /// Stable persisted identifiers; rendering implementations live in the style files.
+    enum Style: String, CaseIterable, Sendable {
+        case flat, sculpted, steampunk, phosphor
+        case beigeBox = "beige-box"
+        case neonGrid = "neon-grid"
+        case circuitBoard = "circuit-board"
+
+        var displayName: String {
+            switch self {
+            case .flat: String(localized: "Flat")
+            case .sculpted: String(localized: "Sculpted")
+            case .steampunk: String(localized: "Steampunk")
+            case .phosphor: String(localized: "Phosphor")
+            case .beigeBox: String(localized: "Beige Box")
+            case .neonGrid: String(localized: "Neon Grid")
+            case .circuitBoard: String(localized: "Circuit Board")
+            }
+        }
+    }
+
+    enum PhosphorColor: String, CaseIterable, Sendable {
+        case green, amber, white, theme
+
+        var displayName: String {
+            switch self {
+            case .green: String(localized: "Green")
+            case .amber: String(localized: "Amber")
+            case .white: String(localized: "White")
+            case .theme: String(localized: "Terminal Theme")
+            }
+        }
+    }
+
     enum BackgroundEffectPlacement: String, CaseIterable, Sendable {
         case off
         case toolbar
@@ -34,6 +67,63 @@ nonisolated enum TerminalTouchKeyboardModel {
             case .off: String(localized: "Off")
             case .toolbar: String(localized: "Toolbar Only")
             case .entireKeyboard: String(localized: "Entire Keyboard")
+            }
+        }
+    }
+
+    /// Docked keyboard height, tallest first. Every size but `extraLarge` extends
+    /// into the bottom safe area. Raw values are the persisted pre-rename names.
+    enum Height: String, CaseIterable, Sendable {
+        case extraLarge = "full"
+        case large = "compact"
+        case medium = "shorter"
+        case small = "shortest"
+        case extraSmall
+
+        var displayName: String {
+            switch self {
+            case .extraLarge: String(localized: "Extra Large", comment: "Terminal keyboard height")
+            case .large: String(localized: "Large", comment: "Terminal keyboard height")
+            case .medium: String(localized: "Medium", comment: "Terminal keyboard height")
+            case .small: String(localized: "Small", comment: "Terminal keyboard height")
+            case .extraSmall: String(localized: "Extra Small", comment: "Terminal keyboard height")
+            }
+        }
+
+        var usesBottomSafeArea: Bool { self != .extraLarge }
+
+        /// Positive steps shrink the keyboard. Clamps at both ends.
+        func stepped(by offset: Int) -> Self {
+            let all = Self.allCases
+            let index = min(max(all.firstIndex(of: self)! + offset, 0), all.count - 1)
+            return all[index]
+        }
+
+        func rowHeight(verticallyCompact: Bool, pad: Bool) -> CGFloat {
+            switch self {
+            case .extraLarge, .large: verticallyCompact ? 40 : (pad ? 60 : 54)
+            case .medium: verticallyCompact ? 36 : (pad ? 52 : 47)
+            case .small: verticallyCompact ? 32 : (pad ? 46 : 41)
+            case .extraSmall: verticallyCompact ? 29 : (pad ? 40 : 36)
+            }
+        }
+
+        /// Main toolbar row, before any drawer rows.
+        var toolbarRowHeight: CGFloat {
+            switch self {
+            case .extraLarge, .large: 48
+            case .medium: 42
+            case .small: 38
+            case .extraSmall: 34
+            }
+        }
+
+        var toolbarDrawerRowHeight: CGFloat {
+            switch self {
+            case .extraLarge, .large: 44
+            case .medium: 40
+            case .small: 36
+            case .extraSmall: 33
             }
         }
     }
@@ -105,6 +195,57 @@ nonisolated enum TerminalTouchKeyboardModel {
         mutating func reset() { self = Self() }
     }
 
+    /// One store per window. Reference values let placement and keyboard-choice
+    /// changes stay current without copying input-host state between terminals.
+    struct StateStore<State> {
+        private var shared: State?
+        private var tabs: [UUID: State] = [:]
+        private var lastState: State?
+        private var perTab = false
+
+        mutating func activate(tabID: UUID?, perTab: Bool, make: () -> State,
+                               copyChoices: (State, State) -> Void) -> State {
+            let selected = state(tabID: tabID, perTab: perTab, make: make)
+            // A settings sheet may resign the terminal before changing scope.
+            // Seed the new scope from the last displayed state on next focus.
+            if self.perTab != perTab, let lastState { copyChoices(lastState, selected) }
+            self.perTab = perTab
+            lastState = selected
+            return selected
+        }
+
+        mutating func state(tabID: UUID?, perTab: Bool, make: () -> State) -> State {
+            guard perTab, let tabID else {
+                if let shared { return shared }
+                let state = make()
+                shared = state
+                return state
+            }
+            if let state = tabs[tabID] { return state }
+            let state = make()
+            tabs[tabID] = state
+            return state
+        }
+    }
+
+    /// Durable presentation choices. Touches, repeats, suggestions and prediction
+    /// context belong to the input host and must never travel to another terminal.
+    struct PresentationState {
+        var modifiers = Modifiers()
+        var page = Page.letters
+        var preset = Preset.shell
+        var toolPage = ToolPage.typing
+        var toolbarDrawer = ToolbarDrawerState.closed
+        var drawerOffset = CGPoint.zero
+        var toolbarOffsets: [Int: CGPoint] = [:]
+
+        func suspendingInput() -> Self {
+            var result = self
+            result.modifiers.cancelHeld()
+            return result
+        }
+    }
+
     enum Page: CaseIterable { case letters, numbers, symbols }
     enum Action: Hashable {
         case text(String), key(String), modifier(Modifier)
@@ -135,6 +276,17 @@ nonisolated enum TerminalTouchKeyboardModel {
     struct TypingGeometry {
         let targets: [HitTarget]
         let bounds: CGRect
+        /// An ordinary one-unit key (LatinIME's "most common key"), so size-relative
+        /// rules don't loosen on wide keys like Space.
+        let typicalKeySize: CGSize
+
+        init(targets: [HitTarget], bounds: CGRect) {
+            self.targets = targets
+            self.bounds = bounds
+            let sizes = targets.filter { $0.key.isText && $0.key.weight == 1 }.map(\.frame.size)
+            func median(_ values: [CGFloat]) -> CGFloat { values.isEmpty ? 0 : values.sorted()[values.count / 2] }
+            typicalKeySize = CGSize(width: median(sizes.map(\.width)), height: median(sizes.map(\.height)))
+        }
 
         private func distance(_ point: CGPoint, to rect: CGRect) -> CGFloat {
             hypot(max(rect.minX - point.x, 0, point.x - rect.maxX),
@@ -149,6 +301,13 @@ nonisolated enum TerminalTouchKeyboardModel {
                 .min { distance(point, to: targets[$0].frame) < distance(point, to: targets[$1].frame) }
         }
 
+        /// Fast drift onto another key is two merged taps; drift within one
+        /// wide key such as Space is still a single press.
+        func splitsMergedDrift(from origin: CGPoint, to point: CGPoint, elapsed: TimeInterval, selected: Int?) -> Bool {
+            guard let destination = hit(at: point), destination != selected else { return false }
+            return TerminalTouchKeyboardModel.isMergedDrift(from: origin, to: point, elapsed: elapsed, keySize: typicalKeySize)
+        }
+
         func textHit(at point: CGPoint) -> Int? {
             guard let index = hit(at: point), targets[index].key.isText else { return nil }
             return index
@@ -159,13 +318,15 @@ nonisolated enum TerminalTouchKeyboardModel {
                   let letter = targets[geometric].key.letter else { return hit(at: point) }
             let base = targets[geometric].frame
             guard base.contains(point) else { return geometric }
+            // Anchored core: the prior never overrides a tap in the middle half of a key.
+            guard !base.insetBy(dx: base.width * 0.25, dy: base.height * 0.25).contains(point) else { return geometric }
             let boundaryDistance = min(point.x - base.minX, base.maxX - point.x,
                                        point.y - base.minY, base.maxY - point.y)
             func spatial(_ rect: CGRect) -> Double {
-                // Model finger spread across half a cell; the boundary guard
-                // separately protects deliberate taps in the interior.
-                let x = (point.x - rect.midX) / max(1, rect.width * 0.5)
-                let y = (point.y - rect.midY) / max(1, rect.height * 0.5)
+                // Gaussian finger spread of about a third of a key, so a weak
+                // prior only wins near the edge and a strong one reaches further.
+                let x = (point.x - rect.midX) / max(1, rect.width * 0.35)
+                let y = (point.y - rect.midY) / max(1, rect.height * 0.35)
                 return Double(-0.5 * (x * x + y * y))
             }
             let baseScore = spatial(base)
@@ -174,11 +335,12 @@ nonisolated enum TerminalTouchKeyboardModel {
                 let candidate = targets[index]
                 let isSpace = candidate.key.action == .text(" ")
                 let next = isSpace ? " " : candidate.key.letter
-                // Space tolerates a slightly deeper bottom-row miss after a
-                // complete word. Other letter boundaries remain narrower.
-                let allowance: CGFloat = isSpace ? min(10, base.height * 0.25) : 6
-                guard let next, boundaryDistance <= allowance, distance(point, to: candidate.frame) <= allowance,
-                      base.insetBy(dx: -0.01, dy: -0.01).intersects(candidate.frame) else { continue }
+                guard let next, base.insetBy(dx: -0.01, dy: -0.01).intersects(candidate.frame) else { continue }
+                if isSpace {
+                    // Space's width flattens its spatial cost; it still needs a near miss.
+                    let allowance = min(10, base.height * 0.25)
+                    guard boundaryDistance <= allowance, distance(point, to: candidate.frame) <= allowance else { continue }
+                }
                 let ratio = min(4, max(0.25, prior.weight(for: next) / prior.weight(for: letter)))
                 guard ratio > 1 else { continue }
                 let score = spatial(candidate.frame) + log(ratio)
@@ -213,8 +375,19 @@ nonisolated enum TerminalTouchKeyboardModel {
             let displacement = max(abs(point.x - anchor.x), abs(point.y - anchor.y))
             // Fractional cell origins must not move an exact boundary below its threshold.
             guard displacement + 0.0001 >= threshold else { return false }
+            // Leaving the typing area keeps the last key, as the system keyboard does,
+            // but still counts as a slide so holds (accents, cursor) disarm.
+            guard geometry.bounds.contains(point) else {
+                anchor = point
+                dragged = true
+                return true
+            }
             let next = geometry.textHit(at: point) == nil ? nil : geometry.predictedHit(at: point, prior: prior)
-            if let next, next != selected, selected != nil {
+            if let next, next != selected, let selected {
+                let old = geometry.targets[selected].frame
+                // Finger roll drifts across rows more than columns, so a row
+                // change needs the finger well past the old key's edge.
+                guard !old.insetBy(dx: -0.1 * old.width, dy: -0.35 * old.height).contains(point) else { return false }
                 let frame = geometry.targets[next].frame
                 let interior = frame.insetBy(dx: min(10, frame.width * 0.25), dy: min(10, frame.height * 0.25))
                 // Finger roll can travel far while barely entering another
@@ -235,8 +408,12 @@ nonisolated enum TerminalTouchKeyboardModel {
 
         mutating func finish(at point: CGPoint, in geometry: TypingGeometry, dockedPad: Bool,
                              cancelled: Bool = false) -> Int? {
-            guard !cancelled, geometry.textHit(at: point) != nil else { cancel(); return nil }
-            move(to: point, in: geometry, dockedPad: dockedPad)
+            guard !cancelled else { cancel(); return nil }
+            if geometry.bounds.contains(point) {
+                // Releasing on an action key still cancels the letter.
+                guard geometry.textHit(at: point) != nil else { cancel(); return nil }
+                move(to: point, in: geometry, dockedPad: dockedPad)
+            }
             return takeSelection()
         }
 
@@ -321,29 +498,105 @@ nonisolated enum TerminalTouchKeyboardModel {
     }
 
     enum ToolPage: Int, CaseIterable {
-        case typing, symbols, navigation, shortcuts
+        case typing, dictation, symbols, navigation, shortcuts
 
         var title: String {
             switch self {
             case .typing: return String(localized: "Keyboard")
+            case .dictation: return String(localized: "Dictation")
             case .symbols: return String(localized: "Symbols")
             case .navigation: return String(localized: "Navigation")
             case .shortcuts: return String(localized: "Shortcuts")
             }
         }
 
-        func moved(by offset: Int) -> Self {
-            let count = Self.allCases.count
-            return Self(rawValue: (rawValue + offset % count + count) % count)!
+        /// Pages in swipe order; Dictation only when the feature is available and on.
+        static func pages(dictation: Bool) -> [Self] {
+            dictation ? allCases : allCases.filter { $0 != .dictation }
+        }
+
+        func moved(by offset: Int, in pages: [Self] = Self.allCases) -> Self {
+            guard let index = pages.firstIndex(of: self) else { return .typing }
+            let count = pages.count
+            return pages[(index + offset % count + count) % count]
         }
     }
 
     /// A deliberate horizontal stroke changes pages; ordinary key correction
     /// and vertical scrolling do not. The view excludes contacts owned by holds.
-    static func pageSwipe(translation: CGPoint) -> Int? {
-        guard abs(translation.x) >= 70, abs(translation.x) > abs(translation.y) * 2 else { return nil }
+    static func pageSwipe(translation: CGPoint, duration: TimeInterval) -> Int? {
+        guard abs(translation.x) >= 70, abs(translation.x) > abs(translation.y) * 2,
+              abs(translation.x) >= 300 * max(0, duration) else { return nil }
         return translation.x < 0 ? 1 : -1
     }
+
+    /// The vertical counterpart of `pageSwipe`: down shrinks (+1), up grows (-1).
+    static func heightSwipe(translation: CGPoint, duration: TimeInterval) -> Int? {
+        pageSwipe(translation: CGPoint(x: translation.y, y: translation.x), duration: duration).map { -$0 }
+    }
+
+    /// A letter this recent means the user is mid-word (LatinIME's 350ms).
+    /// Merged-touch splitting and page swipes both use it, so no touch can be both.
+    static let typingBurst: TimeInterval = 0.35
+    /// How long a fast-typing touch can still turn out to be two merged taps.
+    static let mergeWindow: TimeInterval = 0.08
+
+    /// A finger bouncing on release lands again almost at once, in the same place.
+    static func isTouchBounce(down: CGPoint, at time: TimeInterval, lastUp: CGPoint, at upTime: TimeInterval) -> Bool {
+        time - upTime < 0.04 && hypot(down.x - lastUp.x, down.y - lastUp.y) < 12.6
+    }
+
+    /// Mid-word, a toolbar key only fires on a deliberate hit away from its edges.
+    static func isClearlyInside(_ point: CGPoint, _ frame: CGRect) -> Bool {
+        frame.insetBy(dx: frame.width * 0.15, dy: frame.height * 0.15).contains(point)
+    }
+
+    /// Two taps can also merge over a few samples instead of one jump. A fast,
+    /// mostly horizontal travel of half a key diagonal is not a finger roll.
+    static func isMergedDrift(from origin: CGPoint, to point: CGPoint, elapsed: TimeInterval, keySize: CGSize) -> Bool {
+        let dx = abs(point.x - origin.x), dy = abs(point.y - origin.y)
+        let diagonal = hypot(keySize.width, keySize.height)
+        return diagonal > 0 && elapsed <= mergeWindow && dx >= dy && hypot(dx, dy) >= 0.53 * diagonal
+    }
+
+    /// Taps land below key centres on the letter rows, so the boundaries under
+    /// the first two rows move down by these fractions of a row (LatinIME
+    /// touch-position-correction). Logged taps hit Space high, so its edge stays.
+    static let rowBoundaryOffsets: [CGFloat] = [0.038, 0.088]
+
+    static func touchCorrectedFrames(_ rows: [[CGRect]]) -> [[CGRect]] {
+        func shift(below row: Int) -> CGFloat { rowBoundaryOffsets.indices.contains(row) ? rowBoundaryOffsets[row] : 0 }
+        return rows.enumerated().map { index, row in
+            row.map { frame in
+                let top = shift(below: index - 1) * frame.height
+                let bottom = shift(below: index) * frame.height
+                return CGRect(x: frame.minX, y: frame.minY + top, width: frame.width, height: frame.height - top + bottom)
+            }
+        }
+    }
+
+    /// Hit geometry for laid-out rows. `overhang` extends the top row upward.
+    /// The row correction is phone data; LatinIME ships none for tablets.
+    static func typingGeometry(keys: [[Key]], frames: [[CGRect]], minX: CGFloat, width: CGFloat,
+                               overhang: CGFloat, touchCorrection: Bool) -> TypingGeometry {
+        let top = frames.first?.first?.minY ?? 0
+        let bottom = frames.last?.first?.maxY ?? top
+        let hitFrames = touchCorrection ? touchCorrectedFrames(frames) : frames
+        let targets = zip(keys.flatMap { $0 }, hitFrames.flatMap { $0 })
+            .map { HitTarget(key: $0, frame: $1) }
+        return TypingGeometry(targets: targets, bounds: CGRect(x: minX, y: top - overhang, width: width,
+                                                              height: bottom - top + overhang))
+    }
+
+    /// One thumb lifting as another lands can arrive as a single touch that
+    /// jumps. No finger covers this distance between two digitizer samples.
+    static func isTouchJump(from previous: CGPoint, to point: CGPoint) -> Bool {
+        hypot(point.x - previous.x, point.y - previous.y) > 60
+    }
+
+    /// The top row also claims the bottom strip of the row above it:
+    /// a stray letter costs less than a stray Esc or Ctrl.
+    static let topRowOverhang: CGFloat = 6
 
     enum ToolbarDrawerState: Equatable {
         case closed, stacked(Int), cycling(Int)
@@ -459,6 +712,15 @@ nonisolated enum TerminalTouchKeyboardModel {
             defer { x += unit * key.weight }
             return CGRect(x: x, y: y, width: unit * key.weight, height: height)
         }
+    }
+
+    /// UIKit can fix a docked keyboard's height (iPhone Duo's laptop pose).
+    /// Rows grow to fill it up to a comfortable size; the remainder goes above
+    /// the toolbar so the keys stay on the bottom edge.
+    static func fixedHeightLayout(height: Double, chrome: Double, rowCount: Int) -> (rowHeight: Double, top: Double) {
+        guard rowCount > 0 else { return (0, max(0, height - chrome)) }
+        let rowHeight = min(80, max(30, (height - chrome) / Double(rowCount)))
+        return (rowHeight, max(0, height - chrome - rowHeight * Double(rowCount)))
     }
 
     enum Placement: Equatable { case docked, floating }
