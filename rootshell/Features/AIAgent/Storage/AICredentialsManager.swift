@@ -1503,7 +1503,7 @@ final class AICredentialsManager {
             query[kSecAttrSynchronizable as String] = true
         }
 
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(AppIdentifiers.scopedKeychain(query) as CFDictionary, nil)
 
         guard status != errSecDuplicateItem else {
             throw KeychainManager.KeychainError.duplicateItem
@@ -1526,7 +1526,7 @@ final class AICredentialsManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result)
 
         guard status != errSecItemNotFound else {
             throw KeychainManager.KeychainError.itemNotFound
@@ -1552,7 +1552,7 @@ final class AICredentialsManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(AppIdentifiers.scopedKeychain(query) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainManager.KeychainError.unexpectedStatus(status)
@@ -1570,7 +1570,7 @@ final class AICredentialsManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result)
 
         guard status == errSecSuccess,
               let items = result as? [[String: Any]] else {

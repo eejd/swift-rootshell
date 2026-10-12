@@ -994,11 +994,11 @@ class KeychainManager {
             kSecValueData as String: data,
             kSecAttrLabel as String: label
         ]
-        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        var status = SecItemUpdate(scoped(query) as CFDictionary, scoped(attributes) as CFDictionary)
         if status == errSecItemNotFound {
             var add = query.merging(attributes) { $1 }
             add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            status = SecItemAdd(add as CFDictionary, nil)
+            status = SecItemAdd(scoped(add) as CFDictionary, nil)
         }
         guard status == errSecSuccess else {
             Self.logger.error("saveStorageProvider failed - Status: \(status) (\(Self.keychainErrorString(status)))")
@@ -1011,14 +1011,14 @@ class KeychainManager {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitAll
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(scoped(query) as CFDictionary, &result)
         if status == errSecItemNotFound { return [] }
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
         return result as? [Data] ?? []
     }
 
     func deleteStorageProvider(identifier: String) throws {
-        let status = SecItemDelete(storageProviderQuery(identifier: identifier) as CFDictionary)
+        let status = SecItemDelete(scoped(storageProviderQuery(identifier: identifier)) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
         }

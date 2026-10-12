@@ -64,7 +64,7 @@ class VNCPasswordManager {
         let attributes: [String: Any] = [
             kSecValueData as String: passwordData
         ]
-        let updateStatus = SecItemUpdate(matchQuery as CFDictionary, attributes as CFDictionary)
+        let updateStatus = SecItemUpdate(AppIdentifiers.scopedKeychain(matchQuery) as CFDictionary, attributes as CFDictionary)
         if updateStatus == errSecSuccess { return }
         guard updateStatus == errSecItemNotFound else {
             Self.logger.error("Failed to update VNC password - Status: \(updateStatus)")
@@ -80,7 +80,7 @@ class VNCPasswordManager {
             kSecAttrSynchronizable as String: true,
             kSecValueData as String: passwordData
         ]
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        let addStatus = SecItemAdd(AppIdentifiers.scopedKeychain(addQuery) as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
             Self.logger.error("Failed to save VNC password - Status: \(addStatus)")
             throw PasswordError.unexpectedStatus(addStatus)
@@ -100,7 +100,7 @@ class VNCPasswordManager {
         ]
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result)
 
         switch status {
         case errSecSuccess:
@@ -125,7 +125,7 @@ class VNCPasswordManager {
             kSecAttrAccessGroup as String: Self.accessGroup,
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
-        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+        return SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, nil) == errSecSuccess
     }
 
     /// Deletes the saved password for a connection key (no-op if absent).
@@ -140,7 +140,7 @@ class VNCPasswordManager {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
 
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(AppIdentifiers.scopedKeychain(query) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw PasswordError.unexpectedStatus(status)
         }

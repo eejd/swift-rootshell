@@ -215,7 +215,8 @@ public class CatalystLocalShellSession: TerminalSession {
             sshAuthSock: LocalSSHAgentManager.activeSocketPathForShells,
             termType: TerminalTypeSettings.local,
             version: TerminalIdentity.shortVersion,
-            versionWithBuild: TerminalIdentity.version
+            versionWithBuild: TerminalIdentity.version,
+            extraEnvironment: SocketHelperConnection.extraShellEnvironment
         )
         DispatchQueue.global(qos: .userInitiated).async {
             let result = Result { try NativeLocalShellSpawner.spawn(request) }

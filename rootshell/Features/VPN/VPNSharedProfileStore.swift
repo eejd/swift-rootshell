@@ -590,7 +590,7 @@ nonisolated enum TailnetKeychainState {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result)
         if status == errSecItemNotFound { return Data() }
         guard status == errSecSuccess else {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
@@ -601,12 +601,12 @@ nonisolated enum TailnetKeychainState {
     static func write(_ key: String, _ data: Data) throws {
         let query = baseQuery(key)
         let update: [String: Any] = [kSecValueData as String: data]
-        var status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        var status = SecItemUpdate(AppIdentifiers.scopedKeychain(query) as CFDictionary, update as CFDictionary)
         if status == errSecItemNotFound {
             var add = query
             add[kSecValueData as String] = data
             add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            status = SecItemAdd(add as CFDictionary, nil)
+            status = SecItemAdd(AppIdentifiers.scopedKeychain(add) as CFDictionary, nil)
         }
         guard status == errSecSuccess else {
             throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
@@ -620,7 +620,7 @@ nonisolated enum TailnetKeychainState {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitAll
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+        guard SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result) == errSecSuccess,
               let items = result as? [[String: Any]] else { return [:] }
         var state: [String: Data] = [:]
         for item in items {
@@ -632,6 +632,6 @@ nonisolated enum TailnetKeychainState {
     }
 
     static func deleteAll() {
-        SecItemDelete(baseQuery(nil) as CFDictionary)
+        SecItemDelete(AppIdentifiers.scopedKeychain(baseQuery(nil)) as CFDictionary)
     }
 }

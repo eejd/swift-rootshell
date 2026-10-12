@@ -13,7 +13,7 @@ import Foundation
 @available(macCatalyst 14.0, *)
 class SocketHelperConnection {
     /// In-app Tailscale's loopback proxy for curl and friends, when turned on.
-    private nonisolated static var extraShellEnvironment: [String: String]? {
+    nonisolated static var extraShellEnvironment: [String: String]? {
         #if !CHINA_BUILD
         TailnetRouting.shared.state.shellProxyEnvironment
         #else

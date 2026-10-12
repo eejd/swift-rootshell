@@ -42,6 +42,8 @@ nonisolated enum NativeLocalShellSpawner {
         var termType: String?
         var version: String
         var versionWithBuild: String
+        /// In-app Tailscale's loopback proxy variables; merged last, as in the helper.
+        var extraEnvironment: [String: String]? = nil
     }
 
     enum SpawnError: LocalizedError {
@@ -297,6 +299,7 @@ nonisolated enum NativeLocalShellSpawner {
         if let paneToken = request.paneToken, !paneToken.isEmpty { env["LC_ROOTSHELL_PANE"] = paneToken }
         if let workingDirectory = existingDirectory(request.workingDirectory) { env["PWD"] = workingDirectory }
         if let sshAuthSock = request.sshAuthSock, !sshAuthSock.isEmpty { env["SSH_AUTH_SOCK"] = sshAuthSock }
+        if let extra = request.extraEnvironment { env.merge(extra) { _, new in new } }
         return env
     }
 

@@ -184,7 +184,7 @@ nonisolated enum CaptureCAKeychain {
 
     static func delete() {
         for account in [certAccount, keyAccount] {
-            SecItemDelete(baseQuery(account) as CFDictionary)
+            SecItemDelete(AppIdentifiers.scopedKeychain(baseQuery(account)) as CFDictionary)
         }
     }
 
@@ -203,19 +203,19 @@ nonisolated enum CaptureCAKeychain {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+        guard SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
 
     private static func writeItem(_ account: String, _ value: String) -> Bool {
         let data = Data(value.utf8)
-        SecItemDelete(baseQuery(account) as CFDictionary)
+        SecItemDelete(AppIdentifiers.scopedKeychain(baseQuery(account)) as CFDictionary)
         var attrs = baseQuery(account)
         attrs[kSecValueData as String] = data
         attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         attrs[kSecAttrSynchronizable as String] = false
-        return SecItemAdd(attrs as CFDictionary, nil) == errSecSuccess
+        return SecItemAdd(AppIdentifiers.scopedKeychain(attrs) as CFDictionary, nil) == errSecSuccess
     }
 }
 

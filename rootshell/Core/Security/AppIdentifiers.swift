@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import Security
 
 nonisolated enum AppIdentifiers {
     /// The app group shared with the VPN extension, the widget, and the
@@ -35,6 +36,18 @@ nonisolated enum AppIdentifiers {
     }()
 
     static let hasKeychainAccessGroup: Bool = !keychainAccessGroup.isEmpty
+
+    /// Passes a SecItem query/attributes dictionary through unchanged when the
+    /// build holds a keychain access group, otherwise drops
+    /// `kSecAttrAccessGroup` (an unentitled group fails every call with
+    /// errSecMissingEntitlement, -34018). Every SecItem call that builds its
+    /// own dictionary routes through here.
+    nonisolated static func scopedKeychain(_ attributes: [String: Any]) -> [String: Any] {
+        guard !hasKeychainAccessGroup else { return attributes }
+        var stripped = attributes
+        stripped.removeValue(forKey: kSecAttrAccessGroup as String)
+        return stripped
+    }
 
     /// The CloudKit container, or `nil` when the process holds no iCloud
     /// entitlement (MacPorts enablement: `RootshellICloudContainer` empty).

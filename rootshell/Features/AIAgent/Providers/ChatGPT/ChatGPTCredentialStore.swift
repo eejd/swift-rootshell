@@ -311,10 +311,10 @@ actor ChatGPTCredentialStore {
         query[kSecAttrAccessible as String] = accessible
         query[kSecAttrSynchronizable as String] = false
 
-        var status = SecItemAdd(query as CFDictionary, nil)
+        var status = SecItemAdd(AppIdentifiers.scopedKeychain(query) as CFDictionary, nil)
         if status == errSecDuplicateItem {
             let update: [String: Any] = [kSecValueData as String: data]
-            status = SecItemUpdate(baseQuery(account: account) as CFDictionary, update as CFDictionary)
+            status = SecItemUpdate(AppIdentifiers.scopedKeychain(baseQuery(account: account)) as CFDictionary, update as CFDictionary)
         }
         if status != errSecSuccess {
             logger.error("Keychain save failed: \(status)")
@@ -327,13 +327,13 @@ actor ChatGPTCredentialStore {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result)
         guard status == errSecSuccess else { return nil }
         return result as? Data
     }
 
     private func deleteFromKeychain(account: String) {
-        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
+        let status = SecItemDelete(AppIdentifiers.scopedKeychain(baseQuery(account: account)) as CFDictionary)
         if status != errSecSuccess && status != errSecItemNotFound {
             logger.error("Keychain delete failed: \(status)")
         }
