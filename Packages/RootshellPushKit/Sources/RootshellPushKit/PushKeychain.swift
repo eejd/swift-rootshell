@@ -56,11 +56,17 @@ public struct PushKeychain: Sendable {
         try delete(.credentials)
     }
 
+    /// A build with no keychain access group (`RootshellKeychainAccessGroup`
+    /// = `-`, the MacPorts sentinel, or empty) must not send
+    /// `kSecAttrAccessGroup`: an unentitled group fails with -34018. This
+    /// package cannot see the app's `AppIdentifiers`, so it applies the rule
+    /// itself.
     private func query(_ item: Item) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: item.rawValue,
-         kSecAttrAccount as String: "device",
-         kSecAttrAccessGroup as String: accessGroup]
+        var q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrService as String: item.rawValue,
+                                kSecAttrAccount as String: "device"]
+        if !accessGroup.isEmpty, accessGroup != "-" { q[kSecAttrAccessGroup as String] = accessGroup }
+        return q
     }
 
     private func read(_ item: Item) throws -> Data? {

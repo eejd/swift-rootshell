@@ -349,7 +349,7 @@ nonisolated enum VPNSSHConnector {
             kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
         ]
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = SecItemCopyMatching(AppIdentifiers.scopedKeychain(query) as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data else { return nil }
         return data
     }
