@@ -33,6 +33,8 @@ nonisolated enum NativeLocalShellSpawner {
     struct Request {
         var rows: UInt16
         var cols: UInt16
+        var pixelWidth: UInt16
+        var pixelHeight: UInt16
         var workingDirectory: String?
         var shell: String?
         var enableShellIntegration: Bool
@@ -82,8 +84,19 @@ nonisolated enum NativeLocalShellSpawner {
         let slaveFD = open(slavePath, O_RDWR | O_NOCTTY | O_CLOEXEC)
         guard slaveFD >= 0 else { throw SpawnError.pty("open slave") }
         defer { close(slaveFD) }
-        var size = winsize(ws_row: request.rows, ws_col: request.cols, ws_xpixel: 0, ws_ypixel: 0)
-        _ = ioctl(slaveFD, TIOCSWINSZ, &size)
+        var size = winsize(
+            ws_row: request.rows, ws_col: request.cols,
+            ws_xpixel: request.pixelWidth, ws_ypixel: request.pixelHeight)
+        guard ioctl(slaveFD, TIOCSWINSZ, &size) == 0 else { throw SpawnError.pty("TIOCSWINSZ") }
+
+        // Same line discipline as rootshell-helper's configureTerminalAttributes;
+        // the rest of the kernel defaults and control characters are kept.
+        var lineDiscipline = termios()
+        guard tcgetattr(slaveFD, &lineDiscipline) == 0 else { throw SpawnError.pty("tcgetattr") }
+        lineDiscipline.c_lflag |= tcflag_t(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOKE | ECHOCTL | IEXTEN)
+        lineDiscipline.c_iflag |= tcflag_t(IUTF8 | ICRNL | IXON | BRKINT)
+        lineDiscipline.c_oflag |= tcflag_t(OPOST | ONLCR)
+        guard tcsetattr(slaveFD, TCSANOW, &lineDiscipline) == 0 else { throw SpawnError.pty("tcsetattr") }
 
         var environment = buildEnvironment(request)
         var shell = validatedShell(request.shell) ?? defaultShell()
@@ -143,8 +156,8 @@ nonisolated enum NativeLocalShellSpawner {
 
     // MARK: - Session control
 
-    static func resize(masterFD: Int32, rows: UInt16, cols: UInt16) -> Bool {
-        var size = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
+    static func resize(masterFD: Int32, rows: UInt16, cols: UInt16, pixelWidth: UInt16, pixelHeight: UInt16) -> Bool {
+        var size = winsize(ws_row: rows, ws_col: cols, ws_xpixel: pixelWidth, ws_ypixel: pixelHeight)
         return ioctl(masterFD, TIOCSWINSZ, &size) == 0
     }
 

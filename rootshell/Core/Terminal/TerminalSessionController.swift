@@ -482,7 +482,8 @@ final class TerminalSessionController {
     #if targetEnvironment(macCatalyst)
     private func startCatalystLocalSession(workingDirectory: String?) {
         guard let host else { return }
-        guard let surfaceSize = host.terminalSurfaceGridSize else {
+        guard let surfaceSize = host.terminalSurfaceGridSize,
+              let surfacePixels = host.terminalSurfacePixelSize else {
             Ghostty.logger.error("Surface not ready, cannot start Catalyst shell")
             return
         }
@@ -496,6 +497,8 @@ final class TerminalSessionController {
         CatalystLocalShellSession.create(
             rows: surfaceSize.rows,
             cols: surfaceSize.cols,
+            pixelWidth: surfacePixels.width,
+            pixelHeight: surfacePixels.height,
             workingDirectory: workingDirectory,
             shell: shell,
             enableShellIntegration: true,

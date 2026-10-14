@@ -26,7 +26,7 @@ public final class TerminalPTY {
     public init() {}
 
     /// Terminal size structure
-    public struct TerminalSize: Sendable {
+    public struct TerminalSize: Sendable, Equatable {
         public var rows: UInt16
         public var cols: UInt16
         public var pixelWidth: UInt16 = 0

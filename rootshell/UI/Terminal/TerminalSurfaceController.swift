@@ -73,7 +73,7 @@ final class TerminalSurfaceController: NSObject {
 
     private var lastFramebufferSize: (width: UInt32, height: UInt32)?
     private var lastContentScaleFactor: CGFloat?
-    private var lastSentGridSize: (rows: UInt16, cols: UInt16)?
+    private var lastSentSize: TerminalPTY.TerminalSize?
     private var lastSizedSessionID: ObjectIdentifier?
     private var lastBottomInsetPx: Double = -1
     private var suppressSizeUpdates = false
@@ -111,7 +111,7 @@ final class TerminalSurfaceController: NSObject {
     func invalidateCachedSize() {
         lastFramebufferSize = nil
         lastContentScaleFactor = nil
-        lastSentGridSize = nil
+        lastSentSize = nil
     }
 
     /// A pipe-backed surface sizes its session from the pty_resize action,
@@ -128,7 +128,25 @@ final class TerminalSurfaceController: NSObject {
     /// too and must not release it into that grid.
     private var restoreGrid: (rows: UInt16, cols: UInt16)?
 
+    /// Set only for a direct NATIVE local shell: its session is created once
+    /// layout has applied a real, nonzero surface size.
+    private var pendingNativeLocalSessionSetup = false
+
+    private func startPendingNativeLocalSessionIfSized() {
+        guard pendingNativeLocalSessionSetup, surface != nil, !sizeUpdatesSuppressed,
+              let framebuffer = lastFramebufferSize, framebuffer.width > 0, framebuffer.height > 0,
+              let size = surfaceSize, size.rows > 0, size.columns > 0 else { return }
+        if sizesSessionFromPtyResizeAction {
+            // A constructor acknowledgement of a different provisional grid
+            // must not release the start.
+            guard let appliedGrid, appliedGrid.rows == size.rows, appliedGrid.cols == size.columns else { return }
+        }
+        pendingNativeLocalSessionSetup = false
+        host.surfaceDidNeedSessionSetup()
+    }
+
     func notePtyResizeApplied(rows: UInt16, cols: UInt16) {
+        defer { startPendingNativeLocalSessionIfSized() }
         appliedGrid = (rows: rows, cols: cols)
         guard let restoreGrid, restoreGrid.rows == rows, restoreGrid.cols == cols else { return }
         runLayoutRestore()
@@ -149,6 +167,7 @@ final class TerminalSurfaceController: NSObject {
     private func completeSurfaceResize(needsRestore: Bool) {
         // Holding the weak load keeps the host alive for the rest of this call.
         guard let liveHost else { return }
+        defer { startPendingNativeLocalSessionIfSized() }
         defer { withExtendedLifetime(liveHost) {} }
         let restorePending = needsRestore && host.surfacePendingScrollbackRestoreForLayout
         guard sizesSessionFromPtyResizeAction else {
@@ -176,20 +195,20 @@ final class TerminalSurfaceController: NSObject {
         host.surfaceRunLayoutDeferredScrollbackRestore()
     }
 
-    func shouldSendPTYSize(for sessionID: ObjectIdentifier, gridSize: (rows: UInt16, cols: UInt16)) -> Bool {
+    func shouldSendPTYSize(for sessionID: ObjectIdentifier, size: TerminalPTY.TerminalSize) -> Bool {
         if lastSizedSessionID != sessionID {
             lastSizedSessionID = sessionID
-            lastSentGridSize = nil
+            lastSentSize = nil
         }
-        return lastSentGridSize.map { $0 != gridSize } ?? true
+        return lastSentSize.map { $0 != size } ?? true
     }
 
-    func markPTYSizeSent(_ gridSize: (rows: UInt16, cols: UInt16)) {
-        lastSentGridSize = gridSize
+    func markPTYSizeSent(_ size: TerminalPTY.TerminalSize) {
+        lastSentSize = size
     }
 
     var lastSentPTYGridDescription: String {
-        lastSentGridSize.map { "\($0.rows)x\($0.cols)" } ?? "nil"
+        lastSentSize.map { "\($0.rows)x\($0.cols)" } ?? "nil"
     }
 
     func notifyOnFirstFrame(_ callback: @escaping @MainActor () -> Void) {
@@ -399,7 +418,19 @@ final class TerminalSurfaceController: NSObject {
         host.surfaceRegisterForScrollbackPersistence()
 
         Ghostty.logger.info("Setting up PTY and shell session...")
+        #if NATIVE && targetEnvironment(macCatalyst)
+        if case .local = host.surfaceConnectionConfig {
+            // Spawning at Ghostty's provisional grid hands the shell the wrong
+            // size and the later resize can precede the session. Start once a
+            // real layout size has been applied (startPendingNativeLocalSessionIfSized).
+            pendingNativeLocalSessionSetup = true
+            sizeDidChange(host.surfaceView.bounds.size)
+        } else {
+            host.surfaceDidNeedSessionSetup()
+        }
+        #else
         host.surfaceDidNeedSessionSetup()
+        #endif
         Ghostty.logger.info("PTY and shell setup initiated")
 
         setInitialOcclusion(on: newSurface)
@@ -850,6 +881,13 @@ final class TerminalSurfaceController: NSObject {
     }
 
     func teardownSurface() {
+        pendingNativeLocalSessionSetup = false
+        lastFramebufferSize = nil
+        lastContentScaleFactor = nil
+        lastSentSize = nil
+        lastSizedSessionID = nil
+        lastBottomInsetPx = -1
+
         guard let surface else {
             resetFirstFrameTracking()
             return

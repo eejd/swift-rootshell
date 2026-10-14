@@ -43,7 +43,7 @@ nonisolated extension Settings {
             title: String(localized: "Favorite Themes", comment: "Setting title"))
         static let dayNightEnabled = SettingKey(
             "dayNightThemeEnabled", default: false, group: .theme, configKey: "day-night-theme-enabled",
-            title: String(localized: "Match System Theme", comment: "Setting title"))
+            title: String(localized: "Match System Light/Dark Mode", comment: "Setting title"))
         static let dayNightDay = SettingKey(
             "dayNightThemeDayTheme", default: "Solarized Light", group: .theme, configKey: "day-night-theme-day-theme",
             title: String(localized: "Day Theme", comment: "Setting title"))
