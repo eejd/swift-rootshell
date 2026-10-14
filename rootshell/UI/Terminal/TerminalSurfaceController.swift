@@ -22,6 +22,7 @@ protocol TerminalSurfaceHost: AnyObject {
     var surfaceConnectionConfig: ConnectionConfig { get }
     var surfaceTmuxPaneBinding: Ghostty.TerminalView.TmuxPaneBinding? { get }
     var surfaceIsTmuxPane: Bool { get }
+    var surfaceIsHerdrPane: Bool { get }
     var surfaceRequiresHerdrFirstFrameGeometry: Bool { get }
     var surfaceFirstFrameGeometryIsReady: Bool { get }
     var surfaceTmuxPaneContainerLaidOut: Bool { get }
@@ -99,12 +100,14 @@ final class TerminalSurfaceController: NSObject {
 
     func setSizeUpdatesSuppressed(_ suppressed: Bool) {
         suppressSizeUpdates = suppressed
+        if !suppressed { startPendingNativeLocalSessionIfSized() }
     }
 
     @discardableResult
     func clearSizeSuppression() -> Bool {
         guard suppressSizeUpdates else { return false }
         suppressSizeUpdates = false
+        startPendingNativeLocalSessionIfSized()
         return true
     }
 
@@ -419,7 +422,7 @@ final class TerminalSurfaceController: NSObject {
 
         Ghostty.logger.info("Setting up PTY and shell session...")
         #if NATIVE && targetEnvironment(macCatalyst)
-        if case .local = host.surfaceConnectionConfig {
+        if case .local = host.surfaceConnectionConfig, !host.surfaceIsTmuxPane, !host.surfaceIsHerdrPane {
             // Spawning at Ghostty's provisional grid hands the shell the wrong
             // size and the later resize can precede the session. Start once a
             // real layout size has been applied (startPendingNativeLocalSessionIfSized).
@@ -673,6 +676,9 @@ final class TerminalSurfaceController: NSObject {
            lastFramebufferSize.width == framebufferWidth,
            lastFramebufferSize.height == framebufferHeight,
            lastContentScaleFactor == scale {
+            // A skipped start (suppressed when its ack arrived) is retried by
+            // the next layout pass even though the size is unchanged.
+            startPendingNativeLocalSessionIfSized()
             return
         }
 
@@ -952,6 +958,7 @@ extension Ghostty.TerminalView: TerminalSurfaceHost {
     var surfaceConnectionConfig: ConnectionConfig { connectionConfig }
     var surfaceTmuxPaneBinding: TmuxPaneBinding? { tmuxPaneBinding }
     var surfaceIsTmuxPane: Bool { isTmuxPane }
+    var surfaceIsHerdrPane: Bool { isHerdrPane }
     var surfaceRequiresHerdrFirstFrameGeometry: Bool { isHerdrPane && !usesHerdrFallbackScrolling }
     var surfaceFirstFrameGeometryIsReady: Bool {
         guard surfaceRequiresHerdrFirstFrameGeometry, let binding = herdrPaneBinding else { return true }
