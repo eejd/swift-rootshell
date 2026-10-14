@@ -820,12 +820,19 @@ extension Ghostty {
         private static func colorScheme(for config: ghostty_config_t) -> ghostty_color_scheme_e {
             var color = ghostty_config_color_s()
             let reportKey = "osc-color-report-background", key = "background"
-            guard ghostty_config_get(config, &color, reportKey, UInt(reportKey.utf8.count))
-                    || ghostty_config_get(config, &color, key, UInt(key.utf8.count)) else {
+            let usedKey: String
+            if ghostty_config_get(config, &color, reportKey, UInt(reportKey.utf8.count)) {
+                usedKey = reportKey
+            } else if ghostty_config_get(config, &color, key, UInt(key.utf8.count)) {
+                usedKey = key
+            } else {
+                Ghostty.logger.info("colorScheme: no background in config, defaulting to dark")
                 return GHOSTTY_COLOR_SCHEME_DARK
             }
             let luminance = (0.2126 * Double(color.r) + 0.7152 * Double(color.g) + 0.0722 * Double(color.b)) / 255
-            return luminance > 0.5 ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+            let scheme = luminance > 0.5 ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+            Ghostty.logger.info("colorScheme: \(usedKey, privacy: .public) rgb=\(color.r),\(color.g),\(color.b) luminance=\(luminance) -> \(scheme == GHOSTTY_COLOR_SCHEME_LIGHT ? "light" : "dark", privacy: .public)")
+            return scheme
         }
 
         /// Capture the finalized defaults before an owned config is freed.
