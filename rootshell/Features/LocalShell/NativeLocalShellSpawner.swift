@@ -110,9 +110,9 @@ nonisolated enum NativeLocalShellSpawner {
         let home = environment["HOME"] ?? NSHomeDirectory()
         // posix_spawn_file_actions_addchdir_np is unavailable to Catalyst, so
         // the bootstrap script changes directory before it execs the shell
-        // (login -l leaves the working directory alone).
+        // (the shell is started without login(1), which leaves the directory alone anyway).
         environment[initialDirectoryVariable] = existingDirectory(request.workingDirectory) ?? home
-        let arguments = loginCommand(user: environment["USER"] ?? NSUserName(), shell: shell, home: home)
+        let arguments = bootstrapCommand(shell: shell)
 
         // The child becomes a session leader (POSIX_SPAWN_SETSID); opening the
         // slave without O_NOCTTY as its first terminal then makes that PTY its
@@ -184,12 +184,11 @@ nonisolated enum NativeLocalShellSpawner {
 
     // MARK: - Command line
 
-    /// `/usr/bin/login [-q] -flp USER /bin/bash --noprofile --norc -c "exec -l SHELL"`
-    private static func loginCommand(user: String, shell: String, home: String) -> [String] {
-        var arguments = ["/usr/bin/login"]
-        if FileManager.default.fileExists(atPath: home + "/.hushlogin") { arguments.append("-q") }
-        // -f: skip authentication, -l: keep the working directory, -p: keep the environment.
-        arguments += ["-flp", user, "/bin/bash", "--noprofile", "--norc", "-c"]
+    /// `/bin/bash --noprofile --norc -c "exec -l SHELL"`. login(1) is not used:
+    /// it discards the controlling terminal the spawned session leader gets by
+    /// opening the slave, which breaks Ctrl-C and job control.
+    private static func bootstrapCommand(shell: String) -> [String] {
+        var arguments = ["/bin/bash", "--noprofile", "--norc", "-c"]
         // exec -l replaces bash with the shell as a login shell; execfail keeps
         // bash alive only if that exec fails, so the fallback still gets a turn.
         // Each token is single-quoted: validatedShell admits no quote character,
