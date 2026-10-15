@@ -213,6 +213,10 @@ extension Ghostty.TerminalView {
         guard let surfaceSize else { return nil }
         return (rows: surfaceSize.rows, cols: surfaceSize.columns)
     }
+    var terminalSurfacePixelSize: (width: UInt16, height: UInt16)? {
+        guard let surfaceSize else { return nil }
+        return (width: UInt16(clamping: surfaceSize.width_px), height: UInt16(clamping: surfaceSize.height_px))
+    }
     var terminalIsLiveDisconnectionOverlay: Bool {
         get { isLiveDisconnectionOverlay }
         set { isLiveDisconnectionOverlay = newValue }

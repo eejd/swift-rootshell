@@ -63,6 +63,7 @@ protocol TerminalSessionControllerHost: TerminalSessionHost, TerminalResponsePip
     func terminalMakeHerdrPaneSession() -> TerminalSession?
     var terminalSurfaceAvailable: Bool { get }
     var terminalSurfaceGridSize: (rows: UInt16, cols: UInt16)? { get }
+    var terminalSurfacePixelSize: (width: UInt16, height: UInt16)? { get }
     var terminalIsLiveDisconnectionOverlay: Bool { get set }
     var terminalOutputPipeline: TerminalOutputPipeline { get }
     var terminalReconnectionWidth: Int { get }

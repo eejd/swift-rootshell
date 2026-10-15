@@ -65,8 +65,8 @@ public class CatalystLocalShellSession: TerminalSession {
     private var closeScheduled = false
 
     // Coalesced resize state (to avoid hammering the helper during live resizing)
-    private var lastSentGridSize: (rows: UInt16, cols: UInt16)?
-    private var pendingGridSize: (rows: UInt16, cols: UInt16)?
+    private var lastSentSize: TerminalPTY.TerminalSize?
+    private var pendingSize: TerminalPTY.TerminalSize?
     private var resizeTask: Task<Void, Never>?
 
     // MARK: - Initialization
@@ -75,6 +75,8 @@ public class CatalystLocalShellSession: TerminalSession {
     public static func create(
         rows: UInt16,
         cols: UInt16,
+        pixelWidth: UInt16,
+        pixelHeight: UInt16,
         workingDirectory: String? = nil,
         shell: String? = nil,
         enableShellIntegration: Bool = true,
@@ -86,6 +88,8 @@ public class CatalystLocalShellSession: TerminalSession {
         attemptCreate(
             rows: rows,
             cols: cols,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
             workingDirectory: workingDirectory,
             shell: shell,
             enableShellIntegration: enableShellIntegration,
@@ -99,6 +103,8 @@ public class CatalystLocalShellSession: TerminalSession {
     private static func attemptCreate(
         rows: UInt16,
         cols: UInt16,
+        pixelWidth: UInt16,
+        pixelHeight: UInt16,
         workingDirectory: String?,
         shell: String?,
         enableShellIntegration: Bool,
@@ -107,7 +113,7 @@ public class CatalystLocalShellSession: TerminalSession {
         retriesRemaining: Int,
         completion: @escaping (Result<CatalystLocalShellSession, Error>) -> Void
     ) {
-        let size = TerminalPTY.TerminalSize(rows: rows, cols: cols)
+        let size = TerminalPTY.TerminalSize(rows: rows, cols: cols, pixelWidth: pixelWidth, pixelHeight: pixelHeight)
 
         #if NATIVE
         // NATIVE spawns the shell itself; the helper is not involved.
@@ -148,6 +154,8 @@ public class CatalystLocalShellSession: TerminalSession {
                                 attemptCreate(
                                     rows: rows,
                                     cols: cols,
+                                    pixelWidth: pixelWidth,
+                                    pixelHeight: pixelHeight,
                                     workingDirectory: workingDirectory,
                                     shell: shell,
                                     enableShellIntegration: enableShellIntegration,
@@ -207,6 +215,8 @@ public class CatalystLocalShellSession: TerminalSession {
         let request = NativeLocalShellSpawner.Request(
             rows: size.rows,
             cols: size.cols,
+            pixelWidth: size.pixelWidth,
+            pixelHeight: size.pixelHeight,
             workingDirectory: workingDirectory,
             shell: shell,
             enableShellIntegration: enableShellIntegration,
@@ -453,7 +463,7 @@ public class CatalystLocalShellSession: TerminalSession {
 
     public func setSize(_ size: TerminalPTY.TerminalSize) throws {
         pty.windowSize = size
-        scheduleResize(rows: size.rows, cols: size.cols)
+        scheduleResize(size)
     }
 
     /// Interrupts the running command (CTRL-C handler)
@@ -468,13 +478,13 @@ public class CatalystLocalShellSession: TerminalSession {
         sendInput(ctrlC)
     }
 
-    /// Resizes the PTY (coalesced during live resizing)
-    private func scheduleResize(rows: UInt16, cols: UInt16) {
+    /// Resizes the PTY (coalesced during live resizing). Coalesces on the full
+    /// size so a pixel-only change is not dropped.
+    private func scheduleResize(_ size: TerminalPTY.TerminalSize) {
         guard isRunning else { return }
 
-        let gridSize = (rows: rows, cols: cols)
-        if let pendingGridSize, pendingGridSize == gridSize { return }
-        pendingGridSize = gridSize
+        if let pendingSize, pendingSize == size { return }
+        pendingSize = size
 
         if resizeTask == nil {
             resizeTask = Task { @MainActor [weak self] in
@@ -482,24 +492,23 @@ public class CatalystLocalShellSession: TerminalSession {
                 defer { self.resizeTask = nil }
 
                 while true {
-                    guard let pending = self.pendingGridSize else { break }
-                    self.pendingGridSize = nil
+                    guard let pending = self.pendingSize else { break }
+                    self.pendingSize = nil
 
-                    if let lastSentGridSize = self.lastSentGridSize, lastSentGridSize == pending {
+                    if let lastSentSize = self.lastSentSize, lastSentSize == pending {
                         // Already sent this exact size; no-op.
                     } else {
-                        self.lastSentGridSize = pending
                         if Self.logFrequentLayout {
                             let sessionID = self.sessionID
-                            let rows = pending.rows
-                            let cols = pending.cols
-                            Ghostty.logger.debug("Resizing session \(sessionID) to \(rows)x\(cols)")
+                            Ghostty.logger.debug("Resizing session \(sessionID) to \(pending.rows)x\(pending.cols) px=\(pending.pixelWidth)x\(pending.pixelHeight)")
                         }
                         #if NATIVE
                         let success = NativeLocalShellSpawner.resize(
                             masterFD: self.masterFD,
                             rows: pending.rows,
-                            cols: pending.cols
+                            cols: pending.cols,
+                            pixelWidth: pending.pixelWidth,
+                            pixelHeight: pending.pixelHeight
                         )
                         #else
                         let success = await HelperConnection.shared.resizeShell(
@@ -507,17 +516,14 @@ public class CatalystLocalShellSession: TerminalSession {
                             rows: pending.rows,
                             cols: pending.cols
                         )
-                        #endif
                         if success {
-                            // Re-apply ioctl(TIOCSWINSZ) with pixel dimensions after the
-                            // helper's resize. The helper only receives rows/cols, so its
-                            // ioctl zeros out ws_xpixel/ws_ypixel. Re-setting from
-                            // pty.windowSize restores the pixel values needed by kitty icat,
-                            // imgcat, and other image-capable tools.
-                            try? self.pty.setWindowSize(self.pty.windowSize)
-                        } else {
-                            self.lastSentGridSize = nil
+                            // The helper only receives rows/cols, so its ioctl zeros
+                            // ws_xpixel/ws_ypixel. Re-set the captured full size to
+                            // restore the pixel values kitty icat/imgcat need.
+                            try? self.pty.setWindowSize(pending)
                         }
+                        #endif
+                        self.lastSentSize = success ? pending : nil
                     }
 
                     try? await Task.sleep(nanoseconds: Self.resizeThrottleNs)
@@ -580,7 +586,7 @@ public class CatalystLocalShellSession: TerminalSession {
         // Cancel any pending tasks
         resizeTask?.cancel()
         resizeTask = nil
-        pendingGridSize = nil
+        pendingSize = nil
 
         // Cancel read source
         readSource?.cancel()

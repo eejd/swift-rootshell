@@ -311,7 +311,7 @@ struct SSHConnectionView: View {
         var types: [ConnectionType] = [.ssh]
         
 #if targetEnvironment(macCatalyst)
-        if helperAvailable {
+        if localShellsAvailable {
             types.append(.local)
         }
 #else
@@ -445,7 +445,7 @@ struct SSHConnectionView: View {
     @State var connectionType: ConnectionType = .ssh
     @State private var inlineProfilesPath: [InlineProfilesRoute] = []
 #if targetEnvironment(macCatalyst)
-    @State private var helperAvailable: Bool = false
+    @State private var localShellsAvailable: Bool = HelperConnection.shared.localShellsKnownAvailable
 #endif
     @Namespace private var connectionTypeTabNamespace
 
@@ -550,7 +550,7 @@ struct SSHConnectionView: View {
                 cachedConsoleCapableAccounts = computeConsoleCapableAccounts()
             }
 #if targetEnvironment(macCatalyst)
-            .onChange(of: helperAvailable) { _, isAvailable in
+            .onChange(of: localShellsAvailable) { _, isAvailable in
                 if !isAvailable && connectionType == .local {
                     connectionType = .ssh
                 }
@@ -1837,14 +1837,7 @@ struct SSHConnectionView: View {
     
     private func handleConnectionViewTask() async {
 #if targetEnvironment(macCatalyst)
-        await withCheckedContinuation { continuation in
-            HelperConnection.shared.isHelperRunning { isRunning in
-                Task { @MainActor in
-                    helperAvailable = isRunning
-                    continuation.resume()
-                }
-            }
-        }
+        localShellsAvailable = await HelperConnection.shared.ensureLocalShellsAvailable()
 #endif
         
         cachedConsoleCapableAccounts = computeConsoleCapableAccounts()
@@ -2064,17 +2057,14 @@ struct SSHConnectionView: View {
 #if targetEnvironment(macCatalyst)
         if connectionType == .local {
             isConnecting = true
-            HelperConnection.shared.isHelperRunning { isRunning in
-                Task { @MainActor in
-                    guard isRunning else {
-                        isConnecting = false
-                        errorMessage = "Ghostty Helper is not running. Please launch the helper app to use local shells."
-                        return
-                    }
-                    
-                    onConnect(nil, splitOption)
-                    close()
+            Task { @MainActor in
+                guard await HelperConnection.shared.ensureLocalShellsAvailable() else {
+                    isConnecting = false
+                    errorMessage = "Local shells are unavailable."
+                    return
                 }
+                onConnect(nil, splitOption)
+                close()
             }
             return
         }

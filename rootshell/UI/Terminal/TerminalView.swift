@@ -4614,7 +4614,15 @@ extension Ghostty {
             let sessionID = ObjectIdentifier(session as AnyObject)
             let gridSize = applied.map { (rows: $0.rows, cols: $0.cols) }
                 ?? (rows: surfaceSize.rows, cols: surfaceSize.columns)
-            if !surfaceController.shouldSendPTYSize(for: sessionID, gridSize: gridSize) {
+            let scale = contentScaleFactor
+            let size = bounds.size
+            let ptySize = TerminalPTY.TerminalSize(
+                rows: gridSize.rows,
+                cols: gridSize.cols,
+                pixelWidth: applied?.widthPx ?? UInt16(clamping: Int(size.width * scale)),
+                pixelHeight: applied?.heightPx ?? UInt16(clamping: Int(size.height * scale))
+            )
+            if !surfaceController.shouldSendPTYSize(for: sessionID, size: ptySize) {
                 // Debug log for cursor position bug investigation
                 Ghostty.logger.debug("updatePTYSize: skipped (cache hit) \(gridSize.rows)x\(gridSize.cols)")
                 return
@@ -4638,23 +4646,14 @@ extension Ghostty {
 
             // Debug log for cursor position bug investigation
             let lastSizeStr = surfaceController.lastSentPTYGridDescription
-            Ghostty.logger.info("updatePTYSize: SENDING resize \(lastSizeStr) -> \(gridSize.rows)x\(gridSize.cols)")
+            Ghostty.logger.info("updatePTYSize: SENDING resize \(lastSizeStr) -> \(ptySize.rows)x\(ptySize.cols)")
 
-            let scale = contentScaleFactor
-            let size = bounds.size
-
-            let ptySize = TerminalPTY.TerminalSize(
-                rows: gridSize.rows,
-                cols: gridSize.cols,
-                pixelWidth: applied?.widthPx ?? UInt16(size.width * scale),
-                pixelHeight: applied?.heightPx ?? UInt16(size.height * scale)
-            )
             do {
                 invalidateWritingAssistance()
                 try session.setSize(ptySize)
-                surfaceController.markPTYSizeSent(gridSize)
+                surfaceController.markPTYSizeSent(ptySize)
                 if Self.logFrequentLayout {
-                    Ghostty.logger.debug("   Sent size update to session: \(ptySize.rows)x\(ptySize.cols)")
+                    Ghostty.logger.debug("   Sent size update to session: \(ptySize.rows)x\(ptySize.cols) px=\(ptySize.pixelWidth)x\(ptySize.pixelHeight)")
                 }
             } catch {
                 Ghostty.logger.error("   Failed to set session size: \(error)")

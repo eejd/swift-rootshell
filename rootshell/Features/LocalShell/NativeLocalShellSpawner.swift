@@ -33,6 +33,8 @@ nonisolated enum NativeLocalShellSpawner {
     struct Request {
         var rows: UInt16
         var cols: UInt16
+        var pixelWidth: UInt16
+        var pixelHeight: UInt16
         var workingDirectory: String?
         var shell: String?
         var enableShellIntegration: Bool
@@ -82,8 +84,19 @@ nonisolated enum NativeLocalShellSpawner {
         let slaveFD = open(slavePath, O_RDWR | O_NOCTTY | O_CLOEXEC)
         guard slaveFD >= 0 else { throw SpawnError.pty("open slave") }
         defer { close(slaveFD) }
-        var size = winsize(ws_row: request.rows, ws_col: request.cols, ws_xpixel: 0, ws_ypixel: 0)
-        _ = ioctl(slaveFD, TIOCSWINSZ, &size)
+        var size = winsize(
+            ws_row: request.rows, ws_col: request.cols,
+            ws_xpixel: request.pixelWidth, ws_ypixel: request.pixelHeight)
+        guard ioctl(slaveFD, TIOCSWINSZ, &size) == 0 else { throw SpawnError.pty("TIOCSWINSZ") }
+
+        // Same line discipline as rootshell-helper's configureTerminalAttributes;
+        // the rest of the kernel defaults and control characters are kept.
+        var lineDiscipline = termios()
+        guard tcgetattr(slaveFD, &lineDiscipline) == 0 else { throw SpawnError.pty("tcgetattr") }
+        lineDiscipline.c_lflag |= tcflag_t(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOKE | ECHOCTL | IEXTEN)
+        lineDiscipline.c_iflag |= tcflag_t(IUTF8 | ICRNL | IXON | BRKINT)
+        lineDiscipline.c_oflag |= tcflag_t(OPOST | ONLCR)
+        guard tcsetattr(slaveFD, TCSANOW, &lineDiscipline) == 0 else { throw SpawnError.pty("tcsetattr") }
 
         var environment = buildEnvironment(request)
         var shell = validatedShell(request.shell) ?? defaultShell()
@@ -97,9 +110,9 @@ nonisolated enum NativeLocalShellSpawner {
         let home = environment["HOME"] ?? NSHomeDirectory()
         // posix_spawn_file_actions_addchdir_np is unavailable to Catalyst, so
         // the bootstrap script changes directory before it execs the shell
-        // (login -l leaves the working directory alone).
+        // (the shell is started without login(1), which leaves the directory alone anyway).
         environment[initialDirectoryVariable] = existingDirectory(request.workingDirectory) ?? home
-        let arguments = loginCommand(user: environment["USER"] ?? NSUserName(), shell: shell, home: home)
+        let arguments = bootstrapCommand(shell: shell)
 
         // The child becomes a session leader (POSIX_SPAWN_SETSID); opening the
         // slave without O_NOCTTY as its first terminal then makes that PTY its
@@ -143,8 +156,8 @@ nonisolated enum NativeLocalShellSpawner {
 
     // MARK: - Session control
 
-    static func resize(masterFD: Int32, rows: UInt16, cols: UInt16) -> Bool {
-        var size = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
+    static func resize(masterFD: Int32, rows: UInt16, cols: UInt16, pixelWidth: UInt16, pixelHeight: UInt16) -> Bool {
+        var size = winsize(ws_row: rows, ws_col: cols, ws_xpixel: pixelWidth, ws_ypixel: pixelHeight)
         return ioctl(masterFD, TIOCSWINSZ, &size) == 0
     }
 
@@ -171,12 +184,11 @@ nonisolated enum NativeLocalShellSpawner {
 
     // MARK: - Command line
 
-    /// `/usr/bin/login [-q] -flp USER /bin/bash --noprofile --norc -c "exec -l SHELL"`
-    private static func loginCommand(user: String, shell: String, home: String) -> [String] {
-        var arguments = ["/usr/bin/login"]
-        if FileManager.default.fileExists(atPath: home + "/.hushlogin") { arguments.append("-q") }
-        // -f: skip authentication, -l: keep the working directory, -p: keep the environment.
-        arguments += ["-flp", user, "/bin/bash", "--noprofile", "--norc", "-c"]
+    /// `/bin/bash --noprofile --norc -c "exec -l SHELL"`. login(1) is not used:
+    /// it discards the controlling terminal the spawned session leader gets by
+    /// opening the slave, which breaks Ctrl-C and job control.
+    private static func bootstrapCommand(shell: String) -> [String] {
+        var arguments = ["/bin/bash", "--noprofile", "--norc", "-c"]
         // exec -l replaces bash with the shell as a login shell; execfail keeps
         // bash alive only if that exec fails, so the fallback still gets a turn.
         // Each token is single-quoted: validatedShell admits no quote character,
