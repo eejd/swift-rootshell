@@ -31,7 +31,8 @@ struct AIAgentFileToolHandler {
         offset: Int?,
         limit: Int?,
         workingDirectory: String,
-        sandboxRoot: String? = nil
+        sandboxRoot: String? = nil,
+        approvedOnce: String? = nil
     ) -> CommandExecutionResult {
         let startTime = Date()
 
@@ -49,7 +50,7 @@ struct AIAgentFileToolHandler {
             resolvedPath = sandboxed
         } else {
             resolvedPath = resolvePath(path, workingDirectory: workingDirectory)
-            guard isPathAllowed(resolvedPath) else {
+            guard isPathAllowed(resolvedPath, workingDirectory: workingDirectory, approvedOnce: approvedOnce) else {
                 Self.logger.error("read_file DENIED (outside allowed dirs): path=\(path, privacy: .public) resolved=\(resolvedPath, privacy: .public)")
                 return CommandExecutionResult(
                     output: "Error: Access denied. Path is outside the allowed directories: \(path) (resolved: \(resolvedPath))",
@@ -151,7 +152,8 @@ struct AIAgentFileToolHandler {
     static func writeFile(
         path: String,
         content: String,
-        workingDirectory: String
+        workingDirectory: String,
+        approvedOnce: String? = nil
     ) -> CommandExecutionResult {
         let startTime = Date()
 
@@ -159,7 +161,7 @@ struct AIAgentFileToolHandler {
         let resolvedPath = resolvePath(path, workingDirectory: workingDirectory)
 
         // Validate path is within sandbox
-        guard isPathAllowed(resolvedPath) else {
+        guard isPathAllowed(resolvedPath, workingDirectory: workingDirectory, approvedOnce: approvedOnce) else {
             return CommandExecutionResult(
                 output: "Error: Access denied. Path is outside the allowed directories: \(path) (resolved: \(resolvedPath))",
                 exitCode: 1,
@@ -207,7 +209,8 @@ struct AIAgentFileToolHandler {
         path: String,
         oldString: String,
         newString: String,
-        workingDirectory: String
+        workingDirectory: String,
+        approvedOnce: String? = nil
     ) -> CommandExecutionResult {
         let startTime = Date()
 
@@ -215,7 +218,7 @@ struct AIAgentFileToolHandler {
         let resolvedPath = resolvePath(path, workingDirectory: workingDirectory)
 
         // Validate path is within sandbox
-        guard isPathAllowed(resolvedPath) else {
+        guard isPathAllowed(resolvedPath, workingDirectory: workingDirectory, approvedOnce: approvedOnce) else {
             return CommandExecutionResult(
                 output: "Error: Access denied. Path is outside the allowed directories: \(path) (resolved: \(resolvedPath))",
                 exitCode: 1,
@@ -299,7 +302,8 @@ struct AIAgentFileToolHandler {
     static func listFiles(
         path: String,
         workingDirectory: String,
-        sandboxRoot: String? = nil
+        sandboxRoot: String? = nil,
+        approvedOnce: String? = nil
     ) -> CommandExecutionResult {
         let startTime = Date()
 
@@ -316,7 +320,7 @@ struct AIAgentFileToolHandler {
             resolvedPath = sandboxed
         } else {
             resolvedPath = resolvePath(path, workingDirectory: workingDirectory)
-            guard isPathAllowed(resolvedPath) else {
+            guard isPathAllowed(resolvedPath, workingDirectory: workingDirectory, approvedOnce: approvedOnce) else {
                 logger.error("list_files DENIED (outside allowed dirs): path=\(path, privacy: .public) resolved=\(resolvedPath, privacy: .public)")
                 return CommandExecutionResult(
                     output: "Error: Access denied. Path is outside the allowed directories: \(path)",
@@ -366,14 +370,28 @@ struct AIAgentFileToolHandler {
 
     /// Resolve a potentially relative path against the working directory
     static func resolvePath(_ path: String, workingDirectory: String) -> String {
+        let unresolved: String
         if path.hasPrefix("/") {
-            return path
-        }
-        if path.hasPrefix("~/") {
+            unresolved = path
+        } else if path.hasPrefix("~/") {
+            #if targetEnvironment(macCatalyst)
+            // Mac: the user's real home. Expansion only resolves the path; it grants nothing.
+            let home = NSHomeDirectory()
+            #else
             let home = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path
-            return home + String(path.dropFirst(1))
+            #endif
+            unresolved = home + String(path.dropFirst(1))
+        } else {
+            unresolved = (workingDirectory as NSString).appendingPathComponent(path)
         }
-        return (workingDirectory as NSString).appendingPathComponent(path)
+        #if targetEnvironment(macCatalyst)
+        // Mac: the tools open exactly the canonical path the scope policy judged
+        // (symlinks followed and `..` resolved the way the kernel would), so a
+        // symlink plus `..` can't make the judged path differ from the opened one.
+        return AIAgentFileAccessPolicy.canonical(unresolved)
+        #else
+        return unresolved
+        #endif
     }
 
     /// Canonicalize a path for sandbox comparison: collapse `.`/`..`, then
@@ -410,8 +428,29 @@ struct AIAgentFileToolHandler {
         return nil
     }
 
-    /// Check whether a resolved path is within the allowed sandbox
-    static func isPathAllowed(_ resolvedPath: String) -> Bool {
+    /// Check whether a resolved path is within the allowed sandbox.
+    ///
+    /// Mac Catalyst: a restrictive allow-list (`AIAgentFileAccessPolicy`): the
+    /// session working directory, folders the user granted, and the temp scratch
+    /// directory; credential locations never. One call the user approved at the
+    /// prompt passes via `approvedOnce`. Elsewhere (iOS): Documents plus
+    /// bookmarked locations, as before.
+    static func isPathAllowed(
+        _ resolvedPath: String,
+        workingDirectory: String = "",
+        approvedOnce: String? = nil
+    ) -> Bool {
+        #if targetEnvironment(macCatalyst)
+        switch accessDecision(forResolvedPath: resolvedPath, workingDirectory: workingDirectory) {
+        case .allowed:
+            return true
+        case .needsGrant(let request):
+            guard let approvedOnce else { return false }
+            return AIAgentFileAccessPolicy.canonical(approvedOnce) == request.resolvedPath
+        case .denied:
+            return false
+        }
+        #else
         // Resolve symlinks on the Documents URL (which always exists) to get the
         // canonical prefix.  On iOS /var → /private/var, so the Documents URL from
         // FileManager may use either form depending on API.  Resolving symlinks on
@@ -439,8 +478,7 @@ struct AIAgentFileToolHandler {
             if withoutPrivate.hasPrefix(documentsCanonical) { return true }
         }
 
-        #if !targetEnvironment(macCatalyst)
-        // Check bookmarked locations (iOS only)
+        // Check bookmarked locations
         for location in BookmarkedLocationsManager.shared.locations {
             if let url = location.resolvedURL {
                 let locationCanonical = url.resolvingSymlinksInPath().path
@@ -450,15 +488,21 @@ struct AIAgentFileToolHandler {
                 }
             }
         }
-        #endif
-
-        #if targetEnvironment(macCatalyst)
-        let homeDir = NSHomeDirectory()
-        if collapsed.hasPrefix(homeDir) { return true }
-        #endif
 
         return false
+        #endif
     }
+
+    #if targetEnvironment(macCatalyst)
+    /// The policy's verdict for a resolved path (Mac). Also used by the session
+    /// to decide whether a call needs the folder-access prompt.
+    static func accessDecision(
+        forResolvedPath resolvedPath: String,
+        workingDirectory: String
+    ) -> AIAgentFileAccessPolicy.Decision {
+        AIAgentFileGrants.makePolicy().decide(resolvedPath: resolvedPath, workingDirectory: workingDirectory)
+    }
+    #endif
 
     /// Detect binary files by scanning for null bytes in the first 8KB
     private static func isBinaryFile(_ path: String) -> Bool {

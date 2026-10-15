@@ -92,6 +92,10 @@ nonisolated extension Settings {
         static let voice = SettingKey(
             "voice.agent.voice", default: GeminiVoice.kore, group: .ai, configKey: "voice-agent-voice",
             title: String(localized: "Voice", comment: "Setting title"))
+        /// Folders the user granted the agent's file tools (Mac). Paths are machine-specific.
+        static let fileGrants = SettingKey<Data?>(
+            "ai.fileGrants", default: nil, group: .ai, policy: .deviceOnly,
+            title: String(localized: "AI Agent File Access", comment: "Setting title"))
 
         /// Per-provider and per-model keys; the bare prefixes are never written.
         static let prefixRules: [SettingsRegistry.PrefixRule] = [
@@ -110,7 +114,7 @@ nonisolated extension Settings {
             customProviders.erased, openRouterFavorites.erased, openRouterDiscoveredModels.erased,
             chatGPTModels.erased, chatGPTModelsRefreshDate, chatGPTNeedsReconnect.erased,
             chatGPTPlanWelcomeShown.erased, yoloModeLegacy.erased, fullscreenModeLegacy.erased,
-            mcpServerConfig.erased, voiceConsultationMode.erased, voice.erased,
+            mcpServerConfig.erased, voiceConsultationMode.erased, voice.erased, fileGrants.erased,
         ]
     }
 }

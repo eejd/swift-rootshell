@@ -15,6 +15,9 @@ struct CommandCardView: View {
     let onApprove: () -> Void
     let onReject: () -> Void
     let onEdit: (String) -> Void
+    /// Set for a Mac folder-access prompt: buttons become Deny / Allow Once / Always Allow Folder.
+    var scopeRequest: AIAgentFileScopeRequest?
+    var onApproveAlways: () -> Void = {}
 
     @State private var isEditing = false
     @State private var editedCommand: String = ""
@@ -69,6 +72,11 @@ struct CommandCardView: View {
             // Risk warnings
             if !command.riskReasons.isEmpty && !isEditing {
                 riskWarnings
+            }
+
+            // Folder-access prompt (Mac)
+            if let scopeRequest, !isEditing {
+                scopeNotice(scopeRequest)
             }
 
             // Action buttons
@@ -217,15 +225,46 @@ struct CommandCardView: View {
 
             Spacer()
 
-            // Approve button
-            Button(action: onApprove) {
-                Label("Run Command", systemImage: "play.circle.fill")
-                    .font(AIAgentFonts.button)
+            if let scopeRequest {
+                // Folder access: this one path, or the whole folder from now on
+                Button(action: onApprove) {
+                    Label("Allow Once", systemImage: "checkmark.circle")
+                        .font(AIAgentFonts.buttonSecondary)
+                }
+                .buttonStyle(.bordered)
+
+                if scopeRequest.canGrantAlways {
+                    Button(action: onApproveAlways) {
+                        Label("Always Allow Folder", systemImage: "folder.badge.plus")
+                            .font(AIAgentFonts.button)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            } else {
+                // Approve button
+                Button(action: onApprove) {
+                    Label("Run Command", systemImage: "play.circle.fill")
+                        .font(AIAgentFonts.button)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(approveButtonColor)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(approveButtonColor)
         }
         .padding(.top, 4)
+    }
+
+    private func scopeNotice(_ request: AIAgentFileScopeRequest) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("Outside the folders the agent may access", systemImage: "folder.badge.questionmark")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.orange)
+            Text(request.canGrantAlways
+                 ? "Allow just this path, or always allow \(request.folder)."
+                 : "\(request.folder) is too broad to allow permanently; you can allow this path once.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     // MARK: - Attributed Command
