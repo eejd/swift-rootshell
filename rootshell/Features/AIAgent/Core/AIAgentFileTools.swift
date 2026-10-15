@@ -370,19 +370,28 @@ struct AIAgentFileToolHandler {
 
     /// Resolve a potentially relative path against the working directory
     static func resolvePath(_ path: String, workingDirectory: String) -> String {
+        let unresolved: String
         if path.hasPrefix("/") {
-            return path
-        }
-        if path.hasPrefix("~/") {
+            unresolved = path
+        } else if path.hasPrefix("~/") {
             #if targetEnvironment(macCatalyst)
             // Mac: the user's real home. Expansion only resolves the path; it grants nothing.
             let home = NSHomeDirectory()
             #else
             let home = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path
             #endif
-            return home + String(path.dropFirst(1))
+            unresolved = home + String(path.dropFirst(1))
+        } else {
+            unresolved = (workingDirectory as NSString).appendingPathComponent(path)
         }
-        return (workingDirectory as NSString).appendingPathComponent(path)
+        #if targetEnvironment(macCatalyst)
+        // Mac: the tools open exactly the canonical path the scope policy judged
+        // (symlinks followed and `..` resolved the way the kernel would), so a
+        // symlink plus `..` can't make the judged path differ from the opened one.
+        return AIAgentFileAccessPolicy.canonical(unresolved)
+        #else
+        return unresolved
+        #endif
     }
 
     /// Canonicalize a path for sandbox comparison: collapse `.`/`..`, then

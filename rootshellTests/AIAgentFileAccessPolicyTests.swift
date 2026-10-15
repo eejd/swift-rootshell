@@ -101,5 +101,49 @@ final class AIAgentFileAccessPolicyTests: XCTestCase {
         let decision = policy().decide(resolvedPath: project + "/../other/notes.txt", workingDirectory: project)
         guard case .needsGrant = decision else { return XCTFail("\(decision)") }
     }
+
+    func testDotDotAfterASymlinkMeansTheParentOfTheTarget() throws {
+        // project/link -> home/.ssh, so "link/../.aws/credentials" is home/.aws/credentials,
+        // not project/.aws/credentials. The path judged must be the one the kernel opens.
+        try FileManager.default.createSymbolicLink(atPath: project + "/link", withDestinationPath: home + "/.ssh")
+        let judged = AIAgentFileAccessPolicy.canonical(project + "/link/../.aws/credentials")
+        XCTAssertEqual(judged, home + "/.aws/credentials")
+        guard case .denied = policy().decide(
+            resolvedPath: project + "/link/../.aws/credentials", workingDirectory: project
+        ) else { return XCTFail("lexical .. collapse let a protected path through") }
+    }
+
+    func testCanonicalIsIdempotentAndFollowsDanglingSymlinks() throws {
+        try FileManager.default.createSymbolicLink(atPath: project + "/dangling", withDestinationPath: home + "/.ssh/new")
+        let once = AIAgentFileAccessPolicy.canonical(project + "/dangling")
+        XCTAssertEqual(once, home + "/.ssh/new")
+        XCTAssertEqual(AIAgentFileAccessPolicy.canonical(once), once)
+    }
+
+    func testProtectedPathsMatchRegardlessOfCase() {
+        let sut = policy(grants: [home + "/other"])
+        for path in [home + "/.SSH/id_ed25519", home + "/library/KEYCHAINS/login.keychain-db", home + "/.Aws/x"] {
+            guard case .denied = sut.decide(resolvedPath: path, workingDirectory: project) else {
+                return XCTFail("\(path) should be refused")
+            }
+        }
+    }
+
+    func testHomeCannotBeGrantedByAnAliasOrDifferentCase() {
+        let upper = home.uppercased()
+        XCTAssertTrue(policy().isTooBroad(upper))
+        XCTAssertTrue(policy().isTooBroad("/System/Volumes/Data" + home))
+    }
+
+    func testFirmlinkPrefixIsRemoved() {
+        XCTAssertEqual(AIAgentFileAccessPolicy.canonical("/System/Volumes/Data/Users/x/y"), "/Users/x/y")
+    }
+
+    func testSystemFoldersAreNotUsableWorkingDirectories() {
+        for cwd in ["/etc/ssh", "/private/var/root", "/usr/local", "/tmp", "/private/tmp"] {
+            let decision = policy().decide(resolvedPath: cwd + "/a.txt", workingDirectory: cwd)
+            guard case .needsGrant = decision else { return XCTFail("cwd \(cwd): \(decision)") }
+        }
+    }
 }
 #endif
