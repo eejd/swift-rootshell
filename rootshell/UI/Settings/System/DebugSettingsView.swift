@@ -636,9 +636,14 @@ struct DebugSettingsView: View {
         GhosttyStorageLocation.rootDirectory.appendingPathComponent(name)
     }
 
-    /// Home-abbreviated directory path for footer text.
+    /// Directory path for footer text: home-abbreviated on the Mac, the
+    /// familiar Documents/.ghostty on iOS.
     private static var logDirectoryDisplayPath: String {
+        #if STANDALONE && targetEnvironment(macCatalyst)
         (GhosttyStorageLocation.rootDirectory.path as NSString).abbreviatingWithTildeInPath
+        #else
+        "Documents/.ghostty"
+        #endif
     }
 
     // MARK: - VPN Connection Log Helpers

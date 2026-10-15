@@ -695,9 +695,15 @@ final class HostFingerprintCache {
         }
     }
 
-    /// App-private cache (2-hour TTL, so no legacy Documents file is migrated).
+    /// App-private cache (2-hour TTL, so no legacy file is migrated). Mac: app storage
+    /// root (~/Documents is TCC-protected); elsewhere unchanged (Documents root).
     private func cacheFileURL() -> URL {
+        #if STANDALONE && targetEnvironment(macCatalyst)
         GhosttyStorageLocation.rootDirectory.appendingPathComponent(cacheFile)
+        #else
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(cacheFile)
+        #endif
     }
 }
 #endif
