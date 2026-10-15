@@ -63,8 +63,18 @@ nonisolated enum GhosttyStorageLocation {
     /// whichever legacy generation it's found under (checked newest-legacy
     /// first) the first time it's asked for. One-time and per-path -- each
     /// caller only knows its own subpath, so this never has to enumerate a
-    /// whole legacy tree.
+    /// whole legacy tree. For a nested path (`sync/x`) its top-level folder
+    /// is migrated first, as a whole, so the order in which sibling stores
+    /// resolve cannot strand the rest of a legacy folder.
     static func url(forRelativePath relativePath: String) -> URL {
+        if let top = relativePath.split(separator: "/").first, top.count != relativePath.count {
+            migrateIfNeeded(String(top))
+        }
+        return migrateIfNeeded(relativePath)
+    }
+
+    @discardableResult
+    private static func migrateIfNeeded(_ relativePath: String) -> URL {
         let new = baseDirectory.appendingPathComponent(relativePath)
         let fm = FileManager.default
         if !fm.fileExists(atPath: new.path) {
@@ -89,6 +99,11 @@ nonisolated enum GhosttyStorageLocation {
         }
         return new
     }
+
+    /// The directory itself, for callers that create it and place several
+    /// files under it (loggers, caches). Not migrated here: callers that
+    /// have legacy data use `url(forRelativePath:)` for that file or folder.
+    static var rootDirectory: URL { baseDirectory }
     #else
     /// Sandboxed builds (iOS): unchanged, Documents/.ghostty is private to
     /// the app's own container and never TCC-gated.
@@ -96,6 +111,13 @@ nonisolated enum GhosttyStorageLocation {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(".ghostty", isDirectory: true)
             .appendingPathComponent(relativePath)
+    }
+
+    /// The directory itself, for callers that create it and place several
+    /// files under it (loggers, caches). Documents/.ghostty on sandboxed builds.
+    static var rootDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(".ghostty", isDirectory: true)
     }
     #endif
 }

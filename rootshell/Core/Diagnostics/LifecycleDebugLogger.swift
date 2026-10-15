@@ -4,7 +4,7 @@
 //
 //  File-based debug logger for app lifecycle / scene transition diagnostics.
 //  Companion to ResumeDebugLogger — same persistence pattern (serial queue,
-//  synchronizeFile per write, 512KB rotation in Documents/.ghostty/) but
+//  synchronizeFile per write, 512KB rotation in GhosttyStorageLocation.rootDirectory) but
 //  tuned for capturing the background → foreground path that triggers the
 //  FrontBoard scene-update watchdog (0x8BADF00D) off-debugger.
 //
@@ -16,7 +16,7 @@ import os
 
 /// File-based debug logger that persists across force-quit cycles.
 ///
-/// Writes to `Documents/.ghostty/lifecycle_debug.log` with immediate file sync
+/// Writes to `<GhosttyStorageLocation.rootDirectory>/lifecycle_debug.log` with immediate file sync
 /// after each write so entries survive force-quit termination. Off by default;
 /// enable via Debug Settings (`lifecycleDebugLoggingEnabled` in UserDefaults)
 /// before a repro session.
@@ -52,7 +52,7 @@ final class LifecycleDebugLogger: Sendable {
 
     private let ioQueueSpecificKey = DispatchSpecificKey<Bool>()
 
-    /// Log file URL: Documents/.ghostty/lifecycle_debug.log
+    /// Log file URL: <GhosttyStorageLocation.rootDirectory>/lifecycle_debug.log
     private let logFileURL: URL
 
     /// Rotated log file URL
@@ -76,8 +76,7 @@ final class LifecycleDebugLogger: Sendable {
     private let bodyEvaluationCounter = OSAllocatedUnfairLock<Int>(initialState: 0)
 
     private init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logFileURL = ghosttyDir.appendingPathComponent("lifecycle_debug.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("lifecycle_debug.1.log")
 

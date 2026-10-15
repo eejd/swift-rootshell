@@ -208,10 +208,9 @@ actor GeoCache {
     private static let ttl: TimeInterval = 7 * 24 * 3600 // 7 days
 
     private nonisolated var cacheFileURL: URL {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(".ghostty", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("geo_cache.json")
+        let file = GhosttyStorageLocation.url(forRelativePath: "geo_cache.json")
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return file
     }
 
     var count: Int {

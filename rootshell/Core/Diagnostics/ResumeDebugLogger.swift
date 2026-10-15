@@ -3,14 +3,14 @@
 //  rootshell
 //
 //  File-based debug logger for trzsz session resume diagnostics.
-//  Writes to Documents/.ghostty/resume_debug.log and survives force-quit.
+//  Writes to <GhosttyStorageLocation.rootDirectory>/resume_debug.log and survives force-quit.
 //
 
 import Foundation
 
 /// File-based debug logger that persists across force-quit cycles.
 ///
-/// Writes to `Documents/.ghostty/resume_debug.log` with immediate file sync
+/// Writes to `<GhosttyStorageLocation.rootDirectory>/resume_debug.log` with immediate file sync
 /// after each write so entries survive iOS force-quit termination.
 ///
 /// Thread-safe via serial DispatchQueue. All public API is `nonisolated`
@@ -27,7 +27,7 @@ final class ResumeDebugLogger: Sendable {
     /// Serial queue for thread-safe file I/O
     private let ioQueue = DispatchQueue(label: "com.rootshell.resumeDebugLogger")
 
-    /// Log file URL: Documents/.ghostty/resume_debug.log
+    /// Log file URL: <GhosttyStorageLocation.rootDirectory>/resume_debug.log
     private let logFileURL: URL
 
     /// Rotated log file URL
@@ -37,8 +37,7 @@ final class ResumeDebugLogger: Sendable {
     private let dateFormatter: DateFormatter
 
     private init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logFileURL = ghosttyDir.appendingPathComponent("resume_debug.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("resume_debug.1.log")
 

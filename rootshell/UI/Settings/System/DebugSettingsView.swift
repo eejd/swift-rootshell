@@ -100,7 +100,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("Agent Detection")
             } footer: {
-                Text("Records every screen the coding-agent detector reads to .ghostty/agent-detection-captures.jsonl: the exact rows, terminal size, alternate-screen state and OSC title, with whichever agent and rule matched. This is what misdetections should be diagnosed from: a screenshot or a copy-paste loses the row boundaries the rules match on. Frames that differ only by a spinner or a ticking counter are skipped. At 2 MB the file rotates to agent-detection-captures.1.jsonl and recording continues, so the newest frames are always the ones kept.")
+                Text("Records every screen the coding-agent detector reads to \(Self.logDirectoryDisplayPath)/agent-detection-captures.jsonl: the exact rows, terminal size, alternate-screen state and OSC title, with whichever agent and rule matched. This is what misdetections should be diagnosed from: a screenshot or a copy-paste loses the row boundaries the rules match on. Frames that differ only by a spinner or a ticking counter are skipped. At 2 MB the file rotates to agent-detection-captures.1.jsonl and recording continues, so the newest frames are always the ones kept.")
             }
 
             // MARK: - Program Status Debug
@@ -136,7 +136,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("Program Status Log File")
             } footer: {
-                Text("Log is stored at Documents/.ghostty/program_status_debug.log")
+                Text("Log is stored at \(Self.logDirectoryDisplayPath)/program_status_debug.log")
             }
 
             // MARK: - Session Resume Debug
@@ -172,7 +172,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("Resume Log File")
             } footer: {
-                Text("Log is stored at Documents/.ghostty/resume_debug.log")
+                Text("Log is stored at \(Self.logDirectoryDisplayPath)/resume_debug.log")
             }
 
             // MARK: - Lifecycle Debug
@@ -208,7 +208,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("Lifecycle Log File")
             } footer: {
-                Text("Log is stored at Documents/.ghostty/lifecycle_debug.log")
+                Text("Log is stored at \(Self.logDirectoryDisplayPath)/lifecycle_debug.log")
             }
 
             // MARK: - SSH Connection Debug
@@ -244,7 +244,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("SSH Log File")
             } footer: {
-                Text("Log is stored at Documents/.ghostty/ssh_debug.log")
+                Text("Log is stored at \(Self.logDirectoryDisplayPath)/ssh_debug.log")
             }
 
             // MARK: - Screen Sharing (VNC) Debug
@@ -280,7 +280,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("Screen Sharing Log File")
             } footer: {
-                Text("Log is stored at Documents/.ghostty/vnc_debug.log")
+                Text("Log is stored at \(Self.logDirectoryDisplayPath)/vnc_debug.log")
             }
 
             // MARK: - tmux Control Mode Debug
@@ -322,7 +322,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("tmux Log File")
             } footer: {
-                Text("Log is stored at Documents/.ghostty/tmux_debug.log. Use “Capture tmux State” while reproducing a hang to snapshot the current state.")
+                Text("Log is stored at \(Self.logDirectoryDisplayPath)/tmux_debug.log. Use “Capture tmux State” while reproducing a hang to snapshot the current state.")
             }
 
             // MARK: - herdr Control Mode Debug
@@ -370,7 +370,7 @@ struct DebugSettingsView: View {
             } header: {
                 Text("VPN Connection Log File")
             } footer: {
-                Text("Export copies the log to Documents/.ghostty/ for local shell access.")
+                Text("Export copies the log to \(Self.logDirectoryDisplayPath)/ for local shell access.")
             }
             #endif
 
@@ -470,8 +470,7 @@ struct DebugSettingsView: View {
     // MARK: - Resume Log Helpers
 
     private func refreshLogFileSize() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/resume_debug.log")
+        let logURL = Self.logFileURL("resume_debug.log")
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
            let size = attrs[.size] as? UInt64 {
@@ -482,17 +481,15 @@ struct DebugSettingsView: View {
     }
 
     private func exportLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/resume_debug.log")
+        let logURL = Self.logFileURL("resume_debug.log")
 
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         presentShareSheet(for: logURL)
     }
 
     private func clearLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/resume_debug.log")
-        let rotatedURL = documentsURL.appendingPathComponent(".ghostty/resume_debug.1.log")
+        let logURL = Self.logFileURL("resume_debug.log")
+        let rotatedURL = Self.logFileURL("resume_debug.1.log")
         try? FileManager.default.removeItem(at: logURL)
         try? FileManager.default.removeItem(at: rotatedURL)
     }
@@ -500,8 +497,7 @@ struct DebugSettingsView: View {
     // MARK: - Lifecycle Log Helpers
 
     private func refreshLifecycleLogFileSize() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/lifecycle_debug.log")
+        let logURL = Self.logFileURL("lifecycle_debug.log")
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
            let size = attrs[.size] as? UInt64 {
@@ -512,17 +508,15 @@ struct DebugSettingsView: View {
     }
 
     private func exportLifecycleLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/lifecycle_debug.log")
+        let logURL = Self.logFileURL("lifecycle_debug.log")
 
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         presentShareSheet(for: logURL)
     }
 
     private func clearLifecycleLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/lifecycle_debug.log")
-        let rotatedURL = documentsURL.appendingPathComponent(".ghostty/lifecycle_debug.1.log")
+        let logURL = Self.logFileURL("lifecycle_debug.log")
+        let rotatedURL = Self.logFileURL("lifecycle_debug.1.log")
         try? FileManager.default.removeItem(at: logURL)
         try? FileManager.default.removeItem(at: rotatedURL)
     }
@@ -530,8 +524,7 @@ struct DebugSettingsView: View {
     // MARK: - SSH Log Helpers
 
     private func refreshSSHLogFileSize() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/ssh_debug.log")
+        let logURL = Self.logFileURL("ssh_debug.log")
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
            let size = attrs[.size] as? UInt64 {
@@ -542,17 +535,15 @@ struct DebugSettingsView: View {
     }
 
     private func exportSSHLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/ssh_debug.log")
+        let logURL = Self.logFileURL("ssh_debug.log")
 
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         presentShareSheet(for: logURL)
     }
 
     private func clearSSHLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/ssh_debug.log")
-        let rotatedURL = documentsURL.appendingPathComponent(".ghostty/ssh_debug.1.log")
+        let logURL = Self.logFileURL("ssh_debug.log")
+        let rotatedURL = Self.logFileURL("ssh_debug.1.log")
         try? FileManager.default.removeItem(at: logURL)
         try? FileManager.default.removeItem(at: rotatedURL)
     }
@@ -560,8 +551,7 @@ struct DebugSettingsView: View {
     // MARK: - Screen Sharing (VNC) Log Helpers
 
     private func refreshVNCLogFileSize() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/vnc_debug.log")
+        let logURL = Self.logFileURL("vnc_debug.log")
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
            let size = attrs[.size] as? UInt64 {
@@ -572,17 +562,15 @@ struct DebugSettingsView: View {
     }
 
     private func exportVNCLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/vnc_debug.log")
+        let logURL = Self.logFileURL("vnc_debug.log")
 
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         presentShareSheet(for: logURL)
     }
 
     private func clearVNCLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/vnc_debug.log")
-        let rotatedURL = documentsURL.appendingPathComponent(".ghostty/vnc_debug.1.log")
+        let logURL = Self.logFileURL("vnc_debug.log")
+        let rotatedURL = Self.logFileURL("vnc_debug.1.log")
         try? FileManager.default.removeItem(at: logURL)
         try? FileManager.default.removeItem(at: rotatedURL)
     }
@@ -590,8 +578,7 @@ struct DebugSettingsView: View {
     // MARK: - tmux Log Helpers
 
     private func refreshTmuxLogFileSize() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/tmux_debug.log")
+        let logURL = Self.logFileURL("tmux_debug.log")
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
            let size = attrs[.size] as? UInt64 {
@@ -602,17 +589,15 @@ struct DebugSettingsView: View {
     }
 
     private func exportTmuxLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/tmux_debug.log")
+        let logURL = Self.logFileURL("tmux_debug.log")
 
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         presentShareSheet(for: logURL)
     }
 
     private func clearTmuxLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/tmux_debug.log")
-        let rotatedURL = documentsURL.appendingPathComponent(".ghostty/tmux_debug.1.log")
+        let logURL = Self.logFileURL("tmux_debug.log")
+        let rotatedURL = Self.logFileURL("tmux_debug.1.log")
         try? FileManager.default.removeItem(at: logURL)
         try? FileManager.default.removeItem(at: rotatedURL)
     }
@@ -620,8 +605,7 @@ struct DebugSettingsView: View {
     // MARK: - Program Status Log Helpers
 
     private func refreshProgramStatusLogFileSize() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/program_status_debug.log")
+        let logURL = Self.logFileURL("program_status_debug.log")
 
         if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
            let size = attrs[.size] as? UInt64 {
@@ -632,19 +616,34 @@ struct DebugSettingsView: View {
     }
 
     private func exportProgramStatusLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/program_status_debug.log")
+        let logURL = Self.logFileURL("program_status_debug.log")
 
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
         presentShareSheet(for: logURL)
     }
 
     private func clearProgramStatusLogFile() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logURL = documentsURL.appendingPathComponent(".ghostty/program_status_debug.log")
-        let rotatedURL = documentsURL.appendingPathComponent(".ghostty/program_status_debug.1.log")
+        let logURL = Self.logFileURL("program_status_debug.log")
+        let rotatedURL = Self.logFileURL("program_status_debug.1.log")
         try? FileManager.default.removeItem(at: logURL)
         try? FileManager.default.removeItem(at: rotatedURL)
+    }
+
+    // MARK: - Log Directory
+
+    /// Same directory the debug loggers write to (see GhosttyStorageLocation).
+    private static func logFileURL(_ name: String) -> URL {
+        GhosttyStorageLocation.rootDirectory.appendingPathComponent(name)
+    }
+
+    /// Directory path for footer text: home-abbreviated on the Mac, the
+    /// familiar Documents/.ghostty on iOS.
+    private static var logDirectoryDisplayPath: String {
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        (GhosttyStorageLocation.rootDirectory.path as NSString).abbreviatingWithTildeInPath
+        #else
+        "Documents/.ghostty"
+        #endif
     }
 
     // MARK: - VPN Connection Log Helpers
@@ -675,9 +674,8 @@ struct DebugSettingsView: View {
         guard let logURL = Self.vpnLogFileURL(),
               FileManager.default.fileExists(atPath: logURL.path) else { return }
 
-        // Copy to Documents so it's accessible from the local shell too
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        // Copy next to the other app logs so it's accessible from the local shell too
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         try? FileManager.default.createDirectory(at: ghosttyDir, withIntermediateDirectories: true)
         let destURL = ghosttyDir.appendingPathComponent(Self.vpnLogFilename)
         try? FileManager.default.removeItem(at: destURL)
@@ -693,9 +691,8 @@ struct DebugSettingsView: View {
         if let url = Self.vpnRotatedLogFileURL() {
             try? FileManager.default.removeItem(at: url)
         }
-        // Also clean the Documents copy
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let destURL = documentsURL.appendingPathComponent(".ghostty/\(Self.vpnLogFilename)")
+        // Also clean the app-data copy
+        let destURL = Self.logFileURL(Self.vpnLogFilename)
         try? FileManager.default.removeItem(at: destURL)
     }
 

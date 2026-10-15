@@ -3,7 +3,7 @@
 //  rootshell
 //
 //  Manages per-device key overrides. Storage is local-only (never synced via CloudKit).
-//  File: Documents/.ghostty/device_key_overrides.json
+//  File: <GhosttyStorageLocation>/device_key_overrides.json
 //
 
 import Foundation
@@ -21,13 +21,13 @@ final class DeviceKeyOverrideManager {
     private let fileURL: URL
 
     private init() {
-        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let ghosttyDir = documentsDir.appendingPathComponent(".ghostty", isDirectory: true)
+        let fileURL = GhosttyStorageLocation.url(forRelativePath: "device_key_overrides.json")
 
         // Ensure directory exists
-        try? FileManager.default.createDirectory(at: ghosttyDir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        self.fileURL = ghosttyDir.appendingPathComponent("device_key_overrides.json")
+        self.fileURL = fileURL
         load()
     }
 

@@ -22,10 +22,7 @@ class WiFiAPRadioCacheManager: ObservableObject {
     // MARK: - Cache Directory
 
     private var cacheDirectory: URL {
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsPath
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("wifi_radio_cache", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "wifi_radio_cache")
     }
 
     // MARK: - Initialization

@@ -64,7 +64,14 @@ nonisolated enum FileOpenImporter {
             throw FileOpenError.copyFailed("Documents directory unavailable")
         }
 
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        // Unsandboxed Mac: ~/Documents is TCC-protected, so copies land in the
+        // app's own Application Support folder instead.
+        let incomingDir = GhosttyStorageLocation.rootDirectory
+            .appendingPathComponent(incomingDirectoryName, isDirectory: true)
+        #else
         let incomingDir = documents.appendingPathComponent(incomingDirectoryName, isDirectory: true)
+        #endif
         do {
             try fm.createDirectory(at: incomingDir, withIntermediateDirectories: true)
         } catch {

@@ -4,7 +4,7 @@
 //
 //  File-based debug logger for OSC 7501 program status reports: each
 //  callback from libghostty, the pane's records after applying it, and what
-//  reaches the agent inbox. Writes to Documents/.ghostty/program_status_debug.log.
+//  reaches the agent inbox. Writes to <GhosttyStorageLocation.rootDirectory>/program_status_debug.log.
 //
 //  Toggle: UserDefaults["programStatusDebugLoggingEnabled"], checked on every write.
 //
@@ -23,7 +23,7 @@ final class ProgramStatusDebugLogger: Sendable {
     /// Serial queue for thread-safe file I/O
     private let ioQueue = DispatchQueue(label: "com.rootshell.programStatusDebugLogger")
 
-    /// Log file URL: Documents/.ghostty/program_status_debug.log
+    /// Log file URL: <GhosttyStorageLocation.rootDirectory>/program_status_debug.log
     private let logFileURL: URL
 
     /// Rotated log file URL
@@ -33,8 +33,7 @@ final class ProgramStatusDebugLogger: Sendable {
     private let dateFormatter: DateFormatter
 
     private init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logFileURL = ghosttyDir.appendingPathComponent("program_status_debug.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("program_status_debug.1.log")
 

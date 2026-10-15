@@ -229,10 +229,7 @@ enum BackupExporter {
         let fontManager = FontManager.shared
         var entries: [CustomFontBackupEntry] = []
 
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fontsDir = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("fonts", isDirectory: true)
+        let fontsDir = GhosttyStorageLocation.url(forRelativePath: "fonts")
 
         for family in fontManager.customFontFamilies {
             var fontFiles: [FontFileData] = []
@@ -304,11 +301,8 @@ enum BackupExporter {
         }
         return HSSConfigBackup(yamlContent: content, filename: filename)
         #else
-        // iOS: read from the copied file in Documents
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let hssPath = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("hss_config.yml")
+        // iOS: read from the copied file in the app-private storage root
+        let hssPath = GhosttyStorageLocation.url(forRelativePath: "hss_config.yml")
 
         guard FileManager.default.fileExists(atPath: hssPath.path),
               let content = try? String(contentsOf: hssPath, encoding: .utf8) else {

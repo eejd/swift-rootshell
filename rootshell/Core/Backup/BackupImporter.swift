@@ -263,10 +263,7 @@ enum BackupImporter {
         var skipped = 0
         var errors: [String] = []
 
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fontsDir = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("fonts", isDirectory: true)
+        let fontsDir = GhosttyStorageLocation.url(forRelativePath: "fonts")
         try? FileManager.default.createDirectory(at: fontsDir, withIntermediateDirectories: true)
 
         // Accumulate all new families, then write once at the end
@@ -406,9 +403,8 @@ enum BackupImporter {
             return RestoreSummary.CategoryResult(restored: 0, skipped: 1, errors: [])
         }
 
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let hssFolder = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-        let hssPath = hssFolder.appendingPathComponent("hss_config.yml")
+        let hssPath = GhosttyStorageLocation.url(forRelativePath: "hss_config.yml")
+        let hssFolder = hssPath.deletingLastPathComponent()
 
         do {
             try FileManager.default.createDirectory(at: hssFolder, withIntermediateDirectories: true)

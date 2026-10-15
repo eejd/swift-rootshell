@@ -94,10 +94,7 @@ final class VideoBackgroundManager: ObservableObject {
 
     private let fileManager = FileManager.default
     private var indexCacheURL: URL {
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsPath
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("video-backgrounds", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "video-backgrounds")
             .appendingPathComponent(Self.indexCacheFilename)
     }
 

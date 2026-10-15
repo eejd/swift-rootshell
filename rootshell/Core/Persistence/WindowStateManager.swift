@@ -36,11 +36,9 @@ final class WindowStateManager {
     /// Maximum age of state before discarding (7 days)
     private let maxStateAgeDays: Double = 7
 
-    /// State file URL (Documents/.ghostty/window_state.json)
+    /// State file URL (GhosttyStorageLocation: window_state.json)
     private var stateFileURL: URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-        return ghosttyDir.appendingPathComponent(stateFileName)
+        GhosttyStorageLocation.url(forRelativePath: stateFileName)
     }
 
     // MARK: - State
@@ -790,9 +788,8 @@ extension WindowStateManager {
                 return true
             }
 
-            let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-            let fileURL = ghosttyDir.appendingPathComponent("window_state.json")
+            let fileURL = GhosttyStorageLocation.url(forRelativePath: "window_state.json")
+            let ghosttyDir = fileURL.deletingLastPathComponent()
 
             do {
                 let encoder = JSONEncoder()

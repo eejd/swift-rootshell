@@ -75,7 +75,7 @@ struct GhosttyConfigImportView: View {
                 }
                 .themedRow()
             } footer: {
-                Text("Your existing rootshell settings stay editable in the Settings UI after import. Keybinds are imported to ~/.ghostty/imported_keybinds.conf and managed under Keyboard Shortcuts.")
+                Text("Your existing rootshell settings stay editable in the Settings UI after import. Keybinds are imported to \(KeybindManager.shared.externalConfigShellPath) and managed under Keyboard Shortcuts.")
             }
         }
         .themedList()

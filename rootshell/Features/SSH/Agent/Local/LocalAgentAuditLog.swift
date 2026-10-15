@@ -134,9 +134,7 @@ final class LocalAgentAuditLog {
     }
 
     private var fileURL: URL? {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("local_agent_audit.json")
+        GhosttyStorageLocation.url(forRelativePath: "local_agent_audit.json")
     }
 
     private func load() {
