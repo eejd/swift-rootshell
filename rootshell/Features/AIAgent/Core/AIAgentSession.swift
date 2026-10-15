@@ -70,6 +70,9 @@ final class AIAgentSession {
     /// Pending file tool call awaiting user approval (call, toolName)
     @ObservationIgnored private var pendingFileToolCall: (AIToolCall, String)?
 
+    /// Set while a file tool call is parked on the Mac folder-access prompt.
+    private(set) var fileScopeRequest: AIAgentFileScopeRequest?
+
     // MARK: - Streaming Throttle
 
     /// Minimum interval between UI updates (100ms = 10 updates/sec)
@@ -732,11 +735,22 @@ final class AIAgentSession {
         // Check if this is a file tool approval
         if let (call, toolName) = pendingFileToolCall {
             pendingFileToolCall = nil
-            executeFileToolCommand(call, toolName: toolName)
+            // A folder-access request approved here allows just this one path.
+            let approvedOnce = fileScopeRequest?.resolvedPath
+            fileScopeRequest = nil
+            executeFileToolCommand(call, toolName: toolName, approvedOnce: approvedOnce)
             return
         }
 
         await executeCommand(command)
+    }
+
+    /// Approve a pending folder-access request and remember the folder for later sessions.
+    func approveCommandAlways() async {
+        if let request = fileScopeRequest, request.canGrantAlways {
+            AIAgentFileGrants.add(request.folder)
+        }
+        await approveCommand()
     }
 
     /// Execute a command (shared by approveCommand and YOLO mode)
@@ -839,6 +853,7 @@ final class AIAgentSession {
 
         // Clear any pending file tool call
         pendingFileToolCall = nil
+        fileScopeRequest = nil
 
         Self.logger.info("Command rejected: \(command.command)")
 
@@ -1002,6 +1017,7 @@ final class AIAgentSession {
         conversationSystemPrompt = nil
         conversationTools = nil
         pendingFileToolCall = nil
+        fileScopeRequest = nil
         state = .idle
         totalTokensUsed = 0
         lastPromptTokens = 0
@@ -1337,10 +1353,54 @@ final class AIAgentSession {
 
     // MARK: - File Tool Handlers
 
-    /// Working directory for file tools (uses terminal CWD if available, falls back to Documents)
+    /// Working directory for file tools: the terminal's directory when known. Without
+    /// one, Mac uses a transient scratch directory (never ~/Documents or $HOME);
+    /// iOS falls back to Documents, its shell HOME.
     private var fileToolWorkingDirectory: String {
+        #if targetEnvironment(macCatalyst)
+        initialWorkingDirectory ?? AIAgentFileGrants.scratchDirectory
+        #else
         initialWorkingDirectory
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path
+        #endif
+    }
+
+    /// Mac: enforce the folder scope before approval-mode logic. A path outside the
+    /// working directory, the user's grants and the scratch directory always asks
+    /// (even in YOLO mode: folder access is a boundary, not a per-command risk);
+    /// credential locations are refused outright. Returns true when the call was
+    /// handled here (refused, or parked for the user); false to continue normally.
+    private func gateFileToolScope(
+        _ call: AIToolCall,
+        toolName: String,
+        path: String,
+        command: AIAgentCommand
+    ) -> Bool {
+        #if targetEnvironment(macCatalyst)
+        let workingDirectory = fileToolWorkingDirectory
+        let resolved = AIAgentFileToolHandler.resolvePath(path, workingDirectory: workingDirectory)
+        switch AIAgentFileToolHandler.accessDecision(forResolvedPath: resolved, workingDirectory: workingDirectory) {
+        case .allowed:
+            return false
+        case .denied(let reason):
+            Self.logger.error("\(toolName, privacy: .public) refused (protected path): \(resolved, privacy: .public)")
+            batchedToolResults.append(AIToolResult(
+                toolCallId: call.id,
+                output: "Error: Access denied. \(reason): \(path)",
+                isError: true,
+                isFromXMLToolCall: call.isFromXMLParsing
+            ))
+            try? processNextPendingToolCall(precedingText: nil)
+            return true
+        case .needsGrant(let request):
+            fileScopeRequest = request
+            pendingFileToolCall = (call, toolName)
+            state = .awaitingApproval(command)
+            return true
+        }
+        #else
+        return false
+        #endif
     }
 
     private func handleReadFileCall(_ call: AIToolCall) {
@@ -1368,6 +1428,8 @@ final class AIAgentSession {
             declaredOperationType: .read,
             isFromXMLToolCall: call.isFromXMLParsing
         )
+
+        if gateFileToolScope(call, toolName: "read_file", path: path, command: syntheticCommand) { return }
 
         if shouldAutoApproveCommand(syntheticCommand) {
             // Auto-execute read
@@ -1427,6 +1489,8 @@ final class AIAgentSession {
             isFromXMLToolCall: call.isFromXMLParsing
         )
 
+        if gateFileToolScope(call, toolName: "write_file", path: path, command: syntheticCommand) { return }
+
         if shouldAutoApproveCommand(syntheticCommand) {
             let result = AIAgentFileToolHandler.writeFile(
                 path: path,
@@ -1481,6 +1545,8 @@ final class AIAgentSession {
             isFromXMLToolCall: call.isFromXMLParsing
         )
 
+        if gateFileToolScope(call, toolName: "edit_file", path: path, command: syntheticCommand) { return }
+
         if shouldAutoApproveCommand(syntheticCommand) {
             let result = AIAgentFileToolHandler.editFile(
                 path: path,
@@ -1502,7 +1568,7 @@ final class AIAgentSession {
     }
 
     /// Execute a pending file tool call after approval
-    private func executeFileToolCommand(_ call: AIToolCall, toolName: String) {
+    private func executeFileToolCommand(_ call: AIToolCall, toolName: String, approvedOnce: String? = nil) {
         let result: CommandExecutionResult
 
         switch toolName {
@@ -1512,7 +1578,8 @@ final class AIAgentSession {
             let limit: Int? = call.argument("limit")
             result = AIAgentFileToolHandler.readFile(
                 path: path, offset: offset, limit: limit,
-                workingDirectory: fileToolWorkingDirectory
+                workingDirectory: fileToolWorkingDirectory,
+                approvedOnce: approvedOnce
             )
 
         case "write_file":
@@ -1520,7 +1587,8 @@ final class AIAgentSession {
             let content: String = call.argument("content") ?? ""
             result = AIAgentFileToolHandler.writeFile(
                 path: path, content: content,
-                workingDirectory: fileToolWorkingDirectory
+                workingDirectory: fileToolWorkingDirectory,
+                approvedOnce: approvedOnce
             )
 
         case "edit_file":
@@ -1529,7 +1597,8 @@ final class AIAgentSession {
             let newString: String = call.argument("new_string") ?? ""
             result = AIAgentFileToolHandler.editFile(
                 path: path, oldString: oldString, newString: newString,
-                workingDirectory: fileToolWorkingDirectory
+                workingDirectory: fileToolWorkingDirectory,
+                approvedOnce: approvedOnce
             )
 
         default:

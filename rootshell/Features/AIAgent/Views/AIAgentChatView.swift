@@ -75,6 +75,10 @@ struct AIAgentChatView: View {
                                 },
                                 onEdit: { newCommand in
                                     Task { await session.editCommand(newCommand) }
+                                },
+                                scopeRequest: session.fileScopeRequest,
+                                onApproveAlways: {
+                                    Task { await session.approveCommandAlways() }
                                 }
                             )
                             .id("approval-card")
