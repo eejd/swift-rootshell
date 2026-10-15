@@ -238,8 +238,7 @@ final class MMDBDatabaseManager {
     }
 
     private var storageDirectory: URL {
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documents.appendingPathComponent(".ghostty/mmdb", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "mmdb")
     }
 
     private var manifestURL: URL {

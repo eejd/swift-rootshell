@@ -686,6 +686,8 @@ final class HostFingerprintCache {
         let url = cacheFileURL()
 
         do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             let data = try JSONEncoder().encode(fingerprints)
             try data.write(to: url, options: .atomic)
         } catch {
@@ -693,9 +695,9 @@ final class HostFingerprintCache {
         }
     }
 
+    /// App-private cache (2-hour TTL, so no legacy Documents file is migrated).
     private func cacheFileURL() -> URL {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documentsPath.appendingPathComponent(cacheFile)
+        GhosttyStorageLocation.rootDirectory.appendingPathComponent(cacheFile)
     }
 }
 #endif

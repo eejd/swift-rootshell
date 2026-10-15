@@ -539,8 +539,15 @@ nonisolated struct AgentDetectionManifest {
     }
 
     private static func loadSide(overrideName: String, embedded: String, label: String) -> ManifestFile? {
-        if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let url = documents.appendingPathComponent(overrideName)
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        // Unsandboxed Mac: ~/Documents is TCC-protected, so the user-editable overrides
+        // sit next to the user's config (~/.config/rootshell) instead.
+        let overrideDirectory: URL? = ConfigOverlayLocation.canonicalURL.deletingLastPathComponent()
+        #else
+        let overrideDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        #endif
+        if let overrideDirectory {
+            let url = overrideDirectory.appendingPathComponent(overrideName)
             if let data = try? Data(contentsOf: url),
                let file = decodeFile(data, source: "\(label) override") {
                 return file

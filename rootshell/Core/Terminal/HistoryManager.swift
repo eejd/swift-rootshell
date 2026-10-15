@@ -25,18 +25,24 @@ class HistoryManager {
     // MARK: - Initialization
 
     init() {
-        // Store history in .ghostty directory
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsPath.appendingPathComponent(".ghostty", isDirectory: true)
-        try? FileManager.default.createDirectory(at: ghosttyDir, withIntermediateDirectories: true)
-        historyFilePath = ghosttyDir.appendingPathComponent("shell_history.txt")
+        // Store history in the app-private storage root (GhosttyStorageLocation)
+        historyFilePath = GhosttyStorageLocation.url(forRelativePath: "shell_history.txt")
+        try? FileManager.default.createDirectory(
+            at: historyFilePath.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
 
-        // Migrate from old location if needed
+        #if !(STANDALONE && targetEnvironment(macCatalyst))
+        // Migrate from the pre-.ghostty location if needed. Skipped on the
+        // unsandboxed Catalyst build: that location is ~/Documents (TCC-
+        // protected), and the pre-.ghostty layout only ever existed on iOS.
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let oldPath = documentsPath.appendingPathComponent("shell_history.txt")
         if FileManager.default.fileExists(atPath: oldPath.path) &&
            !FileManager.default.fileExists(atPath: historyFilePath.path) {
             try? FileManager.default.moveItem(at: oldPath, to: historyFilePath)
         }
+        #endif
 
         loadHistory()
     }

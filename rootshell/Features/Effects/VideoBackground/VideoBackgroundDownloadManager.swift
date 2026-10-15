@@ -51,10 +51,7 @@ final class VideoBackgroundDownloadManager: ObservableObject {
     private let fileManager = FileManager.default
 
     private var cacheDirectory: URL {
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsPath
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("video-backgrounds", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "video-backgrounds")
     }
 
     private var videosDirectory: URL {

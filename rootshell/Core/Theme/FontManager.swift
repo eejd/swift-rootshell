@@ -425,10 +425,7 @@ class FontManager: ObservableObject {
 
     /// Directory for user-imported font files
     private var customFontsDirectory: URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fontsDir = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("fonts", isDirectory: true)
+        let fontsDir = GhosttyStorageLocation.url(forRelativePath: "fonts")
 
         if !FileManager.default.fileExists(atPath: fontsDir.path) {
             try? FileManager.default.createDirectory(at: fontsDir, withIntermediateDirectories: true)

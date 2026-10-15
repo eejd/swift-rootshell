@@ -40,15 +40,11 @@ final class AgentDetectionCapture {
     private nonisolated static let logger = Logger(
         subsystem: "com.kk2.rootshell", category: "AgentAttention")
 
-    /// One JSON object per line, appended. Lives in `.ghostty/` beside the
-    /// app's other internal state rather than loose in the rootshell
-    /// folder.
+    /// One JSON object per line, appended. Lives in the app's private storage
+    /// directory (`GhosttyStorageLocation.rootDirectory`) beside the app's
+    /// other internal state rather than loose in the user's visible files.
     nonisolated static var fileURL: URL? {
-        guard let docs = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask).first
-        else { return nil }
-        return docs
-            .appendingPathComponent(".ghostty", isDirectory: true)
+        GhosttyStorageLocation.rootDirectory
             .appendingPathComponent("agent-detection-captures.jsonl")
     }
 

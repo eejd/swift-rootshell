@@ -48,10 +48,12 @@ final class SettingsSyncSidecarStore {
     private static let logger = Logger(subsystem: "com.rootshell", category: "SettingsSyncSidecar")
 
     static var fileURL: URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return docs
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("sync", isDirectory: true)
+        // Resolve the "sync" folder (not the file) so the one-time legacy
+        // migration moves the whole folder, like SyncMigrationManager does.
+        // Migrating only the file would create the new "sync" directory first
+        // and make that folder-level migration skip the rest of the legacy
+        // contents.
+        GhosttyStorageLocation.url(forRelativePath: "sync")
             .appendingPathComponent("settings_sync_state.json")
     }
 

@@ -117,8 +117,7 @@ final class ClipboardHistoryStore {
     private var saveTask: Task<Void, Never>?
 
     private nonisolated static var directory: URL {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return docs.appendingPathComponent(".ghostty/clipboard", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "clipboard")
     }
 
     private nonisolated static var fileURL: URL {

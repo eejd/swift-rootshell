@@ -89,6 +89,11 @@ nonisolated enum GhosttyStorageLocation {
         }
         return new
     }
+
+    /// The directory itself, for callers that create it and place several
+    /// files under it (loggers, caches). Not migrated here: callers that
+    /// have legacy data use `url(forRelativePath:)` for that file or folder.
+    static var rootDirectory: URL { baseDirectory }
     #else
     /// Sandboxed builds (iOS): unchanged, Documents/.ghostty is private to
     /// the app's own container and never TCC-gated.
@@ -96,6 +101,13 @@ nonisolated enum GhosttyStorageLocation {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(".ghostty", isDirectory: true)
             .appendingPathComponent(relativePath)
+    }
+
+    /// The directory itself, for callers that create it and place several
+    /// files under it (loggers, caches). Documents/.ghostty on sandboxed builds.
+    static var rootDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(".ghostty", isDirectory: true)
     }
     #endif
 }

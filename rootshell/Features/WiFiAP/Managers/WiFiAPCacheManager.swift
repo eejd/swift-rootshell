@@ -62,10 +62,7 @@ class WiFiAPCacheManager: ObservableObject {
     // MARK: - Cache Directory
 
     private var cacheDirectory: URL {
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsPath
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("wifi_ap_cache", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "wifi_ap_cache")
     }
 
     // MARK: - Initialization

@@ -42,8 +42,7 @@ actor FaviconCache {
     private nonisolated static let memoryMirror = OSAllocatedUnfairLock<[String: Data]>(initialState: [:])
 
     private nonisolated var cacheDir: URL {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(".ghostty/favicon_cache", isDirectory: true)
+        let dir = GhosttyStorageLocation.url(forRelativePath: "favicon_cache")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
