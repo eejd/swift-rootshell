@@ -187,9 +187,11 @@ struct OpenSSHImportView: View {
         let homeSSH = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".ssh", isDirectory: true)
         urls.append(homeSSH)
         #endif
+        #if !(STANDALONE && targetEnvironment(macCatalyst))
         if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             urls.append(documents.appendingPathComponent(".ssh", isDirectory: true))
         }
+        #endif
         return urls
     }
 

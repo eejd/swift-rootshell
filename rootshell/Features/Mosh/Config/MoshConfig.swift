@@ -11,17 +11,7 @@ import Foundation
 /// Mosh provides robust mobile terminal connections that survive network changes
 /// and high latency through its State Synchronization Protocol (SSP) over UDP.
 struct MoshConfig: Codable, Hashable, Sendable {
-    // MARK: - UserDefaults Keys
-
-    /// UserDefaults key for default prediction mode setting
-    static let defaultPredictionModeKey = "roamDefaultPredictionMode"
-
-    /// UserDefaults key for whether predictions overwrite existing cells instead of inserting.
-    static let defaultPredictOverwriteKey = "roamDefaultPredictOverwrite"
-
-    /// UserDefaults key for whether the mosh renderer should enter the
-    /// alternate screen on session open (defaults to true when unset).
-    static let altScreenEnabledKey = "roamMoshAltScreenEnabled"
+    // MARK: - Settings
 
     /// Reads the current alt-screen preference, defaulting to true when the
     /// key has never been written. Used by `VTDisplayRenderer` at session
@@ -34,6 +24,11 @@ struct MoshConfig: Codable, Hashable, Sendable {
     /// Reads the default overwrite-prediction preference for newly created sessions.
     static var defaultPredictOverwrite: Bool {
         SettingsStore.shared.value(Settings.Roam.predictOverwrite)
+    }
+
+    /// Reads the default prediction mode for newly created sessions.
+    static var defaultPredictionMode: PredictionMode {
+        SettingsStore.shared.value(Settings.Roam.predictionMode)
     }
 
     // MARK: - SSH Configuration
@@ -106,7 +101,7 @@ struct MoshConfig: Codable, Hashable, Sendable {
     ///   - sshConfig: SSH configuration for server spawn
     ///   - udpPortMin: Minimum UDP port (default: 60000)
     ///   - udpPortMax: Maximum UDP port (default: 61000)
-    ///   - predictionMode: Prediction mode (default: .adaptive)
+    ///   - predictionMode: Prediction mode (default: Roam setting)
     ///   - predictOverwrite: Whether predictions overwrite existing cells (default: Roam setting)
     ///   - colors: Number of colors (default: 256)
     ///   - serverPath: Custom mosh-server path (default: nil)
@@ -116,7 +111,7 @@ struct MoshConfig: Codable, Hashable, Sendable {
         sshConfig: SSHConfig,
         udpPortMin: Int = 60000,
         udpPortMax: Int = 61000,
-        predictionMode: PredictionMode = .adaptive,  // Adaptive: show predictions only when network is slow
+        predictionMode: PredictionMode? = nil,
         predictOverwrite: Bool? = nil,
         colors: Int = 256,
         serverPath: String? = nil,
@@ -126,7 +121,7 @@ struct MoshConfig: Codable, Hashable, Sendable {
         self.sshConfig = sshConfig
         self.udpPortMin = udpPortMin
         self.udpPortMax = udpPortMax
-        self.predictionMode = predictionMode
+        self.predictionMode = predictionMode ?? Self.defaultPredictionMode
         self.predictOverwrite = predictOverwrite ?? Self.defaultPredictOverwrite
         self.colors = colors
         self.serverPath = serverPath

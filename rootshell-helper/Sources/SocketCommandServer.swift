@@ -16,15 +16,27 @@ private enum HelperPeerTrust {
     /// `Configuration/Identity.xcconfig`; the literals below are a safety net
     /// for a bundle that somehow lost the keys.
     ///
-    /// Same requirement as before these became variables: the peer must be the
-    /// app, signed by our team under Apple's anchor. `subject.OU` carries the
-    /// team ID for Developer ID, Apple Development, and App Store signing
-    /// alike, and is nothing an attacker can obtain.
+    /// The peer must be the app, signed under Apple's anchor either by our team
+    /// (leaf `subject.OU`, Developer ID and Apple Development) or by the Mac
+    /// App Store (6.1.9) or TestFlight (6.1.25.1), whose shared leaves carry no
+    /// team; Apple pins the identifier to us for those.
     private static let appRequirement: String = {
         let identifier = plist("RootshellAppBundleIdentifier") ?? "com.kk2.rootshell"
-        let team = plist("RootshellDevelopmentTeam") ?? "D97ZME3ET2"
-        return "identifier \"\(identifier)\" and anchor apple generic "
-            + "and certificate leaf[subject.OU] = \"\(team)\""
+        // MacPorts enablement: a locally built, ad-hoc signed app has no team,
+        // so the certificate clause can never match. When the build opted in
+        // (RootshellHelperTrustAdhocPeer = YES, written by the Portfile) and no
+        // team is configured, trust the peer by bundle identifier alone. This
+        // is a deliberate downgrade for a bundle the user built themselves;
+        // any bundle carrying a team keeps the full requirement.
+        let team = plist("RootshellDevelopmentTeam")
+        if team == nil, let optIn = plist("RootshellHelperTrustAdhocPeer"),
+           ["YES", "TRUE", "1"].contains(optIn.uppercased()) {
+            return "identifier \"\(identifier)\""
+        }
+        return "identifier \"\(identifier)\" and anchor apple generic and ("
+            + "certificate leaf[field.1.2.840.113635.100.6.1.9] /* exists */ "
+            + "or certificate leaf[field.1.2.840.113635.100.6.1.25.1] /* exists */ "
+            + "or certificate leaf[subject.OU] = \"\(team ?? "D97ZME3ET2")\")"
     }()
 
     private static func plist(_ key: String) -> String? {
@@ -323,6 +335,7 @@ class SocketCommandServer {
             envConfig.versionWithBuild = createRequest.appVersionWithBuild
             envConfig.termType = createRequest.termType
             envConfig.paneToken = createRequest.paneToken
+            envConfig.extraEnvironment = createRequest.extraEnvironment ?? [:]
 
             let envBuilder = EnvironmentBuilder()
             let environment = envBuilder.build(with: envConfig)

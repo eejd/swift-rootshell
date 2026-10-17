@@ -13,20 +13,164 @@ import UIKit
 struct VPNSettingsView: View {
     @Environment(\.sheetThemeColors) private var sheetThemeColors
     @State private var vpnManager = VPNManager.shared
+    #if !CHINA_BUILD
+    @State private var tailnetEngine = TailnetInAppEngine.shared
+    #endif
     @State private var profileManager = ConnectionProfileManager.shared
     @State private var showDisconnectConfirmation = false
+    @Environment(\.openHTTPCapture) private var openHTTPCapture
 
     var body: some View {
         List {
+            #if targetEnvironment(macCatalyst) && !STANDALONE
+            // No VPN in this build; Tailscale runs inside rootshell.
+            tailscaleSection
+            #else
+            #if !CHINA_BUILD
+            quickConnectSection
+            #endif
             statusSection
             disconnectSection
             vpnProfilesSection
+            #if !CHINA_BUILD
+            tailscaleSection
+            autoRecoverySection
+            httpCaptureSection
+            #endif
             eventHistorySection
             debugSection
+            #endif
         }
         .themedList()
         .navigationTitle("VPN")
+        #if !CHINA_BUILD
+        .onAppear { vpnManager.reloadLastVPN() }
+        #endif
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        // The launch-time check misses a host that was still rebinding its socket.
+        .task { await vpnManager.refreshStatusFromSystem() }
+        #endif
     }
+
+    #if !CHINA_BUILD
+    // MARK: - Quick Connect
+
+    /// One-tap reconnect to the last VPN, while nothing is connected.
+    @ViewBuilder
+    private var quickConnectSection: some View {
+        if !vpnManager.status.isActive, let target = VPNQuickConnectCard.lastTarget() {
+            Section {
+                VPNQuickConnectCard(target: target)
+                    .themedRow()
+            }
+        }
+    }
+    #endif
+
+    #if !CHINA_BUILD
+    // MARK: - Tailscale Section
+
+    private var tailscaleSection: some View {
+        Section {
+            NavigationLink {
+                TailnetSettingsView()
+            } label: {
+                HStack {
+                    Label {
+                        Text(String(localized: "Tailscale", comment: "VPN settings row"))
+                    } icon: {
+                        Image("TailscaleLogo")
+                            .renderingMode(.original)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                    }
+                    Spacer(minLength: 8)
+                    if let state = tailscaleRowState {
+                        Text(state).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .themedRow()
+        } footer: {
+            if TailnetPlatform.supportsWholeDevice {
+                Text("Reach your tailnet as a VPN for the whole device, or only inside rootshell so another VPN can stay on.")
+            } else {
+                Text("Reach your tailnet from rootshell's connections. Tailscale runs inside the app, so other apps aren't affected.")
+            }
+        }
+    }
+
+    /// "On · Whole Device" or "On · rootshell Only"; nil while off.
+    private var tailscaleRowState: String? {
+        let mode = TailnetModeSettings.load()
+        switch mode.effectiveMode {
+        case .wholeDevice:
+            guard vpnManager.isVPNActive(for: VPNTailnetProfile.id) else { return nil }
+            return String(localized: "On · Whole Device", comment: "Tailscale row: VPN mode is on")
+        case .rootshellOnly:
+            guard mode.inAppEnabled || TailnetInAppEngine.shared.isStarted else { return nil }
+            return TailnetPlatform.supportsWholeDevice
+                ? String(localized: "On · rootshell Only", comment: "Tailscale row: in-app mode is on")
+                : String(localized: "On", comment: "Tailscale VPN is active")
+        }
+    }
+    #endif
+
+    #if !CHINA_BUILD
+    // MARK: - Auto Recovery Section
+
+    private var autoRecoverySection: some View {
+        Section {
+            SettingToggle(Settings.VPN.autoRecovery, title: "Auto Recovery")
+                .themedRow()
+        } footer: {
+            Text("When rootshell opens, reconnect the VPN or Tailscale that was on when it last ran, such as after a restart or an app update. Skipped if another VPN app is connected.")
+        }
+    }
+
+    // MARK: - HTTP Capture Section
+
+    private var httpCaptureSection: some View {
+        Section {
+            if let openHTTPCapture {
+                Button(String(localized: "Open HTTP Capture", comment: "VPN settings action: close Settings and show the capture panel")) {
+                    openHTTPCapture()
+                }
+                .themedRow()
+            }
+            NavigationLink {
+                CaptureSettingsView()
+            } label: {
+                HStack {
+                    Text(String(localized: "Capture Settings", comment: "VPN settings row"))
+                    Spacer(minLength: 8)
+                    if CaptureController.shared.isRecording {
+                        CaptureStatusText(
+                            text: String(localized: "Recording", comment: "HTTP capture session state"),
+                            systemImage: "record.circle", color: .red)
+                    } else if CaptureCAManager.shared.hasCA {
+                        CATrustBadge(state: CaptureCAManager.shared.trust)
+                    }
+                }
+            }
+            .themedRow()
+            if vpnManager.status != .connected {
+                Button(String(localized: "Connect Local Capture VPN", comment: "VPN settings action")) {
+                    Task {
+                        try? await vpnManager.startDirectVPN(
+                            dnsServers: SettingsStore.shared.value(Settings.HTTPCapture.directDNSServers))
+                    }
+                }
+                .themedRow()
+            }
+        } header: {
+            Text("HTTP Capture")
+        } footer: {
+            Text("Inspect HTTP and HTTPS traffic through the VPN. Open the capture panel here, from the File menu, the keyboard toolbar, or with its keyboard shortcut. Local Capture is a VPN without a server, for capturing only.")
+        }
+    }
+    #endif
 
     // MARK: - Status Section
 
@@ -64,6 +208,26 @@ struct VPNSettingsView: View {
                         .themedRow()
                 }
             }
+            #if !CHINA_BUILD
+            if !vpnManager.status.isActive && tailnetEngine.isRunning {
+                if let since = tailnetEngine.connectedSince {
+                    LabeledContent("Uptime") {
+                        Text(since, style: .timer)
+                            .foregroundStyle(.secondary)
+                    }
+                    .themedRow()
+                }
+                if let stats = tailnetEngine.statistics {
+                    VPNStatsGrid(stats: stats)
+                        .themedRow()
+                }
+                if tailnetEngine.trafficHistory.count >= 2 {
+                    VPNTrafficChart(snapshots: tailnetEngine.trafficHistory)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .themedRow()
+                }
+            }
+            #endif
         }
     }
 

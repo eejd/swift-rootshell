@@ -186,12 +186,6 @@ final class MoshSession: TerminalSession {
     /// Whether this session was resumed from saved credentials
     private(set) var wasResumed: Bool = false
 
-    /// Time when resume completed (for detecting early failure)
-    private var resumeCompletedAt: Date?
-
-    /// Grace period after resume - if disconnect happens within this window, auto-fallback to SSH
-    private static let resumeGracePeriod: TimeInterval = 30.0
-
     /// Whether we're currently in the process of auto-fallback after resume failure
     private var isAutoFallbackInProgress: Bool = false
 
@@ -388,9 +382,6 @@ final class MoshSession: TerminalSession {
             return false
         }
     }
-
-    /// Shorter timeout for initial direct connection during resume (before hole-punch)
-    private static let resumeDirectTimeout: TimeInterval = 0.5
 
     /// Timeout after hole-punch attempt during resume
     private static let resumePostPunchTimeout: TimeInterval = 0.5
@@ -2081,6 +2072,13 @@ extension MoshSession {
     /// - Returns: true if the host is local and doesn't need hole-punching
     static func isLocalDestination(_ host: String) -> Bool {
         let lowercased = host.lowercased()
+
+        #if !CHINA_BUILD
+        // In-app Tailscale carries it; there is no NAT to punch.
+        if TailnetRouting.shared.wasRouted(host) {
+            return true
+        }
+        #endif
 
         // Check for localhost variants
         if lowercased == "localhost" || lowercased == "localhost." {

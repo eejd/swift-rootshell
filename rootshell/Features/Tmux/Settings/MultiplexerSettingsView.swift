@@ -8,7 +8,6 @@ struct MultiplexerSettingsView: View {
     @Setting(Settings.Multiplexer.herdrCustomCommand) private var herdrCustomCommand
     @Setting(Settings.Multiplexer.zmxSessionName) private var zmxSessionName
     @Setting(Settings.Multiplexer.zmxCustomCommand) private var zmxCustomCommand
-    @Setting(Settings.Multiplexer.tmuxTabCloseAction) private var tabCloseAction
 
     private var hasCustomCommand: Bool {
         !customCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -100,24 +99,17 @@ struct MultiplexerSettingsView: View {
             }
 
             Section {
+                SettingToggle(Settings.Multiplexer.detachBanner, title: "Show Detach Banner", icon: "eject.circle")
+                    .themedRow()
+            } header: {
+                SettingGroupHeader("Detach", group: .multiplexer)
+            } footer: {
+                Text("After detaching from a tmux, zellij, herdr, or zmx session, a banner briefly confirms the session keeps running and offers to reconnect.")
+            }
+
+            Section {
                 SettingToggle(Settings.Multiplexer.tmuxAutoHideGatewayOnAttach, title: "Auto-hide Gateway on Attach", icon: "eye.slash")
                     .themedRow()
-
-                NavigationLink {
-                    TmuxTabCloseActionPickerView()
-                } label: {
-                    HStack(spacing: 12) {
-                        SettingsIcon(systemName: "xmark.rectangle")
-                        Text("Close Tab Action")
-                        SettingPinTag(Settings.Multiplexer.tmuxTabCloseAction.erased)
-                        Spacer()
-                        Text(tabCloseAction.displayName)
-                            .foregroundColor(.secondary)
-                            .font(.subheadline)
-                    }
-                }
-                .themedRow()
-                .settingContextMenu(Settings.Multiplexer.tmuxTabCloseAction)
             } header: {
                 SettingGroupHeader("tmux Control Mode", group: .multiplexer)
             } footer: {
@@ -135,10 +127,11 @@ struct MultiplexerSettingsView: View {
 
             Section {
                 NewTabActionSettingsRow()
+                MultiplexerTabCloseActionSettingsRow()
             } header: {
-                Text("New Tabs")
+                Text("Tabs")
             } footer: {
-                Text("New Tab Action applies globally, including outside multiplexer sessions. The tab-bar + always opens Connections.")
+                Text("New Tab Action applies globally, including outside multiplexer sessions. The tab-bar + always opens Connections. Close Tab Action sets what closing a tmux -CC or herdr control-mode tab does on the host.")
             }
 
             Section {
@@ -216,17 +209,17 @@ struct MultiplexerSettingsView: View {
     }
 }
 
-/// Pushed list for choosing the tmux -CC tab-close action. Each option gets a
-/// title, leading icon, and a full-width description below it — so the
-/// explanations have room instead of piling into the Multiplexers form footer
-/// as a wall of text. Mirrors the SSH key security picker. (id=tmux-tab-close-action)
-struct TmuxTabCloseActionPickerView: View {
-    @Setting(Settings.Multiplexer.tmuxTabCloseAction) private var tabCloseAction
+/// Pushed list for choosing the tmux -CC / herdr tab-close action. Each option
+/// gets a title, leading icon, and a full-width description below it — so the
+/// explanations have room instead of piling into a form footer as a wall of
+/// text. Mirrors the SSH key security picker. (id=tmux-tab-close-action)
+struct MultiplexerTabCloseActionPickerView: View {
+    @Setting(Settings.Multiplexer.tabCloseAction) private var tabCloseAction
 
     var body: some View {
         List {
             Section {
-                ForEach(TmuxTabCloseAction.allCases, id: \.rawValue) { action in
+                ForEach(MultiplexerTabCloseAction.allCases, id: \.rawValue) { action in
                     Button {
                         tabCloseAction = action
                     } label: {
@@ -255,7 +248,7 @@ struct TmuxTabCloseActionPickerView: View {
                     .themedRow()
                 }
             } footer: {
-                Text("Controls what ⌘W or the tab's ✕ does on a tmux -CC tab.")
+                Text("Controls what ⌘W on a tab's last pane, the tab's ✕, or Close Tab does on a tmux -CC or herdr control-mode tab.")
             }
         }
         .themedList()
@@ -329,5 +322,26 @@ struct NewTabActionSettingsRow: View {
         }
         .themedRow()
         .settingContextMenu(Settings.Tabs.newTabAction)
+    }
+}
+
+/// Shared by the Terminal › Tabs and Multiplexers settings screens.
+struct MultiplexerTabCloseActionSettingsRow: View {
+    @Setting(Settings.Multiplexer.tabCloseAction) private var action
+
+    var body: some View {
+        NavigationLink(value: SettingsSearchDestination.multiplexerTabCloseAction) {
+            HStack(spacing: 12) {
+                SettingsIcon(systemName: "xmark.rectangle")
+                Text("Multiplexer Close Tab Action")
+                SettingPinTag(Settings.Multiplexer.tabCloseAction.erased)
+                Spacer()
+                Text(action.displayName)
+                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+            }
+        }
+        .themedRow()
+        .settingContextMenu(Settings.Multiplexer.tabCloseAction)
     }
 }

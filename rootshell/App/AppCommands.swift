@@ -15,6 +15,25 @@ import Combine
 
 // MARK: - Keyboard Shortcut State
 
+private struct CanChoosePaneToZoomKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
+private struct CanChoosePaneToSwapKey: FocusedValueKey {
+    typealias Value = Bool
+}
+
+extension FocusedValues {
+    var canChoosePaneToSwap: Bool? {
+        get { self[CanChoosePaneToSwapKey.self] }
+        set { self[CanChoosePaneToSwapKey.self] = newValue }
+    }
+    var canChoosePaneToZoom: Bool? {
+        get { self[CanChoosePaneToZoomKey.self] }
+        set { self[CanChoosePaneToZoomKey.self] = newValue }
+    }
+}
+
 /// Observable object that provides current keyboard shortcuts for menu display
 /// This is separate from KeybindManager to avoid the iPadOS 26 issue with
 /// @ObservedObject in CommandGroup(replacing:)
@@ -26,6 +45,10 @@ final class MenuShortcutState: ObservableObject {
     /// Nested count so overlapping capture views don't restore the menu rail
     /// while another is still recording.
     private var recordingCaptureCount = 0
+
+    /// Whether a capture view is recording. The Catalyst menu items built in
+    /// CatalystAppDelegate.buildMenu(with:) drop their key equivalents too.
+    var isRecordingCapture: Bool { recordingCaptureCount > 0 }
 
     /// Whether a menu bar exists to carry app shortcuts. Both menu rails dispatch
     /// through UIApplication notifications rather than the responder chain, so a
@@ -196,6 +219,24 @@ struct FileCommands: Commands {
                 )
             }
             .modifier(DynamicShortcut(action: .open_in_folder, shortcuts: shortcutState.shortcuts))
+
+            Button("File Manager") {
+                UIApplication.shared.sendMenuAction(
+                    #selector(Ghostty.TerminalView.menuToggleFileManager(_:)),
+                    from: nil
+                )
+            }
+            .modifier(DynamicShortcut(action: .toggle_file_manager, shortcuts: shortcutState.shortcuts))
+
+            #if !CHINA_BUILD && (!targetEnvironment(macCatalyst) || STANDALONE)
+            Button("HTTP Capture") {
+                UIApplication.shared.sendMenuAction(
+                    #selector(Ghostty.TerminalView.menuToggleHTTPCapture(_:)),
+                    from: nil
+                )
+            }
+            .modifier(DynamicShortcut(action: .toggle_http_capture, shortcuts: shortcutState.shortcuts))
+            #endif
         }
     }
 }
@@ -216,10 +257,10 @@ struct DynamicShortcut: ViewModifier {
     }
 }
 
-// Note: Close (Cmd-W) is handled by:
-// 1. System-provided Close menu item
-// 2. UIKeyCommand in TerminalViewKeyboard.swift with wantsPriorityOverSystemBehavior
-// 3. pressesBegan fallback for macOS Sequoia compatibility
+// Note: On Mac Catalyst, Close Tab is the Close menu item that
+// CatalystAppDelegate.buildMenu(with:) installs. Its key equivalent follows
+// the close_tab keybind, because AppKit dispatches menu key equivalents
+// before any responder UIKeyCommand.
 
 // MARK: - Edit Commands
 
@@ -390,6 +431,8 @@ struct AppViewCommands: Commands {
 
 struct TerminalCommands: Commands {
     @ObservedObject var shortcutState: MenuShortcutState
+    @FocusedValue(\.canChoosePaneToZoom) private var canChoosePaneToZoom
+    @FocusedValue(\.canChoosePaneToSwap) private var canChoosePaneToSwap
 
     var body: some Commands {
         CommandMenu("Terminal") {
@@ -465,6 +508,22 @@ struct TerminalCommands: Commands {
                 )
             }
             .modifier(DynamicShortcut(action: .equalize_splits, shortcuts: shortcutState.shortcuts))
+
+            Button("Choose Pane to Zoom") {
+                UIApplication.shared.sendMenuAction(
+                    #selector(Ghostty.TerminalView.menuChoosePaneToZoom(_:)), from: nil
+                )
+            }
+            .modifier(DynamicShortcut(action: .choose_pane_to_zoom, shortcuts: shortcutState.shortcuts))
+            .disabled(canChoosePaneToZoom != true)
+
+            Button("Choose Pane to Swap") {
+                UIApplication.shared.sendMenuAction(
+                    #selector(Ghostty.TerminalView.menuChoosePaneToSwap(_:)), from: nil
+                )
+            }
+            .modifier(DynamicShortcut(action: .choose_pane_to_swap, shortcuts: shortcutState.shortcuts))
+            .disabled(canChoosePaneToSwap != true)
 
             Divider()
 
@@ -568,6 +627,14 @@ struct ShellCommands: Commands {
             }
             .modifier(DynamicShortcut(action: .browse_profiles, shortcuts: shortcutState.shortcuts))
 
+            Button("IP Lookup") {
+                UIApplication.shared.sendMenuAction(
+                    #selector(Ghostty.TerminalView.menuToggleIPLookup(_:)),
+                    from: nil
+                )
+            }
+            .modifier(DynamicShortcut(action: .toggle_ip_lookup, shortcuts: shortcutState.shortcuts))
+
             #if !CHINA_BUILD
             Divider()
 
@@ -586,6 +653,16 @@ struct ShellCommands: Commands {
                 )
             }
             .modifier(DynamicShortcut(action: .toggle_voice_agent, shortcuts: shortcutState.shortcuts))
+
+            if DictationSupport.isCompiled {
+                Button("Dictation") {
+                    UIApplication.shared.sendMenuAction(
+                        #selector(Ghostty.TerminalView.menuToggleDictation(_:)),
+                        from: nil
+                    )
+                }
+                .modifier(DynamicShortcut(action: .toggle_dictation, shortcuts: shortcutState.shortcuts))
+            }
             #endif
         }
 
@@ -674,6 +751,14 @@ struct WindowCommands: Commands {
                 )
             }
             .modifier(DynamicShortcut(action: .discover_sessions, shortcuts: shortcutState.shortcuts))
+
+            Button("Detach Session") {
+                UIApplication.shared.sendAction(
+                    #selector(Ghostty.TerminalView.menuDetachSession(_:)),
+                    to: nil, from: nil, for: nil
+                )
+            }
+            .modifier(DynamicShortcut(action: .detach_session, shortcuts: shortcutState.shortcuts))
 
             Button("Detach Other Clients") {
                 UIApplication.shared.sendMenuAction(

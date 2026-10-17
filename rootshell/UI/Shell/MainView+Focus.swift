@@ -387,6 +387,8 @@ extension MainView {
             LifecycleDebugLogger.shared.checkpoint("FG.appTabSwipe.finish", ms: nil, [
                 ("path", "commit"),
             ])
+            // A target that revealed mid-settle skipped the source's cleanup.
+            self.occludeTabIfNoLongerShown(state.sourceTabID)
             #if !targetEnvironment(macCatalyst)
             // Both tabs have settled at offset 0; recreate selection handles at
             // their final position. The target (now selected) re-presents any
@@ -708,9 +710,16 @@ extension MainView {
         }
 
         tabsModel.displaySelectedTabImmediately()
+        // Exposé mirrors keep their renderers awake.
+        let exposeLiveIDs = tabExpose.isActive ? tabExpose.liveTabIDs : []
         for (index, tab) in terminals.enumerated() {
             let isSelected = index == selectedIndex
+            if !isSelected, exposeLiveIDs.contains(tab.id) { continue }
             for terminal in tab.splitTree {
+                // Re-occluding a hidden pane is a no-op, but with hundreds of
+                // multiplexer panes the per-call hops add up.
+                if !isSelected, let view = terminal.asTerminal,
+                   view.hasExplicitTabVisibility, !view.isTabVisible { continue }
                 terminal.setOcclusion(isSelected)
             }
         }

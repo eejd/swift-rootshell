@@ -5,7 +5,7 @@
 //  File-based debug logger for SSH connection diagnostics. Off by default.
 //  Captures `ssh -vv`-class detail (KEX algorithms, host key fingerprints,
 //  auth method negotiation, banners, channel state, swift-nio-ssh internals,
-//  Citadel internals) to Documents/.ghostty/ssh_debug.log. Companion to
+//  Citadel internals) to <GhosttyStorageLocation.rootDirectory>/ssh_debug.log. Companion to
 //  LifecycleDebugLogger / ResumeDebugLogger.
 //
 //  Toggle: UserDefaults["sshDebugLoggingEnabled"]. The toggle is checked on
@@ -48,7 +48,7 @@ final class SSHDebugLogger: Sendable {
     /// Serial queue for thread-safe file I/O
     private let ioQueue = DispatchQueue(label: "com.rootshell.sshDebugLogger")
 
-    /// Log file URL: Documents/.ghostty/ssh_debug.log
+    /// Log file URL: <GhosttyStorageLocation.rootDirectory>/ssh_debug.log
     private let logFileURL: URL
 
     /// Rotated log file URL
@@ -61,8 +61,7 @@ final class SSHDebugLogger: Sendable {
     private let bootstrapsInstalled = OSAllocatedUnfairLock<Bool>(initialState: false)
 
     private init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logFileURL = ghosttyDir.appendingPathComponent("ssh_debug.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("ssh_debug.1.log")
 
@@ -189,10 +188,10 @@ final class SSHDebugLogger: Sendable {
 
         if FileManager.default.fileExists(atPath: logFileURL.path) {
             if let handle = try? FileHandle(forWritingTo: logFileURL) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.synchronizeFile()
-                handle.closeFile()
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.synchronize()
+                try? handle.close()
             }
         } else {
             try? data.write(to: logFileURL, options: .atomic)
@@ -242,16 +241,10 @@ struct SSHDebugLogHandler: LogHandler {
         set { metadata[key] = newValue }
     }
 
-    func log(
-        level: Logging.Logger.Level,
-        message: Logging.Logger.Message,
-        metadata: Logging.Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
-        let combined = metadata.map { self.metadata.merging($0) { _, new in new } } ?? self.metadata
+    func log(event: LogEvent) {
+        let level = event.level
+        let message = event.message
+        let combined = event.metadata.map { self.metadata.merging($0) { _, new in new } } ?? self.metadata
         let metaSuffix = combined.isEmpty
             ? ""
             : " " + combined.sorted(by: { $0.key < $1.key })

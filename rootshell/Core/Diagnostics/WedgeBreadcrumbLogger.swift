@@ -38,9 +38,9 @@ final class WedgeBreadcrumbLogger: Sendable {
         // Avoid FileManager in init: the singleton is first touched from early
         // lifecycle callbacks, so all filesystem queries must stay on the
         // writer queue.
-        let documentsURL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .appendingPathComponent("Documents", isDirectory: true)
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        // GhosttyStorageLocation.rootDirectory is a pure path computation (no
+        // disk access), so it is safe here.
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logDirectoryURL = ghosttyDir
         self.logFileURL = ghosttyDir.appendingPathComponent("wedge_breadcrumb.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("wedge_breadcrumb.1.log")
@@ -123,10 +123,10 @@ final class WedgeBreadcrumbLogger: Sendable {
 
         if FileManager.default.fileExists(atPath: logFileURL.path) {
             guard let handle = try? FileHandle(forWritingTo: logFileURL) else { return }
-            handle.seekToEndOfFile()
-            handle.write(data)
-            handle.synchronizeFile()
-            handle.closeFile()
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+            try? handle.synchronize()
+            try? handle.close()
             noteBytesWritten(UInt64(data.count))
         } else {
             do {

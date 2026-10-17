@@ -25,7 +25,11 @@ enum SettingsSearchDestination: String, Hashable, CaseIterable {
     case visor
     case toolbarKeys
     case touchKeyboard
+    case dictation
+    case dictationModels
+    case dictationVocabulary
     case newTabAction
+    case multiplexerTabCloseAction
     case keyboardShortcuts
     case modTap
     case gestureHelp
@@ -45,12 +49,13 @@ enum SettingsSearchDestination: String, Hashable, CaseIterable {
     case localSSHAgent
     case externalSSHAgents
     case cloudProviders
+    case storageProviders
     case wifiAPProviders
     case kubernetesClusters
     case backgroundTunnels
-    case vpn
     case roam
     case screenSharing
+    case uploads
     case sshTransport
     case multiplexers
     case codingAgents
@@ -72,6 +77,7 @@ enum SettingsSearchDestination: String, Hashable, CaseIterable {
     case acknowledgements
     case openSSHImport
     case ghosttyConfigImport
+    case legacyDocumentsImport
 }
 
 /// Compile-time facts, exposed as constants so availability reads as plain
@@ -101,6 +107,12 @@ private enum SearchBuild {
     #endif
     static var hasBrightnessBoost: Bool {
         if #available(iOS 26.0, macOS 26.0, *) { return true }
+        return false
+    }
+    static var supportsDuoLayout: Bool {
+        #if os(iOS) && !targetEnvironment(macCatalyst)
+        if #available(iOS 27.1, *) { return true }
+        #endif
         return false
     }
 }
@@ -135,7 +147,7 @@ extension SettingsSearchDestination {
                  keywords: ["palette", "harmonious", "256", "generate", "colors"])
         case .backgroundEffect:
             Meta(section: .appearance, title: String(localized: "Background Effect"), systemImage: "sparkles",
-                 keywords: ["effects", "wallpaper", "visuals", "aurora", "solar graph", "fireflies", "butterflies",
+                 keywords: ["effects", "wallpaper", "visuals", "aurora", "gradient", "theme gradient", "backdrop", "solar graph", "fireflies", "butterflies",
                             "jellyfish", "photo", "video", "ken burns", "theme tint", "intensity", "speed"])
         case .customShaders:
             Meta(section: .appearance, title: String(localized: "Custom Shaders"), systemImage: "cpu",
@@ -158,13 +170,33 @@ extension SettingsSearchDestination {
             Meta(section: .terminal, title: String(localized: "Terminal Keyboard"), systemImage: "keyboard.badge.ellipsis",
                  keywords: ["custom keyboard", "qwerty", "vim", "emacs", "nano", "agent", "suggestions", "haptics",
                             "letter prediction", "typing accuracy", "touch accuracy", "detached", "floating",
-                            "glass", "tint", "transparency", "system detached keyboard", "app window"])
+                            "glass", "tint", "transparency", "system detached keyboard", "app window",
+                            "keyboard style", "flat", "sculpted", "3d", "skeuomorphic", "steampunk",
+                            "phosphor", "crt", "retro", "beige box", "neon grid", "synthwave", "circuit board",
+                            "key click", "click sound", "typing sound",
+                            "separate state per tab", "shared keyboard", "sticky modifiers"])
         case .toolbarKeys:
             Meta(section: .terminal, title: String(localized: "Toolbar Keys"), systemImage: "keyboard",
                  keywords: ["toolbar", "custom keys"])
+        case .dictation:
+            Meta(section: .terminal, title: String(localized: "Dictation"), systemImage: "mic",
+                 keywords: ["dictation", "speech", "voice", "microphone", "speech to text", "transcribe", "parakeet",
+                            "fluidaudio", "on device", "offline", "voice typing", "preview", "live", "hands-free",
+                            "agent prompt", "voice commands", "press enter", "scratch that", "filler words"])
+        case .dictationModels:
+            Meta(section: .terminal, title: String(localized: "Speech Model"), systemImage: "cpu",
+                 keywords: ["parakeet", "ultra", "redux", "v2", "v3", "download", "delete", "model", "storage",
+                            "neural engine", "language"])
+        case .dictationVocabulary:
+            Meta(section: .terminal, title: String(localized: "Vocabulary Boost"), systemImage: "text.book.closed",
+                 keywords: ["vocabulary", "custom words", "boost", "kubectl", "hostnames", "identifiers",
+                            "context biasing", "sounds like"])
         case .newTabAction:
             Meta(section: .terminal, title: String(localized: "New Tab Action"), systemImage: "plus.rectangle.on.rectangle",
                  keywords: ["new tab", "local", "ssh", "tmux", "last connection", "default"])
+        case .multiplexerTabCloseAction:
+            Meta(section: .terminal, title: String(localized: "Multiplexer Close Tab Action"), systemImage: "xmark.rectangle",
+                 keywords: ["tmux", "herdr", "close tab", "kill window", "detach", "hide tab", "control mode"])
         case .keyboardShortcuts:
             Meta(section: .terminal, title: String(localized: "Keyboard Shortcuts"), systemImage: "command",
                  keywords: ["keybinds", "hotkeys", "category", "keybind editor", "reset"])
@@ -177,6 +209,7 @@ extension SettingsSearchDestination {
                             "two fingers", "chevron", "hide keyboard", "collapse toolbar", "modifiers",
                             "joystick", "space", "cursor", "floating keyboard", "dock", "swipe", "pinch",
                             "font size", "selection", "scroll mode", "context menu", "new connection",
+                            "right click", "right-click", "secondary click", "loupe", "magnifier",
                             "tab expose", "pull down", "previews", "sidebar", "split", "pane",
                             "screen sharing", "pencil"])
         case .swipeGestures:
@@ -230,6 +263,9 @@ extension SettingsSearchDestination {
         case .cloudProviders:
             Meta(section: .connections, title: String(localized: "Cloud Providers"), systemImage: "cloud",
                  keywords: ["aws", "azure", "digitalocean", "linode", "add account", "accounts"])
+        case .storageProviders:
+            Meta(section: .connections, title: String(localized: "Storage Providers"), systemImage: "externaldrive.connected.to.line.below",
+                 keywords: ["s3", "bucket", "object storage", "r2", "backblaze", "b2", "wasabi", "minio", "spaces", "file manager"])
         case .wifiAPProviders:
             Meta(section: .connections, title: String(localized: "WiFi AP Providers"), systemImage: "wifi.router",
                  keywords: ["wireless", "access point", "manual ap", "bssid", "vendor", "add account"])
@@ -239,16 +275,15 @@ extension SettingsSearchDestination {
         case .backgroundTunnels:
             Meta(section: .connections, title: String(localized: "Background Tunnels"), systemImage: "arrow.triangle.swap",
                  keywords: ["port forwarding", "tunnels", "stop all", "event history", "profiles", "local forward"])
-        case .vpn:
-            Meta(section: .connections, title: String(localized: "VPN"), systemImage: "network.badge.shield.half.filled",
-                 keywords: ["networking", "tunnel", "wireguard", "disconnect", "dns servers", "route exclusions",
-                            "split tunnel", "cidr", "debug"])
         case .roam:
             Meta(section: .connections, title: String(localized: "Roam"), systemImage: "antenna.radiowaves.left.and.right",
                  keywords: ["mobility", "handoff", "mosh"])
         case .screenSharing:
             Meta(section: .connections, title: String(localized: "Screen Sharing"), systemImage: "display.2",
                  keywords: ["vnc", "remote desktop", "clipboard", "panning", "pointer", "encryption", "tunnel"])
+        case .uploads:
+            Meta(section: .connections, title: String(localized: "Uploads"), systemImage: "arrow.up.doc",
+                 keywords: ["upload", "image", "paste", "drop", "attachment", "markdown", "sftp", "pdf", "screenshot"])
         case .sshTransport:
             Meta(section: .connections, title: String(localized: "SSH Transport"), systemImage: "shield.lefthalf.filled",
                  keywords: ["ssh", "transport", "health", "probe", "post-quantum", "kex"])
@@ -263,7 +298,7 @@ extension SettingsSearchDestination {
                  keywords: ["command", "task", "long running", "sudo", "password", "prompt", "build", "test", "pytest",
                             "cargo", "terraform", "rsync", "transfer", "detect"])
         case .pushNotifications:
-            Meta(section: .notifications, title: String(localized: "Push Notifications"), systemImage: "lock.shield",
+            Meta(section: .general, title: String(localized: "Push Notifications"), systemImage: "lock.shield",
                  keywords: ["push", "apns", "hook", "claude code", "codex", "remote", "encrypted", "pair", "background"])
         case .aiConfiguration:
             Meta(section: .aiAssistant, title: String(localized: "Configuration"), systemImage: "gearshape",
@@ -278,42 +313,45 @@ extension SettingsSearchDestination {
             Meta(section: .aiAssistant, title: String(localized: "Voice Agent"), systemImage: "waveform",
                  keywords: ["voice", "gemini", "audio", "speech"])
         case .iCloudSync:
-            Meta(section: .privacyData, title: String(localized: "iCloud Sync"), systemImage: "arrow.triangle.2.circlepath.icloud",
+            Meta(section: .general, title: String(localized: "iCloud Sync"), systemImage: "arrow.triangle.2.circlepath.icloud",
                  keywords: ["sync", "cloudkit", "backup"])
         case .backupRestore:
-            Meta(section: .privacyData, title: String(localized: "Backup & Restore"), systemImage: "archivebox",
+            Meta(section: .general, title: String(localized: "Backup & Restore"), systemImage: "archivebox",
                  keywords: ["export", "import", "archive", "encrypted", "password", "categories", "transfer", "migrate"])
         case .syncedGroups:
-            Meta(section: .privacyData, title: String(localized: "Synced Groups"), systemImage: "square.grid.2x2",
+            Meta(section: .general, title: String(localized: "Synced Groups"), systemImage: "square.grid.2x2",
                  keywords: ["sync", "group", "groups", "icloud", "pin", "local", "device", "sync all groups", "keep all on this device"])
         case .pinnedSettings:
-            Meta(section: .privacyData, title: String(localized: "Pinned Settings"), systemImage: "pin",
+            Meta(section: .general, title: String(localized: "Pinned Settings"), systemImage: "pin",
                  keywords: ["pin", "pinned", "local", "device", "sync", "icloud", "sync again", "always on this device"])
         case .configFile:
-            Meta(section: .privacyData, title: String(localized: "Config File"), systemImage: "doc.text",
+            Meta(section: .general, title: String(localized: "Config File"), systemImage: "doc.text",
                  keywords: ["config", "dotfile", "text", "file", "ghostty", "rootshell.conf", "editor", "create", "edit",
                             "reload", "show in finder"])
         case .locationDiary:
-            Meta(section: .privacyData, title: String(localized: "View Diary"), systemImage: "book",
+            Meta(section: .general, title: String(localized: "View Diary"), systemImage: "book",
                  keywords: ["entries", "location history"])
         case .liveActivity:
-            Meta(section: .privacyData, title: String(localized: "Live Activity"), systemImage: "record.circle",
+            Meta(section: .general, title: String(localized: "Live Activity"), systemImage: "record.circle",
                  keywords: ["dynamic island", "activity"])
         case .clipboardManager:
-            Meta(section: .privacyData, title: String(localized: "Clipboard Manager"), systemImage: "list.clipboard",
+            Meta(section: .general, title: String(localized: "Clipboard Manager"), systemImage: "list.clipboard",
                  keywords: ["clipboard", "history", "copy", "paste", "transform", "base64", "jwt"])
         case .autoRedact:
-            Meta(section: .privacyData, title: String(localized: "Auto-Redact"), systemImage: "eye.slash",
+            Meta(section: .general, title: String(localized: "Auto-Redact"), systemImage: "eye.slash",
                  keywords: ["redact", "privacy", "pii", "mask", "hide", "email", "name", "screenshot", "recording", "sensitive"])
         case .acknowledgements:
             Meta(section: .about, title: String(localized: "Acknowledgements"), systemImage: "doc.text",
                  keywords: ["licenses", "credits"])
         case .openSSHImport:
-            Meta(section: .privacyData, title: String(localized: "Import from OpenSSH"), systemImage: "key.horizontal",
+            Meta(section: .general, title: String(localized: "Import from OpenSSH"), systemImage: "key.horizontal",
                  keywords: ["ssh config", "ssh_config", "import", "migrate", ".ssh", "identityfile", "openssh", "hosts"])
         case .ghosttyConfigImport:
-            Meta(section: .privacyData, title: String(localized: "Import from Ghostty Config"), systemImage: "square.and.arrow.down.on.square",
+            Meta(section: .general, title: String(localized: "Import from Ghostty Config"), systemImage: "square.and.arrow.down.on.square",
                  keywords: ["ghostty", "config", "import", "migrate", "theme", "font", "keybinds", "palette"])
+        case .legacyDocumentsImport:
+            Meta(section: .general, title: String(localized: "Import from Documents"), systemImage: "tray.and.arrow.down",
+                 keywords: ["documents", "legacy", "migrate", "old data", "detection rules", "incoming"])
         }
     }
 
@@ -337,10 +375,10 @@ extension SettingsSearchDestination {
         switch self {
         case .appIcon:
             return AppIconManager.isSupported
-        case .transparency:
-            return SearchBuild.isCatalyst
         case .touchKeyboard:
             return !SearchBuild.isCatalyst && !SearchBuild.isVisionOS
+        case .dictation, .dictationModels, .dictationVocabulary:
+            return DictationSupport.isCompiled
         case .toolbarKeys, .promptAndUsername, .bookmarkedLocations, .locationDiary:
             return !SearchBuild.isCatalyst
         case .liveActivity:
@@ -351,10 +389,8 @@ extension SettingsSearchDestination {
             #else
             return SearchBuild.isStandalone && SearchBuild.isCatalyst
             #endif
-        case .localShell, .localSSHAgent, .externalSSHAgents:
+        case .localShell, .localSSHAgent, .externalSSHAgents, .legacyDocumentsImport:
             return SearchBuild.isStandalone && SearchBuild.isCatalyst
-        case .vpn:
-            return !SearchBuild.isChinaBuild && (!SearchBuild.isCatalyst || SearchBuild.isStandalone)
         default:
             return true
         }
@@ -377,6 +413,7 @@ extension SettingsSection {
     var isAvailable: Bool {
         switch self {
         case .aiAssistant: !SearchBuild.isChinaBuild
+        case .vpn: !SearchBuild.isChinaBuild
         default: true
         }
     }
@@ -385,10 +422,12 @@ extension SettingsSection {
         switch self {
         case .appearance: ["theme", "font", "cursor", "window", "colors"]
         case .terminal: ["keyboard", "locale", "prompt", "sessions"]
-        case .connections: ["ssh", "cloud", "vpn", "hosts", "tmux", "vnc", "screen sharing", "remote desktop"]
+        case .connections: ["ssh", "cloud", "hosts", "tmux", "vnc", "screen sharing", "remote desktop", "storage", "s3"]
         case .aiAssistant: ["providers", "mcp", "agent", "text size"]
-        case .privacyData: ["icloud", "location", "sync", "live activity"]
-        case .notifications: ["sound", "bell", "reminders"]
+        case .general: ["privacy", "data", "icloud", "location", "sync", "live activity",
+                        "notifications", "sound", "bell", "reminders", "updates"]
+        case .vpn: ["networking", "tunnel", "tailscale", "tailnet", "wireguard", "disconnect", "dns servers",
+                    "route exclusions", "split tunnel", "cidr", "auto recovery", "reconnect", "debug"]
         case .about: ["version", "acknowledgements", "licenses"]
         }
     }
@@ -401,7 +440,7 @@ extension SettingsSection {
             systemImage: icon,
             action: .section(self),
             keywords: searchKeywords,
-            isSuggested: self != .privacyData && self != .notifications && self != .about
+            isSuggested: self != .general && self != .about
         )
     }
 }
@@ -563,7 +602,7 @@ struct SettingsSearchEntry: Identifiable, Hashable {
             row("im-no-fun", String(localized: "I'm no fun"), in: .appearanceMode, icon: "face.smiling",
                 keywords: ["jokes", "quips", "ascii", "animations", "failure", "humor"]),
 
-            // MARK: Transparency (Catalyst)
+            // MARK: Transparency
             row("transparency-opacity", String(localized: "Opacity"), in: .transparency,
                 keywords: ["window opacity", "transparent", "see-through"]),
             row("transparency-blur", String(localized: "Background Blur"), in: .transparency,
@@ -576,6 +615,12 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["tab bar", "hide tabs", "tabs"]),
             row("window-tab-style", String(localized: "Tab Style"), in: .window,
                 keywords: ["tab appearance", "compact"]),
+            row("window-duo-front-display", String(localized: "Duo Front Display"), in: .window,
+                keywords: ["duo", "front display", "camera", "side rail", "below camera", "behind camera", "full width"],
+                available: SearchBuild.supportsDuoLayout),
+            row("window-duo-top-tabs", String(localized: "Show Top Tabs Behind Camera"), in: .window,
+                keywords: ["duo", "front display", "camera", "top tabs", "hide tabs"],
+                available: SearchBuild.supportsDuoLayout),
             row("window-tab-shortcuts", String(localized: "Show Tab Shortcuts"), in: .window,
                 keywords: ["tab numbers", "cmd number"]),
             row("window-group-menu", String(localized: "Show Group Menu"), in: .window,
@@ -604,6 +649,8 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["horizontal", "vertical", "padding", "margins", "inset"]),
             row("window-split-border", String(localized: "Split Focus Border"), in: .window,
                 keywords: ["split panes", "border", "border color", "focus"]),
+            row("window-rounded-panes", String(localized: "Rounded Panes"), in: .window,
+                keywords: ["rounded", "corners", "cards", "gap", "split panes", "sidebar"]),
             row("window-full-screen", String(localized: "Full Screen"), in: .window,
                 keywords: ["status bar", "immersive"], available: isTouch),
             row("window-always-on", String(localized: "Always On Display"), in: .window,
@@ -648,6 +695,8 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["generate", "256", "ansi"]),
             row("palette-harmonious", String(localized: "Harmonious Mode"), in: .palette, icon: "circle.lefthalf.filled",
                 keywords: ["harmonious", "harmony"]),
+            row("host-tint", String(localized: "Tint by Host"), in: .palette, icon: "paintpalette",
+                keywords: ["host color", "server color", "fingerprint", "per host", "background tint"]),
 
             // MARK: Battery
             row("battery-refresh-rate", String(localized: "Maximum Refresh Rate"), in: .battery, icon: "gauge.with.dots.needle.67percent",
@@ -660,6 +709,8 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["layout", "sidebar", "effect", "sidebar only", "include pinned sidebar"], available: isTouch && !onPhone || isCatalyst),
             row("effect-keyboard", String(localized: "Custom Keyboard Background"), in: .backgroundEffect, icon: "keyboard",
                 keywords: ["custom keyboard", "toolbar", "effect", "background", "aquarium", "keyboard only"], available: isTouch),
+            row("effect-backdrop-transparency", String(localized: "Transparent Backdrop"), in: .backgroundEffect,
+                keywords: ["backdrop", "theme gradient", "transparent", "desktop", "see-through"], available: isCatalyst),
             row("effect-photo", String(localized: "Photo Background"), in: .backgroundEffect, icon: "photo",
                 keywords: ["photo", "image", "wallpaper", "ken burns", "filter", "tint"]),
             row("effect-video", String(localized: "Video Background"), in: .backgroundEffect, icon: "film",
@@ -701,10 +752,18 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["meta", "modifier", "keyboard"]),
 
             // MARK: Terminal › Gestures (inline)
+            row("gesture-loupe-right-click", String(localized: "Right click with the loupe"), in: .gestureHelp, icon: "hand.tap",
+                keywords: ["right click", "right-click", "secondary click", "loupe", "magnifier", "hold", "touch", "no mouse"], available: isTouch),
             row("tab-expose-gesture", String(localized: "Pull Down for Tab Exposé"), in: .terminal, icon: "rectangle.stack",
                 keywords: ["expose", "tab previews", "pull down", "swipe down", "gesture"], available: !isVisionOS),
             row("two-finger-long-press", String(localized: "Two-Finger Long Press"), in: .terminal, icon: "hand.point.up.left",
                 keywords: ["gesture", "new connection", "duration", "long press"], available: !isCatalyst),
+
+            // MARK: Terminal › Tabs (inline)
+            row("confirm-close-tab", String(localized: "Confirm Before Closing Tab"), in: .terminal, icon: "xmark.square",
+                keywords: ["close tab", "confirm", "warn", "cmd w", "accidental close"]),
+            row("confirm-close-pane", String(localized: "Confirm Before Closing Pane"), in: .terminal, icon: "rectangle.split.2x1",
+                keywords: ["close pane", "close split", "confirm", "warn", "cmd w"]),
 
             // MARK: Terminal › Session (inline)
             row("restore-sessions", String(localized: "Restore Sessions on Launch"), in: .terminal, icon: "arrow.counterclockwise",
@@ -771,10 +830,10 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["sort", "sessions"]),
             row("mux-show-tabs", String(localized: "Show Multiplexer Tabs"), in: .multiplexers, icon: "rectangle.grid.2x2",
                 keywords: ["tab exposé", "multiplexer tabs"]),
+            row("mux-detach-banner", String(localized: "Show Detach Banner"), in: .multiplexers, icon: "eject.circle",
+                keywords: ["detach", "banner", "reconnect", "notification"]),
             row("mux-auto-hide-gateway", String(localized: "Auto-hide Gateway on Attach"), in: .multiplexers, icon: "eye.slash",
                 keywords: ["control mode", "gateway", "attach"]),
-            row("mux-close-tab-action", String(localized: "Close Tab Action"), in: .multiplexers, icon: "xmark.rectangle",
-                keywords: ["tmux", "close tab", "kill window", "detach"]),
             row("mux-auto-start", String(localized: "Auto-Start Command"), in: .multiplexers, icon: "play.rectangle",
                 keywords: ["tmux", "herdr", "zmx", "auto start", "attach"]),
             row("mux-tips", String(localized: "Multiplexer Tips"), in: .multiplexers, icon: "questionmark.circle",
@@ -899,6 +958,14 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["cursor", "pointer", "size", "small", "medium", "large",
                            "bigger", "trackpad"]),
 
+            // MARK: Uploads
+            row("uploads-confirm", String(localized: "Ask Before Uploading"), in: .uploads, icon: "questionmark.bubble",
+                keywords: ["prompt", "don't ask again", "upload sheet", "paste image", "drop", "confirm"]),
+            row("uploads-format", String(localized: "Insert Uploads As"), in: .uploads, icon: "text.insert",
+                keywords: ["markdown image", "file path", "format", "paste image", "default"]),
+            row("uploads-directory", String(localized: "Default Upload Directory"), in: .uploads, icon: "folder",
+                keywords: ["remote path", "destination", "tmp", "remembered directories", "per host"]),
+
             // MARK: Connections (inline)
             row("clear-connection-history", String(localized: "Clear Connection History"), in: .connections, icon: "trash",
                 keywords: ["history", "recent connections"]),
@@ -922,6 +989,22 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["git", "commit", "message", "model"], available: !isCatalyst),
             row("ai-presentation", String(localized: "AI Presentation"), in: .aiConfiguration, icon: "sidebar.right",
                 keywords: ["display mode", "presentation", "layout"], available: !isVisionOS && !onPhone),
+
+            // MARK: Dictation
+            row("dictation-language", String(localized: "Dictation Language"), in: .dictation, icon: "globe",
+                keywords: ["language", "multilingual", "english", "german", "spanish", "french"]),
+            row("dictation-insert-text", String(localized: "Insert Text"), in: .dictation, icon: "text.insert",
+                keywords: ["preview", "live", "hands-free", "commit", "auto insert", "press return"]),
+            row("dictation-formatting", String(localized: "Dictation Formatting"), in: .dictation, icon: "textformat",
+                keywords: ["command", "prose", "agent prompt", "spoken symbols", "dash", "slash", "lowercase"]),
+            row("dictation-agent", String(localized: "Agent Prompts"), in: .dictation, icon: "sparkles",
+                keywords: ["claude code", "codex", "filler words", "camel case", "snake case", "file mention",
+                           "slash command", "quick replies", "new line"]),
+            row("dictation-voice-commands", String(localized: "Voice Commands"), in: .dictation, icon: "command",
+                keywords: ["press enter", "scratch that", "escape", "control c", "tab"]),
+            row("dictation-advanced", String(localized: "Stop After Silence"), in: .dictation, icon: "timer",
+                keywords: ["silence", "pause", "phrase", "threshold", "sensitivity", "keep loaded", "memory",
+                           "numbers", "digits", "precision", "int4"]),
 
             // MARK: Voice Agent
             row("voice-selection", String(localized: "Voice"), in: .voiceAgent,
@@ -964,7 +1047,7 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["restore", "select backup file", "password"]),
 
             // MARK: Privacy & Data (inline, touch)
-            row("location-diary-mode", String(localized: "Location Diary Mode"), in: .privacyData, icon: "mappin.and.ellipse",
+            row("location-diary-mode", String(localized: "Location Diary Mode"), in: .general, icon: "mappin.and.ellipse",
                 keywords: ["tracking", "location", "diary", "session only", "auto during active sessions"],
                 available: !isCatalyst),
 
@@ -1001,19 +1084,19 @@ struct SettingsSearchEntry: Identifiable, Hashable {
                 keywords: ["hook", "install", "upgrade", "shell command", "rootshell-push"]),
 
             // MARK: Notifications (inline)
-            row("terminal-notifications", String(localized: "Terminal Notifications"), in: .notifications, icon: "bell",
+            row("terminal-notifications", String(localized: "Terminal Notifications"), in: .general, icon: "bell",
                 keywords: ["osc", "alerts"]),
-            row("ssh-session-reminders", String(localized: "SSH Session Reminders"), in: .notifications, icon: "bell.badge",
+            row("ssh-session-reminders", String(localized: "SSH Session Reminders"), in: .general, icon: "bell.badge",
                 keywords: ["background", "reminders"], available: !isCatalyst),
-            row("bell-sound", String(localized: "Bell Sound"), in: .notifications, icon: "speaker.wave.2",
+            row("bell-sound", String(localized: "Bell Sound"), in: .general, icon: "speaker.wave.2",
                 keywords: ["audio", "alerts"]),
-            row("notification-sound", String(localized: "Notification Sound"), in: .notifications, icon: "music.note",
+            row("notification-sound", String(localized: "Notification Sound"), in: .general, icon: "music.note",
                 keywords: ["audio", "reminders"]),
-            row("volume", String(localized: "Volume"), in: .notifications, icon: "speaker.wave.3",
+            row("volume", String(localized: "Volume"), in: .general, icon: "speaker.wave.3",
                 keywords: ["sound level", "bell volume"]),
-            row("updates-automatic", String(localized: "Automatically Check for Updates"), in: .notifications, icon: "arrow.down.circle",
+            row("updates-automatic", String(localized: "Automatically Check for Updates"), in: .general, icon: "arrow.down.circle",
                 keywords: ["sparkle", "update", "check interval", "daily", "weekly"], available: isStandaloneMac),
-            row("updates-check-now", String(localized: "Check for Updates Now"), in: .notifications, icon: "arrow.clockwise.circle",
+            row("updates-check-now", String(localized: "Check for Updates Now"), in: .general, icon: "arrow.clockwise.circle",
                 keywords: ["update", "check now", "version"], available: isStandaloneMac),
         ]
     }
@@ -1041,11 +1124,7 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
     case .customShaders:
         ShaderSettingsView()
     case .transparency:
-        #if targetEnvironment(macCatalyst)
         TransparencySettingsView()
-        #else
-        EmptyView()
-        #endif
     case .window:
         WindowSettingsView()
     case .battery:
@@ -1070,8 +1149,28 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         #else
         EmptyView()
         #endif
+    case .dictation:
+        #if canImport(FluidAudio) && !CHINA_BUILD
+        DictationSettingsView()
+        #else
+        EmptyView()
+        #endif
+    case .dictationModels:
+        #if canImport(FluidAudio) && !CHINA_BUILD
+        DictationModelsView()
+        #else
+        EmptyView()
+        #endif
+    case .dictationVocabulary:
+        #if canImport(FluidAudio) && !CHINA_BUILD
+        DictationVocabularyView()
+        #else
+        EmptyView()
+        #endif
     case .newTabAction:
         NewTabActionPickerView()
+    case .multiplexerTabCloseAction:
+        MultiplexerTabCloseActionPickerView()
     case .keyboardShortcuts:
         KeyboardShortcutsSettingsView()
     case .modTap:
@@ -1130,22 +1229,20 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         #endif
     case .cloudProviders:
         CloudProvidersSettingsView()
+    case .storageProviders:
+        StorageProvidersSettingsView()
     case .wifiAPProviders:
         WiFiAPProvidersSettingsView()
     case .kubernetesClusters:
         KubernetesSettingsView()
     case .backgroundTunnels:
         TunnelSettingsView()
-    case .vpn:
-        #if !CHINA_BUILD && (!targetEnvironment(macCatalyst) || STANDALONE)
-        VPNSettingsView()
-        #else
-        EmptyView()
-        #endif
     case .roam:
         RoamSettingsView()
     case .screenSharing:
         ScreenSharingSettingsView()
+    case .uploads:
+        AttachmentUploadSettingsView()
     case .sshTransport:
         SSHTransportSettingsView()
     case .multiplexers:
@@ -1212,5 +1309,11 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         OpenSSHImportView()
     case .ghosttyConfigImport:
         GhosttyConfigImportView()
+    case .legacyDocumentsImport:
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        LegacyDocumentsImportView()
+        #else
+        EmptyView()
+        #endif
     }
 }

@@ -73,6 +73,9 @@ final class GeoResolver {
 
     private let cache = GeoCache()
     private(set) var cacheEntryCount: Int = 0
+    /// Bumped once a cache clear (including any MMDB change) completes, so
+    /// in-memory copies of earlier results can be dropped.
+    private(set) var cacheGeneration = 0
 
     private init() {
         // Unset resolves to the dynamic `defaultProvider`, not the registry default, so presence is checked raw
@@ -146,6 +149,7 @@ final class GeoResolver {
             guard let self else { return }
             await self.cache.clear()
             self.cacheEntryCount = 0
+            self.cacheGeneration += 1
         }
     }
 
@@ -204,10 +208,9 @@ actor GeoCache {
     private static let ttl: TimeInterval = 7 * 24 * 3600 // 7 days
 
     private nonisolated var cacheFileURL: URL {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(".ghostty", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("geo_cache.json")
+        let file = GhosttyStorageLocation.url(forRelativePath: "geo_cache.json")
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return file
     }
 
     var count: Int {

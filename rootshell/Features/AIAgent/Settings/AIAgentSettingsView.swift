@@ -6,11 +6,17 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AIAgentSettingsView: View {
     private var credentialsManager: AICredentialsManager { AICredentialsManager.shared }
 
     @State private var showAddCustomProvider = false
+    #if targetEnvironment(macCatalyst)
+    @State private var fileGrants: [String] = AIAgentFileGrants.all
+    @State private var showFolderPicker = false
+    @State private var grantRejectedMessage: String?
+    #endif
     @Environment(\.sheetThemeColors) private var sheetThemeColors
 
     var body: some View {
@@ -20,6 +26,8 @@ struct AIAgentSettingsView: View {
             webSearchSection
             #if !targetEnvironment(macCatalyst)
             gitCommitSection
+            #else
+            fileAccessSection
             #endif
             displayModeSection
             usageSection
@@ -53,9 +61,7 @@ struct AIAgentSettingsView: View {
                     modelCount: credentialsManager.openAIAuthMode == .chatgptSignIn
                         ? ChatGPTModelStore.shared.models.count
                         : AIProviderModel.openAIModels.count,
-                    imageName: credentialsManager.openAIAuthMode == .chatgptSignIn
-                        ? "CodexLogo"
-                        : "OpenAILogo"
+                    imageName: "OpenAILogo"
                 )
             }
             .themedRow()
@@ -241,6 +247,70 @@ struct AIAgentSettingsView: View {
         }
         #endif
     }
+
+    #if targetEnvironment(macCatalyst)
+    private var fileAccessSection: some View {
+        Section {
+            if fileGrants.isEmpty {
+                Text("No folders granted")
+                    .foregroundColor(.secondary)
+                    .themedRow()
+            }
+            ForEach(fileGrants, id: \.self) { folder in
+                HStack {
+                    Image(systemName: "folder")
+                    Text((folder as NSString).abbreviatingWithTildeInPath)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Button {
+                        AIAgentFileGrants.remove(folder)
+                        fileGrants = AIAgentFileGrants.all
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove \(folder)")
+                }
+                .themedRow()
+            }
+            Button {
+                showFolderPicker = true
+            } label: {
+                Label("Add Folder…", systemImage: "folder.badge.plus")
+            }
+            .themedRow()
+        } header: {
+            Text("File Access")
+        } footer: {
+            Text(
+                "The agent's file tools can read and edit files only in the terminal's current directory, "
+                    + "the folders above and a temporary scratch folder. Credential and private-data stores "
+                    + "(~/.ssh, ~/.gnupg, ~/.aws, ~/.docker, ~/.kube, cloud CLI and git credentials, shell history, "
+                    + "Keychains, Mail, Messages, Safari and Cookies) are never available. Your home folder and broad "
+                    + "folders such as ~/Library or ~/.config can't be granted; choose a specific project folder. "
+                    + "Anything else asks you first, even in YOLO mode."
+            )
+        }
+        .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder]) { result in
+            guard case .success(let url) = result else { return }
+            if AIAgentFileGrants.add(url.path) {
+                fileGrants = AIAgentFileGrants.all
+            } else {
+                grantRejectedMessage = "\(url.path) is too broad or protected. Choose a project folder instead."
+            }
+        }
+        .alert("Can't Grant This Folder", isPresented: Binding(
+            get: { grantRejectedMessage != nil },
+            set: { if !$0 { grantRejectedMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(grantRejectedMessage ?? "")
+        }
+    }
+    #endif
 
     private var usageSection: some View {
         Section("Usage") {

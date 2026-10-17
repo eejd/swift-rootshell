@@ -106,15 +106,6 @@ final class VTFramebuffer: Equatable, @unchecked Sendable {
         rowRef.cells[c] = cell
     }
 
-    func getCombiningCell() -> VTCell? {
-        let col = cursorState.getCombiningCharCol()
-        let row = cursorState.getCombiningCharRow()
-        if col < 0 || row < 0 || col >= cursorState.getWidth() || row >= cursorState.getHeight() {
-            return nil
-        }
-        return getMutableCell(row: row, col: col)
-    }
-
     func applyRenditionsToCell(_ cell: inout VTCell?) {
         if cell == nil {
             var c = getMutableCell()
@@ -233,16 +224,18 @@ final class VTFramebuffer: Equatable, @unchecked Sendable {
     func setWindowTitle(_ title: TitleType) { windowTitle = title }
     func setClipboard(_ title: TitleType) { clipboard = title }
 
+    /// Track discarded URL envelopes in the display baseline while output is
+    /// suppressed, so focusing a tab cannot render an old browser request.
+    /// Ordinary clipboard updates keep their existing delivery behavior.
+    func suppressProgramURLRequest(from remote: VTFramebuffer) {
+        let encoded = String(String.UnicodeScalarView(remote.clipboard))
+        guard TerminalClipboardURLRequest.isReservedClipboardState(encoded) else { return }
+        clipboard = remote.clipboard
+    }
+
     func getIconName() -> TitleType { iconName }
     func getWindowTitle() -> TitleType { windowTitle }
     func getClipboard() -> TitleType { clipboard }
-
-    func prefixWindowTitle(_ prefix: TitleType) {
-        if iconName == windowTitle {
-            iconName.insert(contentsOf: prefix, at: 0)
-        }
-        windowTitle.insert(contentsOf: prefix, at: 0)
-    }
 
     private func newRow() -> VTRow {
         let w = cursorState.getWidth()

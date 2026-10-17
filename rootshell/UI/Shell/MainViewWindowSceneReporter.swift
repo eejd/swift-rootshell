@@ -20,7 +20,7 @@ import UIKit
 // MARK: - Window Scene Reporter
 
 struct WindowSceneReporter: UIViewRepresentable {
-    let onUpdate: (UIWindowScene?, UIEdgeInsets, Bool) -> Void
+    let onUpdate: (UIWindowScene?, UIEdgeInsets, Bool, CGFloat) -> Void
     /// Catalyst: reports this window's current system frame on every layout pass
     /// (covers resize + initial appearance), so the frame is tracked continuously
     /// rather than only at save time.
@@ -44,9 +44,10 @@ final class WindowSceneReportingView: UIView {
         let sceneSessionID: String?
         let safeAreaInsets: UIEdgeInsets
         let isKey: Bool
+        let statusBarBottom: CGFloat
     }
 
-    var onUpdate: ((UIWindowScene?, UIEdgeInsets, Bool) -> Void)?
+    var onUpdate: ((UIWindowScene?, UIEdgeInsets, Bool, CGFloat) -> Void)?
     var onFrameUpdate: ((CGRect) -> Void)?
     private var windowObserverTokens: [NSObjectProtocol] = []
     private var cachedKeyState: Bool?
@@ -69,7 +70,8 @@ final class WindowSceneReportingView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         // Catalyst window resizes relayout the SwiftUI hierarchy, so this fires
-        // on every size/position change — the continuous per-window frame source.
+        // on every size change. A MOVE does not relayout: position changes are
+        // picked up by the move observers in registerWindowObservers.
         reportFrameIfChanged()
         // Rotation does not reliably deliver safeAreaInsetsDidChange to this
         // view (its own insets can be unchanged while the window's flip),
@@ -129,10 +131,16 @@ final class WindowSceneReportingView: UIView {
         let sceneSessionID = scene?.session.persistentIdentifier
         let isKey = currentWindowIsKey()
         let insets = window?.safeAreaInsets ?? .zero
+        #if targetEnvironment(macCatalyst) || os(visionOS)
+        let statusBarBottom: CGFloat = 0
+        #else
+        let statusBarBottom = scene?.statusBarManager?.statusBarFrame.maxY ?? 0
+        #endif
         let snapshot = SceneSnapshot(
             sceneSessionID: sceneSessionID,
             safeAreaInsets: insets,
-            isKey: isKey
+            isKey: isKey,
+            statusBarBottom: statusBarBottom
         )
 
         guard snapshot != lastSceneSnapshot else { return }
@@ -153,7 +161,7 @@ final class WindowSceneReportingView: UIView {
             }
         }
 
-        onUpdate?(scene, insets, isKey)
+        onUpdate?(scene, insets, isKey, statusBarBottom)
     }
 
     private func registerWindowObservers() {
@@ -228,6 +236,25 @@ final class WindowSceneReportingView: UIView {
             didMiniaturize,
             didDeminiaturize
         ])
+
+        // Re-read this window's frame after a move. Without it the tracked
+        // frame kept the position of the last layout, often one taken mid-drag,
+        // and a save that runs after the scene disconnects at quit (where the
+        // live lookup fails) wrote that stale position over the correct one.
+        // NSWindowDidMove is not delivered on every Catalyst version, so the
+        // drag observer's end-of-move signal backs it up. Any window's move
+        // wakes every reporter; each re-reads only its own scene, and the
+        // unchanged ones return early. (#567)
+        for name in [Notification.Name("NSWindowDidMoveNotification"),
+                     WindowDragObserver.didFinishMoveNotification] {
+            windowObserverTokens.append(center.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.reportFrameIfChanged()
+            })
+        }
 #endif
     }
 
@@ -271,6 +298,14 @@ final class WindowSceneReportingView: UIView {
             cachedKeyState = keyState
             return keyState
         }
+        #if STANDALONE
+        // The visor's NSWindow isn't WindowAccessor-claimed. UIKit keeps the hidden
+        // visor key once the last main window closes, so summons had no key edge (#593).
+        if let keyState = VisorWindowBridge.shared.keyState(for: window) {
+            cachedKeyState = keyState
+            return keyState
+        }
+        #endif
         // Fallback if WindowAccessor not available yet
         return window?.isKeyWindow ?? false
 #else

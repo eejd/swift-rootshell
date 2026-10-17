@@ -12,6 +12,8 @@
 	<string>$(ROOTSHELL_DEVELOPMENT_TEAM)</string>
 	<key>RootshellDefaultAppGroup</key>
 	<string>$(ROOTSHELL_DEFAULT_APP_GROUP)</string>
+	<key>RootshellHelperTrustAdhocPeer</key>
+	<string>$(ROOTSHELL_HELPER_TRUST_ADHOC_PEER)</string>
 	<key>CFBundleName</key>
 	<string>Rootshell Helper</string>
 	<key>CFBundlePackageType</key>

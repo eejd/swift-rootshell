@@ -263,10 +263,7 @@ enum BackupImporter {
         var skipped = 0
         var errors: [String] = []
 
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fontsDir = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("fonts", isDirectory: true)
+        let fontsDir = GhosttyStorageLocation.url(forRelativePath: "fonts")
         try? FileManager.default.createDirectory(at: fontsDir, withIntermediateDirectories: true)
 
         // Accumulate all new families, then write once at the end
@@ -373,15 +370,16 @@ enum BackupImporter {
 
     @MainActor
     static func restoreImportedKeybindConfig(_ backup: ImportedKeybindConfigBackup) {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-        let configPath = ghosttyDir.appendingPathComponent("imported_keybinds.conf")
+        let configPath = GhosttyStorageLocation.url(forRelativePath: "imported_keybinds.conf")
 
         // Only restore if no imported config currently exists
         guard !FileManager.default.fileExists(atPath: configPath.path) else { return }
 
         do {
-            try FileManager.default.createDirectory(at: ghosttyDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: configPath.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try backup.configContent.write(to: configPath, atomically: true, encoding: .utf8)
 
             if let filename = backup.originalFilename {
@@ -405,9 +403,8 @@ enum BackupImporter {
             return RestoreSummary.CategoryResult(restored: 0, skipped: 1, errors: [])
         }
 
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let hssFolder = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-        let hssPath = hssFolder.appendingPathComponent("hss_config.yml")
+        let hssPath = GhosttyStorageLocation.url(forRelativePath: "hss_config.yml")
+        let hssFolder = hssPath.deletingLastPathComponent()
 
         do {
             try FileManager.default.createDirectory(at: hssFolder, withIntermediateDirectories: true)
@@ -502,6 +499,11 @@ enum BackupImporter {
         var errors: [String] = []
 
         for entry in backup.apiKeys {
+            // Minted under the Codex CLI client; no longer usable.
+            if entry.accountName == ChatGPTCredentialStore.legacyKeychainAccount {
+                skipped += 1
+                continue
+            }
             if credManager.hasAPIKey(for: entry.accountName) {
                 skipped += 1
                 continue

@@ -41,6 +41,9 @@ class CompletionProvider {
             "export", "unset", "local", "return", "break", "continue",
             "shift", "set", "trap", "eval", "type", "let", "pwd"
         ])
+        #if !CHINA_BUILD
+        commands.append("vpn")
+        #endif
 
         return commands.sorted()
     }()

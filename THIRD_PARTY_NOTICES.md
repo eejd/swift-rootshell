@@ -38,7 +38,6 @@ If this summary differs from an upstream license, the upstream license controls.
 | [Vim](https://github.com/vim/vim) | Copyright (c) 1991-2024 Bram Moolenaar and the Vim contributors | Vim License |
 | [curl](https://github.com/curl/curl) | Copyright (c) 1996-2026 Daniel Stenberg and many contributors | curl License |
 | [Helix Editor](https://github.com/helix-editor/helix) | Copyright (c) 2020 Blaž Hrastnik and Helix contributors | MPL 2.0 |
-| [gitoxide](https://github.com/GitoxideLabs/gitoxide) | Copyright (c) Sebastian Thiel and gitoxide contributors | MIT or Apache 2.0 |
 | [bat](https://github.com/sharkdp/bat) | Copyright (c) 2018-2023 bat-developers | MIT or Apache 2.0 |
 | [ripgrep](https://github.com/BurntSushi/ripgrep) | Copyright (c) 2015 Andrew Gallant | Unlicense or MIT |
 | [libgit2](https://github.com/libgit2/libgit2) | Copyright (c) the libgit2 contributors | GPL 2.0 with linking exception |
@@ -74,14 +73,9 @@ The rootshell MIT license does not apply to the font files under
 | --- | --- | --- |
 | [Citadel](https://github.com/orlandos-nl/Citadel) | Copyright (c) 2022 Orlandos | MIT |
 | [trzsz-ssh (tssh)](https://github.com/trzsz/trzsz-ssh) | Copyright (c) 2023-2026 The Trzsz SSH Authors | MIT |
-| [CryptoSwift](https://github.com/krzyzanowskim/CryptoSwift) | Copyright (c) 2014 Marcin Krzyżanowski | zlib License |
 | [YubiKit](https://github.com/kitknox/yubikit-swift-rootshell) | Copyright (c) Yubico AB | Apache 2.0 |
 | [IPinfo data](https://ipinfo.io) | IP address data powered by IPinfo | CC BY-SA 4.0 |
 | [croc](https://github.com/schollz/croc) | Copyright (c) 2017-2025 Zack Scholl | MIT |
-
-CryptoSwift requires the following acknowledgement:
-
-> This product includes software developed by Marcin Krzyzanowski.
 
 ## Cloud and Kubernetes
 
@@ -90,6 +84,40 @@ CryptoSwift requires the following acknowledgement:
 | [SwiftkubeClient](https://github.com/swiftkube/client) | Copyright (c) 2020 Iskandar Abudiab | Apache 2.0 |
 | [Yams](https://github.com/kitknox/Yams-rootshell) | Copyright (c) 2016 JP Simard | MIT |
 | [SwiftOpenAI](https://github.com/kitknox/SwiftOpenAI-rootshell) | Copyright (c) 2023 James Rochabrun | MIT; excluded from China builds |
+
+## Cloud storage
+
+| Project | Copyright or acknowledgement | License |
+| --- | --- | --- |
+| [Soto for AWS](https://github.com/soto-project/soto) | Copyright (c) 2017-2026 the Soto project authors | Apache 2.0 |
+| [Soto Core](https://github.com/soto-project/soto-core) | Copyright (c) 2017-2026 the Soto project authors | Apache 2.0 |
+| [Perfect-INIParser](https://github.com/PerfectlySoft/Perfect-INIParser) (in Soto Core) | Copyright (c) 2017 - 2018 PerfectlySoft Inc. and the Perfect project authors | Apache 2.0 |
+| [Expat](https://github.com/libexpat/libexpat) (in Soto Core) | Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper; Copyright (c) 2001-2019 Expat maintainers | MIT |
+| [swift-extras-base64](https://github.com/swift-extras/swift-extras-base64) (in Soto Core) | Copyright (c) the swift-extras-base64 project authors | Apache 2.0 |
+| [fastbase64](https://github.com/lemire/fastbase64) (in Soto Core) | Copyright (c) 2015-2016, Wojciech Muła, Alfred Klomp, Daniel Lemire | BSD 2-Clause |
+| [stringencoders](https://github.com/client9/stringencoders) (in Soto Core) | Copyright (c) 2016 Nick Galbreath | MIT |
+| [JMESPath for Swift](https://github.com/jmespath/jmespath.swift) | Copyright (c) Adam Fowler | Apache 2.0 |
+| [AsyncHTTPClient](https://github.com/swift-server/async-http-client) | Copyright (c) Apple Inc. and the AsyncHTTPClient project authors | Apache 2.0 |
+
+Soto's NOTICE file states:
+
+> This product uses HummingbirdMustache to generate its source files
+> ([license](https://github.com/hummingbird-project/hummingbird-mustache/blob/main/LICENSE),
+> [homepage](https://github.com/hummingbird-project/hummingbird-mustache)).
+
+Soto Core's NOTICE file states:
+
+> This product contains a copy of INIParser from PerfectlySoft
+> ([license](https://github.com/PerfectlySoft/Perfect-INIParser/blob/master/LICENSE),
+> [homepage](https://github.com/PerfectlySoft/Perfect-INIParser)).
+>
+> This product contains a copy of libexpat
+> ([license](https://github.com/libexpat/libexpat/blob/master/expat/COPYING),
+> [homepage](https://libexpat.github.io/)).
+>
+> This product contains a copy of base64.swift from swift-extras-base64
+> ([license](https://github.com/swift-extras/swift-extras-base64/blob/main/LICENSE),
+> [homepage](https://github.com/swift-extras/swift-extras-base64)).
 
 ## Apple open-source projects
 
@@ -122,6 +150,6 @@ particular:
 - [SIL Open Font License 1.1](https://openfontlicense.org/open-font-license-official-text/)
 - [The Unlicense](https://unlicense.org)
 
-The Vim, curl, CryptoSwift, and libgit2 linking-exception terms are
+The Vim, curl, and libgit2 linking-exception terms are
 project-specific; use the license file in the linked project rather than a
 generic license summary.

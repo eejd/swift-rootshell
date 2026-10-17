@@ -46,9 +46,13 @@ extension LocalShellSession {
         let batDesc = String(localized: "Syntax-highlighted file viewer", comment: "Help: bat description")
         let jqDesc = String(localized: "JSON processor", comment: "Help: jq description")
         let gitDesc = String(localized: "Git operations (libgit2)", comment: "Help: git description")
-        let gixDesc = String(localized: "Git operations (gitoxide)", comment: "Help: gix description")
         let rgDesc = String(localized: "Fast regex search (ripgrep)", comment: "Help: rg description")
         // say command disabled - crashes app (ios_system AVSpeechSynthesizer issue)
+        #if CHINA_BUILD
+        let vpnEntry = ""
+        #else
+        let vpnEntry = ", vpn"
+        #endif
 
         let helpText = """
 \(header)
@@ -72,13 +76,12 @@ extension LocalShellSession {
   curl, ssh, scp, sftp, ssh-copy-id, mosh, roam, tssh, trzsz, croc,
   ping, ping6, mtr, mtr6, traceroute, traceroute6,
   nc, dig, host, nslookup, whois, ifconfig, wol,
-  bssid, whatismyip, whatismyip4, whatismyip6
+  bssid, whatismyip, whatismyip4, whatismyip6\(vpnEntry)
 
 \(devToolsHeader)
   git       - \(gitDesc)
   bat       - \(batDesc)
   jq        - \(jqDesc)
-  gix       - \(gixDesc)
   rg        - \(rgDesc)
 
 \(mediaHeader)

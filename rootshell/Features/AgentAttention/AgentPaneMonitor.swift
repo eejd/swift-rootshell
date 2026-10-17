@@ -50,6 +50,20 @@ final class AgentPaneMonitor {
     private(set) var externalAuthority = false
     private var externalStatus: AgentAttentionStatus?
 
+    /// Agents that reported through OSC 7501 in this pane. Screen and title
+    /// detection never adopt them here, so an exiting agent's last frame
+    /// can't bring it back. (id=program-status-authority)
+    private(set) var programStatusAgentIDs: Set<String> = []
+    private static let maxUnknownProgramStatusAgentIDs = 64
+
+    /// Bundled agents always join; other names come from terminal output,
+    /// so only a few are kept. (id=program-status-authority)
+    func noteProgramStatusAgent(_ id: String) {
+        guard AgentDetectionManifest.bundled.agent(withID: id) != nil
+            || programStatusAgentIDs.count < Self.maxUnknownProgramStatusAgentIDs else { return }
+        programStatusAgentIDs.insert(id)
+    }
+
     /// This pane is showing a multiplexer the app does not drive, so its
     /// screen is ONE window of several and the visible window can change
     /// without the agent doing anything.
@@ -207,6 +221,10 @@ final class AgentPaneMonitor {
     /// classified it. Only ever set while blocked, so a notification can
     /// never quote a dialog the agent has already moved past.
     private(set) var promptSummary: String?
+
+    /// Why an OSC 7501 program says it failed, for the failed notification's
+    /// body. Only set while its error record speaks for the pane.
+    private(set) var failureSummary: String?
 
     /// Identity of the agent whose run just ended, retained so the
     /// completion (card, counts, notification) still names it after
@@ -382,6 +400,13 @@ final class AgentPaneMonitor {
     func isFleetWorking(now: Date = Date()) -> Bool {
         guard let until = fleetWorkingUntil else { return false }
         return now < until
+    }
+
+    /// The count to show. herdr panes get no liveness edges to clear it, and
+    /// a hidden herdr tab holds a frozen frame, so there it lasts only while
+    /// the rows' own timers are advancing.
+    func displayedFleetAgentCount(now: Date = Date()) -> Int {
+        externalAuthority && !isFleetWorking(now: now) ? 0 : fleetAgentCount
     }
 
     /// Identity changed: the previous agent's fleet is not this one's.
@@ -663,7 +688,7 @@ final class AgentPaneMonitor {
             exitCode: exitCode,
             lastDuration: lastDuration,
             unread: doneUnseen || failedUnseen,
-            backgroundAgentCount: status == .working ? fleetAgentCount : 0,
+            backgroundAgentCount: status == .working ? displayedFleetAgentCount(now: now) : 0,
             project: project,
             stateChangeSeq: stateChangeSeq
         )
@@ -712,6 +737,10 @@ final class AgentPaneMonitor {
         promptSummary = summary
     }
 
+    func noteFailureSummary(_ summary: String?) {
+        failureSummary = summary
+    }
+
     /// Adopt (or switch) identity. Returns true when identity changed.
     @discardableResult
     func adoptAgent(_ newAgent: AgentDetectionManifest.Agent, source: IdentitySource, now: Date) -> Bool {
@@ -754,12 +783,14 @@ final class AgentPaneMonitor {
 
     /// Applies a herdr agent report. An empty report is authoritative too;
     /// stale screen content must not recreate an agent herdr removed.
+    /// `keepCompletion` leaves an unread result the agent already reported.
     /// (id=herdr-agent-authority)
     @discardableResult
     func applyExternalReport(
         status: AgentAttentionStatus,
         agentID: String?,
         displayName: String?,
+        keepCompletion: Bool = false,
         now: Date,
         seq: () -> UInt64
     ) -> Bool {
@@ -769,9 +800,11 @@ final class AgentPaneMonitor {
             externalStatus = status
             pendingDoneSince = nil
             if agent != nil {
-                doneUnseen = false
-                failedUnseen = false
-                eventState.clearCompletion()
+                if !keepCompletion {
+                    doneUnseen = false
+                    failedUnseen = false
+                    eventState.clearCompletion()
+                }
                 clearAgent()
                 return true
             }
@@ -829,6 +862,25 @@ final class AgentPaneMonitor {
         // finished. Refresh even for repeated Idle reports so it cannot stick.
         refreshScreenEvent(now: now)
         return changed || previousEvent != displayEvent(now: now)
+    }
+
+    /// Ends an OSC 7501 program's authority once it has no records left, so
+    /// screen and title detection resume for other agents. A completion it
+    /// reported stays unseen. (id=program-status-authority)
+    @discardableResult
+    func releaseExternalReport(now: Date) -> Bool {
+        guard externalAuthority else { return false }
+        externalAuthority = false
+        externalStatus = nil
+        pendingDoneSince = nil
+        promptSummary = nil
+        failureSummary = nil
+        if let agent, identitySource == .external || programStatusAgentIDs.contains(agent.id) {
+            clearAgent()
+        } else {
+            refreshScreenEvent(now: now)
+        }
+        return true
     }
 
     func clearAgent() {

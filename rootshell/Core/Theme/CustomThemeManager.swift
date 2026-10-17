@@ -27,14 +27,11 @@ class CustomThemeManager: ObservableObject {
 
     // MARK: - Directory Paths
 
-    /// JSON metadata file: Documents/.ghostty/custom_themes.json
+    /// JSON metadata file: GhosttyStorageLocation custom_themes.json
     private var metadataFileURL: URL? {
-        guard let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let dir = docs.appendingPathComponent(".ghostty")
-        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("custom_themes.json")
+        let file = GhosttyStorageLocation.url(forRelativePath: "custom_themes.json")
+        try? fileManager.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return file
     }
 
     /// Ghostty theme files directory: Application Support/ghostty/themes/

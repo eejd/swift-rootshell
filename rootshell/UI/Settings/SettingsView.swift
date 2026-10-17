@@ -11,6 +11,8 @@ import UniformTypeIdentifiers
 /// Navigation destinations for programmatic push (e.g., from Shortcuts intents).
 enum SettingsDestination: Hashable {
     case vpn
+    /// Opened by the iPhone keyboard chooser; pushes Terminal › Terminal Keyboard.
+    case touchKeyboard
 }
 
 /// Sidebar sections for the iPad split-view settings layout.
@@ -19,8 +21,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case terminal
     case connections
     case aiAssistant
-    case privacyData
-    case notifications
+    /// Privacy & data, notifications, sounds and updates.
+    case general
+    case vpn
     case about
 
     var id: String { rawValue }
@@ -31,8 +34,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .terminal: String(localized: "Terminal", comment: "Settings section title")
         case .connections: String(localized: "Connections", comment: "Settings section title")
         case .aiAssistant: String(localized: "AI Assistant", comment: "Settings section title")
-        case .privacyData: String(localized: "Privacy & Data", comment: "Settings section title")
-        case .notifications: String(localized: "Notifications", comment: "Settings section title")
+        case .general: String(localized: "General", comment: "Settings section title")
+        case .vpn: String(localized: "VPN", comment: "Settings section title")
         case .about: String(localized: "About", comment: "Settings section title")
         }
     }
@@ -43,8 +46,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .terminal: "terminal"
         case .connections: "network"
         case .aiAssistant: "sparkles"
-        case .privacyData: "hand.raised"
-        case .notifications: "bell"
+        case .general: "gearshape"
+        case .vpn: "network.badge.shield.half.filled"
         case .about: "info.circle"
         }
     }
@@ -52,6 +55,22 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
 struct SettingsHomeList: View {
     @Binding var showDebugSettings: Bool
+    @Setting(Settings.System.screenshotMode) private var screenshotMode
+
+    #if !CHINA_BUILD
+    /// "Active" while a VPN or in-app Tailscale runs; "On" while in-app
+    /// Tailscale waits to start on demand.
+    private var vpnRowState: String {
+        if VPNManager.shared.status.isActive || TailnetInAppEngine.shared.isStarted {
+            return String(localized: "Active", comment: "Settings VPN row: a VPN or Tailscale is running")
+        }
+        let mode = TailnetModeSettings.load()
+        if mode.effectiveMode == .rootshellOnly, mode.inAppEnabled {
+            return String(localized: "On", comment: "Settings VPN row: in-app Tailscale waits to start")
+        }
+        return String(localized: "Off", comment: "Settings VPN row: nothing running")
+    }
+    #endif
 
     var body: some View {
         List {
@@ -61,6 +80,14 @@ struct SettingsHomeList: View {
                         HStack(spacing: 12) {
                             SettingsIcon(systemName: section.icon)
                             Text(section.title)
+                            #if !CHINA_BUILD
+                            if section == .vpn {
+                                Spacer()
+                                Text(vpnRowState)
+                                    .foregroundColor(.secondary)
+                                    .font(.subheadline)
+                            }
+                            #endif
                         }
                     }
                     .themedRow()
@@ -92,21 +119,23 @@ struct SettingsHomeList: View {
                 .padding(.vertical, 8)
                 .themedRow()
 
-                HStack(spacing: 12) {
-                    SettingsIcon(systemName: "info.circle")
-                    Text("Version")
-                    Spacer()
-                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
-                    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(version) (\(build))")
-                        Text(BuildInfo.date)
+                if !screenshotMode {
+                    HStack(spacing: 12) {
+                        SettingsIcon(systemName: "info.circle")
+                        Text("Version")
+                        Spacer()
+                        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+                        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(version) (\(build))")
+                            Text(BuildInfo.date)
+                        }
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .textSelection(.enabled)
                     }
-                    .foregroundColor(.secondary)
-                    .font(.subheadline)
-                    .textSelection(.enabled)
+                    .themedRow()
                 }
-                .themedRow()
 
                 SettingsReviewLink()
 
@@ -415,7 +444,6 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var navigationPath = NavigationPath()
     @State private var hasNavigatedToInitialDestination = false
-    @State private var navigateToVPN = false
 
     @State private var showDebugSettings = false
     @State private var searchReservedHeight: CGFloat = 88
@@ -448,11 +476,13 @@ struct SettingsView: View {
                     .navigationDestination(for: SettingsDestination.self) { destination in
                         switch destination {
                         case .vpn:
-                            #if !CHINA_BUILD && (!targetEnvironment(macCatalyst) || STANDALONE)
+                            #if !CHINA_BUILD
                             VPNSettingsView()
                             #else
                             EmptyView()
                             #endif
+                        case .touchKeyboard:
+                            settingsSearchDestinationView(for: .touchKeyboard)
                         }
                     }
                     .navigationDestination(for: SettingsSearchDestination.self) { destination in
@@ -480,13 +510,17 @@ struct SettingsView: View {
         case .terminal:
             SettingsTerminalSection()
         case .connections:
-            SettingsConnectionsSection(navigateToVPN: $navigateToVPN)
+            SettingsConnectionsSection()
         case .aiAssistant:
             SettingsAISection()
-        case .privacyData:
-            SettingsPrivacySection()
-        case .notifications:
-            SettingsNotificationsSection()
+        case .general:
+            SettingsGeneralSection()
+        case .vpn:
+            #if !CHINA_BUILD
+            VPNSettingsView()
+            #else
+            EmptyView()
+            #endif
         case .about:
             SettingsAboutSection()
         }
@@ -500,11 +534,10 @@ struct SettingsView: View {
         DispatchQueue.main.async {
             switch initialDestination {
             case .vpn:
-                navigationPath.append(SettingsSection.connections)
-                // Second tick to push VPN after Connections is on the stack.
-                DispatchQueue.main.async {
-                    navigateToVPN = true
-                }
+                navigationPath.append(SettingsSection.vpn)
+            case .touchKeyboard:
+                navigationPath.append(SettingsSection.terminal)
+                navigationPath.append(SettingsSearchDestination.touchKeyboard)
             }
         }
     }

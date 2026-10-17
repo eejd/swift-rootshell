@@ -11,7 +11,18 @@ private struct TerminalEffectAvoidsKeyboardKey: EnvironmentKey {
     static let defaultValue = true
 }
 
+private struct TerminalEffectRetainsStateKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
+    /// Keyboard effects keep their presentation while UIKit reparents the input
+    /// hierarchy. Reappearance should resume an existing animation, not respawn it.
+    var terminalEffectRetainsState: Bool {
+        get { self[TerminalEffectRetainsStateKey.self] }
+        set { self[TerminalEffectRetainsStateKey.self] = newValue }
+    }
+
     /// A surface inside the keyboard already has the correct drawing bounds.
     var terminalEffectAvoidsKeyboard: Bool {
         get { self[TerminalEffectAvoidsKeyboardKey.self] }
@@ -22,7 +33,12 @@ extension EnvironmentValues {
 private struct BackgroundEffectSelectionPicker: View {
     let title: LocalizedStringKey
     @Binding var effectID: String
-    private var effectManager = EffectManager.shared
+    var effectManager = EffectManager.shared
+
+    init(title: LocalizedStringKey, effectID: Binding<String>) {
+        self.title = title
+        self._effectID = effectID
+    }
 
     var body: some View {
         Group {

@@ -102,6 +102,8 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case show_tmux_sessions = "show_tmux_sessions"
     /// Re-run multiplexer session discovery on the focused terminal
     case discover_sessions = "discover_sessions"
+    /// Detach the current tab from its multiplexer (tmux / zellij / herdr / zmx)
+    case detach_session = "detach_session"
     /// Detach all OTHER tmux clients from the current gateway
     /// (`detach-client -a`); on a herdr tab, take the whole session instead
     case detach_other_clients = "detach_other_clients"
@@ -134,6 +136,11 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case toggle_split_zoom = "toggle_split_zoom"
     /// Equalize all split sizes
     case equalize_splits = "equalize_splits"
+    /// Show numbered targets for zooming a tmux or herdr control-mode pane.
+    /// Keep the original raw value so saved shortcut overrides continue to work.
+    case choose_pane_to_zoom = "choose_tmux_pane_to_zoom"
+    /// Swap the focused tmux control-mode pane with a numbered target.
+    case choose_pane_to_swap = "choose_tmux_pane_to_swap"
 
     // Shell Operations
     /// Open settings
@@ -142,6 +149,12 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case toggle_quick_settings = "toggle_quick_settings"
     /// Open a new tab or split on the same target in a chosen folder
     case open_in_folder = "open_in_folder"
+    /// Show or hide the file manager
+    case toggle_file_manager = "toggle_file_manager"
+    /// Show or hide the IP Lookup HUD (geo info for the clipboard's IP, else this network's)
+    case toggle_ip_lookup = "toggle_ip_lookup"
+    /// Show or hide HTTP capture (MITM request inspector; not on China builds)
+    case toggle_http_capture = "toggle_http_capture"
     /// Open host browser
     case browse_hosts = "browse_hosts"
     /// Open profiles browser
@@ -152,6 +165,8 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
     case toggle_ai_agent = "toggle_ai_agent"
     /// Toggle voice agent mode
     case toggle_voice_agent = "toggle_voice_agent"
+    /// Start or stop on-device dictation into the focused terminal
+    case toggle_dictation = "toggle_dictation"
     /// Toggle tab bar visibility
     case toggle_tab_bar = "toggle_tab_bar"
     /// Toggle grouped mode (scope tabs/top tab bar to the active group) in the vertical sidebar
@@ -305,14 +320,14 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
 
         case .new_local_shell, .new_tab, .new_window, .close_tab, .duplicate_ssh_tab,
              .previous_tab, .next_tab, .show_tmux_sessions, .discover_sessions,
-             .detach_other_clients, .toggle_tab_switcher,
+             .detach_session, .detach_other_clients, .toggle_tab_switcher,
              .toggle_tab_expose, .previous_group, .next_group, .select_tab_1, .select_tab_2, .select_tab_3, .select_tab_4, .select_tab_5,
              .select_tab_6, .select_tab_7, .select_tab_8, .select_tab_9:
             return .tabs
 
         case .split_right, .split_down,
              .navigate_split_left, .navigate_split_right, .navigate_split_up, .navigate_split_down,
-             .toggle_split_zoom, .equalize_splits:
+             .toggle_split_zoom, .equalize_splits, .choose_pane_to_zoom, .choose_pane_to_swap:
             return .splits
 
         case .increase_font_size, .decrease_font_size, .reset_font_size, .start_search,
@@ -321,7 +336,8 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
              .toggle_auto_redact:
             return .view
 
-        case .toggle_visor, .open_settings, .toggle_quick_settings, .open_in_folder, .browse_hosts, .browse_profiles, .open_profile, .toggle_ai_agent, .toggle_voice_agent:
+        case .toggle_visor, .open_settings, .toggle_quick_settings, .open_in_folder, .toggle_file_manager, .toggle_ip_lookup, .toggle_http_capture, .browse_hosts, .browse_profiles, .open_profile, .toggle_ai_agent, .toggle_voice_agent,
+             .toggle_dictation:
             return .shell
 
         case .select_all, .clear_screen, .reset_terminal,
@@ -364,6 +380,7 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .next_tab: return String(localized: "Next Tab", comment: "Keybind action")
         case .show_tmux_sessions: return String(localized: "Sessions & Workspaces", comment: "Keybind action")
         case .discover_sessions: return String(localized: "Discover Sessions", comment: "Keybind action")
+        case .detach_session: return String(localized: "Detach Session", comment: "Keybind action: leave multiplexer, keep session")
         case .detach_other_clients: return String(localized: "Detach Other Clients", comment: "Keybind action")
 
         case .select_tab_1: return String(localized: "Select Tab 1", comment: "Keybind action")
@@ -384,16 +401,22 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .navigate_split_down: return String(localized: "Focus Split Down", comment: "Keybind action")
         case .toggle_split_zoom: return String(localized: "Toggle Split Zoom", comment: "Keybind action")
         case .equalize_splits: return String(localized: "Equalize Splits", comment: "Keybind action")
+        case .choose_pane_to_zoom: return String(localized: "Choose Pane to Zoom", comment: "Keybind action")
+        case .choose_pane_to_swap: return String(localized: "Choose Pane to Swap", comment: "Keybind action")
 
         case .toggle_visor: return String(localized: "Toggle Visor")
         case .toggle_quick_settings: return String(localized: "Quick Settings")
         case .open_in_folder: return String(localized: "Open in Folder…", comment: "Keybind action: new tab or split in a chosen folder on the same target")
+        case .toggle_file_manager: return String(localized: "File Manager", comment: "Keybind action: show or hide the SFTP file manager")
+        case .toggle_ip_lookup: return String(localized: "IP Lookup", comment: "Keybind action: show or hide the IP geo lookup HUD")
+        case .toggle_http_capture: return String(localized: "HTTP Capture", comment: "Keybind action: show or hide the HTTP capture panel")
         case .open_settings: return String(localized: "Settings", comment: "Keybind action: open settings")
         case .browse_hosts: return String(localized: "Browse Hosts", comment: "Keybind action")
         case .browse_profiles: return String(localized: "Browse Profiles", comment: "Keybind action")
         case .open_profile: return String(localized: "Open Profile", comment: "Keybind action: connect to a saved connection profile")
         case .toggle_ai_agent: return String(localized: "Toggle AI Agent", comment: "Keybind action")
         case .toggle_voice_agent: return String(localized: "Toggle Voice Agent", comment: "Keybind action")
+        case .toggle_dictation: return String(localized: "Dictation", comment: "Keybind action: start or stop on-device dictation")
         case .toggle_tab_bar: return String(localized: "Toggle Top Tab Bar", comment: "Keybind action")
         case .toggle_group_mode: return String(localized: "Toggle Group Mode", comment: "Keybind action")
         case .toggle_tab_switcher: return String(localized: "Toggle Vertical Tab Bar", comment: "Keybind action")
@@ -465,6 +488,7 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
         case .next_tab: return .nextTab
         case .show_tmux_sessions: return .showTmuxSessions
         case .discover_sessions: return .discoverSessions
+        case .detach_session: return .detachSession
         case .detach_other_clients: return .detachOtherClients
         case .select_tab_1, .select_tab_2, .select_tab_3, .select_tab_4, .select_tab_5,
              .select_tab_6, .select_tab_7, .select_tab_8, .select_tab_9:
@@ -475,16 +499,22 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
             return .navigateSplit
         case .toggle_split_zoom: return .toggleSplitZoom
         case .equalize_splits: return .equalizeSplits
+        case .choose_pane_to_zoom: return .choosePaneToZoom
+        case .choose_pane_to_swap: return .choosePaneToSwap
 
         case .open_settings: return .openSettings
         case .toggle_visor: return .toggleVisorOverlay
         case .toggle_quick_settings: return .toggleQuickSettings
         case .open_in_folder: return .openInFolder
+        case .toggle_file_manager: return .toggleFileManager
+        case .toggle_ip_lookup: return .toggleIPLookup
+        case .toggle_http_capture: return .toggleHTTPCapture
         case .browse_hosts: return .browseHosts
         case .browse_profiles: return .browseProfiles
         case .open_profile: return .openConnectionProfile
         case .toggle_ai_agent: return .toggleAIAgent
         case .toggle_voice_agent: return .toggleVoiceAgent
+        case .toggle_dictation: return .toggleDictation
         case .toggle_tab_bar: return .toggleTabBar
         case .toggle_group_mode: return .toggleGroupMode
         case .toggle_tab_switcher: return .showTabSwitcher
@@ -618,11 +648,13 @@ enum KeybindAction: String, CaseIterable, Codable, Identifiable, Hashable {
              .select_tab_4, .select_tab_5, .select_tab_6, .select_tab_7, .select_tab_8,
              .select_tab_9, .split_right, .split_down, .navigate_split_left,
              .navigate_split_right, .navigate_split_up, .navigate_split_down,
-             .toggle_split_zoom, .equalize_splits, .open_settings, .toggle_quick_settings, .open_in_folder, .browse_hosts,
-             .browse_profiles, .toggle_ai_agent, .toggle_voice_agent, .toggle_tab_bar, .toggle_group_mode, .toggle_transparency,
-             .toggle_titlebar, .toggle_auto_redact,
+             .toggle_split_zoom, .equalize_splits, .choose_pane_to_zoom, .choose_pane_to_swap,
+             .open_settings, .toggle_quick_settings, .open_in_folder,
+             .toggle_file_manager, .toggle_ip_lookup, .toggle_http_capture, .browse_hosts,
+             .browse_profiles, .toggle_ai_agent, .toggle_voice_agent, .toggle_dictation, .toggle_tab_bar, .toggle_group_mode,
+             .toggle_transparency, .toggle_titlebar, .toggle_auto_redact,
              .toggle_background_effect, .toggle_tab_switcher, .toggle_tab_expose, .show_tmux_sessions,
-             .discover_sessions, .detach_other_clients,
+             .discover_sessions, .detach_session, .detach_other_clients,
              .increase_font_size, .decrease_font_size,
              .reset_font_size, .start_search:
             return true

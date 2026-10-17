@@ -4,7 +4,7 @@
 //
 //  File-based debug logger for Screen Sharing (VNC) diagnostics. Off by
 //  default. Mirrors the rootshellVNC package's entire log stream to
-//  Documents/.ghostty/vnc_debug.log. Companion to SSHDebugLogger /
+//  <GhosttyStorageLocation.rootDirectory>/vnc_debug.log. Companion to SSHDebugLogger /
 //  LifecycleDebugLogger / ResumeDebugLogger.
 //
 //  Why a file: the package logs through os.log with `.private` privacy, so
@@ -49,7 +49,7 @@ final class VNCDebugLogger: Sendable {
     /// Serial queue for thread-safe file I/O
     private let ioQueue = DispatchQueue(label: "com.rootshell.vncDebugLogger")
 
-    /// Log file URL: Documents/.ghostty/vnc_debug.log
+    /// Log file URL: <GhosttyStorageLocation.rootDirectory>/vnc_debug.log
     private let logFileURL: URL
 
     /// Rotated log file URL
@@ -62,8 +62,7 @@ final class VNCDebugLogger: Sendable {
     private let bridgeInstalled = OSAllocatedUnfairLock<Bool>(initialState: false)
 
     private init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logFileURL = ghosttyDir.appendingPathComponent("vnc_debug.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("vnc_debug.1.log")
 
@@ -162,10 +161,10 @@ final class VNCDebugLogger: Sendable {
 
         if FileManager.default.fileExists(atPath: logFileURL.path) {
             if let handle = try? FileHandle(forWritingTo: logFileURL) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.synchronizeFile()
-                handle.closeFile()
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.synchronize()
+                try? handle.close()
             }
         } else {
             try? data.write(to: logFileURL, options: .atomic)

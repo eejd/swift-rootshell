@@ -281,6 +281,9 @@ extension LocalShellSession {
         case bssid
         case whatIsMyIP
         case croc
+        #if !CHINA_BUILD
+        case vpn
+        #endif
         case reset
         case wasm
     }
@@ -348,6 +351,10 @@ extension LocalShellSession {
             return .whatIsMyIP
         case "croc":
             return .croc
+        #if !CHINA_BUILD
+        case "vpn":
+            return .vpn
+        #endif
         case "reset":
             return .reset
         case "wasm":
@@ -427,6 +434,10 @@ extension LocalShellSession {
             return bridgeToMainActor { self.handleWhatIsMyIPCommand(trimmed) }
         case .croc:
             return bridgeToMainActor { self.handleCrocCommand(trimmed) }
+        #if !CHINA_BUILD
+        case .vpn:
+            return bridgeToMainActor { self.handleVPNCommand(trimmed) }
+        #endif
         case .reset:
             return bridgeToMainActor { self.handleResetCommand(trimmed) }
         case .wasm:

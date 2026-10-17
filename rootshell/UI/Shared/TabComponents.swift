@@ -28,6 +28,9 @@ struct TmuxTabBadge: Equatable {
     let role: Role
     let groupIndex: Int
 
+    /// H/T give way to the agent's logo in the top tab; the gateway star stays.
+    var yieldsToAgentLogo: Bool { role != .gateway }
+
     func color(in palette: TmuxTabBadgePalette) -> Color {
         palette.gatewayColor(at: groupIndex)
     }
@@ -377,6 +380,7 @@ struct TabButton: View {
     /// Another herdr client sizes or holds this tab.
     var controlledElsewhere: Bool = false
     var attentionBadge: AgentAttentionStatus? = nil  // agent attention dot (id=agent-attention)
+    var agentLogoAsset: String? = nil  // detected agent / PSP program logo
     var style: TopTabStyle = .pills
     var tabWidth: CGFloat = 240
     var usesTitlebarTabs: Bool = false
@@ -450,13 +454,19 @@ struct TabButton: View {
             )
             .fixedSize()
 
-            if let tmuxBadge {
+            if let tmuxBadge, !(agentLogoAsset != nil && tmuxBadge.yieldsToAgentLogo) {
                 TmuxTabBadgeView(
                     badge: tmuxBadge,
                     palette: tmuxBadgePalette,
                     compensateVibrancy: badgeNeedsVibrancyEscape
                 )
                 .fixedSize()
+            }
+
+            if let agentLogoAsset {
+                AgentBrandMark(assetName: agentLogoAsset, size: 14)
+                    .badgeVibrancyCompensated(badgeNeedsVibrancyEscape)
+                    .fixedSize()
             }
 
             if controlledElsewhere {
@@ -814,6 +824,7 @@ private struct IntegratedTabBackground: View {
     let edgePalette: IntegratedTabEdgePalette
     let namespace: Namespace.ID?
     let reduceMotion: Bool
+    @Environment(\.integratedTabJoinsCard) private var joinsCard
 
     var body: some View {
         ZStack {
@@ -839,9 +850,11 @@ private struct IntegratedTabBackground: View {
 
             // Between fill and outline: clears the strip's rule out of the
             // outline's shoulder band.
-            IntegratedTabEdgeOccluder(color: selectedColor)
+            if !joinsCard {
+                IntegratedTabEdgeOccluder(color: selectedColor)
 
-            IntegratedTabOutlineView(palette: edgePalette)
+                IntegratedTabOutlineView(palette: edgePalette)
+            }
         }
 
         if let namespace {
@@ -1014,6 +1027,21 @@ struct GlassTabBackgroundModifier: ViewModifier {
                 content
                     .background(inactiveHoverBackground)
             }
+        }
+        #endif
+    }
+}
+
+/// UIKit 26 blurs scroll views under the Catalyst titlebar; tab strips opt out.
+struct ScrollEdgeEffectHiddenModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(visionOS)
+        content
+        #else
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .all)
+        } else {
+            content
         }
         #endif
     }

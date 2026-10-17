@@ -38,11 +38,6 @@ struct DualStackResolver {
         /// Port for connection
         let port: Int
 
-        /// Whether we have at least one address
-        var hasAnyAddress: Bool {
-            ipv4Address != nil || ipv6Address != nil
-        }
-
         /// Returns the preferred address (IPv4 first, then IPv6)
         ///
         /// IPv4 is preferred because:
@@ -59,18 +54,6 @@ struct DualStackResolver {
             if ipv4Address != nil { return .ipv4 }
             if ipv6Address != nil { return .ipv6 }
             return .auto
-        }
-
-        /// Returns the alternate address (opposite of preferred)
-        var alternateAddress: String? {
-            if ipv4Address != nil { return ipv6Address }
-            return nil
-        }
-
-        /// Returns the alternate address family
-        var alternateFamily: AddressFamily? {
-            if ipv4Address != nil && ipv6Address != nil { return .ipv6 }
-            return nil
         }
     }
 
@@ -119,6 +102,14 @@ struct DualStackResolver {
                 break
             }
         }
+
+        #if !CHINA_BUILD
+        // MagicDNS names resolve in-app when Tailscale runs inside rootshell.
+        if let ip = await TailnetDialer.route(host) {
+            let v6 = ip.contains(":")
+            return ResolvedAddresses(ipv4Address: v6 ? nil : ip, ipv6Address: v6 ? ip : nil, hostname: host, port: port)
+        }
+        #endif
 
         logger.info("Resolving hostname '\(host)' to both IPv4 and IPv6")
 

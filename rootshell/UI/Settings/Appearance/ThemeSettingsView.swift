@@ -71,24 +71,20 @@ struct ThemeSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 12) {
-                    Menu {
-                        Button {
-                            activeEditorMode = .new
-                        } label: {
-                            Label("Create Theme", systemImage: "paintbrush")
-                        }
-
-                        Button {
-                            showingFilePicker = true
-                        } label: {
-                            Label("Import Theme File...", systemImage: "square.and.arrow.down")
-                        }
+                Menu {
+                    Button {
+                        activeEditorMode = .new
                     } label: {
-                        Image(systemName: "plus")
+                        Label("Create Theme", systemImage: "paintbrush")
                     }
 
-                    dayNightMenu
+                    Button {
+                        showingFilePicker = true
+                    } label: {
+                        Label("Import Theme File...", systemImage: "square.and.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "plus")
                 }
             }
             SettingsScreenPinMenu(groups: [.theme])
@@ -132,33 +128,14 @@ struct ThemeSettingsView: View {
         }
     }
 
-    // MARK: - Day/Night Menu
-
-    private var dayNightMenu: some View {
-        Menu {
-            Toggle(isOn: $dayNightManager.enabled) {
-                Label("Match System Theme", systemImage: "circle.lefthalf.filled")
-            }
-
-            if dayNightManager.enabled {
-                Divider()
-
-                Label(
-                    dayNightManager.isCurrentlyLight ? "Currently: Light Mode" : "Currently: Dark Mode",
-                    systemImage: dayNightManager.isCurrentlyLight ? "sun.max" : "moon.stars"
-                )
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle")
-                .symbolVariant(dayNightManager.enabled ? .fill : .none)
-                .foregroundStyle(dayNightManager.enabled ? .orange : .primary)
-        }
-    }
-
     // MARK: - Filter Header
 
     private var filterHeader: some View {
         VStack(spacing: 12) {
+            Toggle(isOn: $dayNightManager.enabled) {
+                Label("Match System Light/Dark Mode", systemImage: "circle.lefthalf.filled")
+            }
+
             // Day/Night mode picker (when enabled)
             if dayNightManager.enabled {
                 Picker("Editing", selection: $editingMode) {
@@ -182,6 +159,14 @@ struct ThemeSettingsView: View {
                     Spacer()
                 }
                 .foregroundColor(.secondary)
+
+                Label(
+                    dayNightManager.isCurrentlyLight ? "Currently: Light Mode" : "Currently: Dark Mode",
+                    systemImage: dayNightManager.isCurrentlyLight ? "sun.max" : "moon.stars"
+                )
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             // Search bar

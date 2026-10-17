@@ -70,6 +70,9 @@ final class AIAgentSession {
     /// Pending file tool call awaiting user approval (call, toolName)
     @ObservationIgnored private var pendingFileToolCall: (AIToolCall, String)?
 
+    /// Set while a file tool call is parked on the Mac folder-access prompt.
+    private(set) var fileScopeRequest: AIAgentFileScopeRequest?
+
     // MARK: - Streaming Throttle
 
     /// Minimum interval between UI updates (100ms = 10 updates/sec)
@@ -140,6 +143,13 @@ final class AIAgentSession {
 
     /// Unique identifier for this session
     let id: UUID
+
+    /// Built on the first request and reused until the conversation resets. Fable 5.1 and
+    /// Opus 5.5 reject replayed thinking blocks once the system prompt changes.
+    private var conversationSystemPrompt: String?
+
+    /// Frozen alongside the system prompt; a changed tool list also invalidates replayed thinking.
+    private var conversationTools: [AIAgentTool]?
 
     /// Available tools for the AI
     private var availableTools: [AIAgentTool] {
@@ -361,10 +371,15 @@ final class AIAgentSession {
         streamingText = ""
         streamingThinking = nil
 
+        let systemPrompt = conversationSystemPrompt ?? buildSystemPrompt()
+        conversationSystemPrompt = systemPrompt
+        let tools = conversationTools ?? availableTools
+        conversationTools = tools
+
         let stream = provider.sendMessageStream(
             messages: messages,
-            systemPrompt: buildSystemPrompt(),
-            tools: availableTools
+            systemPrompt: systemPrompt,
+            tools: tools
         )
 
         do {
@@ -400,11 +415,25 @@ final class AIAgentSession {
             // UI display filtering happens in displayText computed property (AIAgentMessage)
             // Do NOT filter text here - models need their original output preserved
 
+            // A refusal's partial output is discarded rather than kept as an answer.
+            if result.finishReason == .contentFilter {
+                isStreaming = false
+                streamingText = nil
+                streamingThinking = nil
+                state = .error(.unknown("The model declined this request. Try rephrasing it or switching models."))
+                return
+            }
+
             // Determine thinking block to use:
-            // - Prefer completedThinkingBlock (has signature for API round-trip)
+            // - With ordered blocks, those carry the round-trip; show every block's text
+            // - Otherwise prefer completedThinkingBlock (has signature for API round-trip)
             // - Fall back to delta-accumulated thinking (no signature - will be stripped on send)
             let thinkingBlock: AIThinkingBlock?
-            if let completed = result.completedThinkingBlock {
+            if result.assistantBlocks != nil {
+                thinkingBlock = result.accumulatedThinking.isEmpty
+                    ? nil
+                    : AIThinkingBlock(content: result.accumulatedThinking, signature: nil)
+            } else if let completed = result.completedThinkingBlock {
                 thinkingBlock = completed
             } else if !result.accumulatedThinking.isEmpty {
                 // Fallback: thinking from deltas only, no signature available
@@ -413,9 +442,19 @@ final class AIAgentSession {
                 thinkingBlock = nil
             }
 
+            // Tool calls a refusal fallback superseded are absent from the ordered blocks.
+            var nativeToolCalls = result.completedToolCalls
+            if let blocks = result.assistantBlocks {
+                let keptIDs = Set(blocks.compactMap { block -> String? in
+                    if case .toolUse(let id) = block { return id }
+                    return nil
+                })
+                nativeToolCalls.removeAll { !keptIDs.contains($0.id) }
+            }
+
             // Parse text-based tool calls ONLY if we didn't get native tool calls
             // (some endpoints output both native AND text format - avoid duplicates)
-            var allToolCalls = result.completedToolCalls
+            var allToolCalls = nativeToolCalls
             if result.completedToolCalls.isEmpty {
                 let miniMaxResult = MiniMaxToolCallParser.parse(result.accumulatedText)
                 let textToolResult = TextToolCallParser.parse(miniMaxResult.remainingText)
@@ -446,7 +485,7 @@ final class AIAgentSession {
             // This ensures MessageBubbleView appears before we clear streaming state,
             // preventing truncation from the race condition where streaming view
             // disappears before the message view appears
-            try await processResponse(response, thinking: thinkingBlock)
+            try await processResponse(response, thinking: thinkingBlock, blocks: result.assistantBlocks)
 
             // Yield to allow SwiftUI to render the new message
             await Task.yield()
@@ -522,6 +561,7 @@ final class AIAgentSession {
         let accumulatedThinking: String
         let completedThinkingBlock: AIThinkingBlock?
         let completedToolCalls: [AIToolCall]
+        let assistantBlocks: [AIAssistantBlock]?
         let usage: AIUsageStats?
         let finishReason: AIProviderResponse.FinishReason?
     }
@@ -535,6 +575,7 @@ final class AIAgentSession {
         var accumulatedThinking = ""
         var completedThinkingBlock: AIThinkingBlock?
         var completedToolCalls: [AIToolCall] = []
+        var assistantBlocks: [AIAssistantBlock]?
         // Accumulate tool call arguments during streaming (keyed by item ID)
         // Some providers only send deltas without toolCallComplete events
         var accumulatedToolCallArgs: [String: (name: String?, arguments: String)] = [:]
@@ -618,6 +659,9 @@ final class AIAgentSession {
                     Self.logger.debug("Skipping duplicate tool call: \(toolCall.id)")
                 }
 
+            case .assistantBlocks(let blocks):
+                assistantBlocks = blocks
+
             case .responseComplete(let responseUsage, let reason):
                 usage = responseUsage
                 finishReason = reason
@@ -650,6 +694,7 @@ final class AIAgentSession {
             accumulatedThinking: accumulatedThinking,
             completedThinkingBlock: completedThinkingBlock,
             completedToolCalls: completedToolCalls,
+            assistantBlocks: assistantBlocks,
             usage: usage,
             finishReason: finishReason
         )
@@ -690,11 +735,22 @@ final class AIAgentSession {
         // Check if this is a file tool approval
         if let (call, toolName) = pendingFileToolCall {
             pendingFileToolCall = nil
-            executeFileToolCommand(call, toolName: toolName)
+            // A folder-access request approved here allows just this one path.
+            let approvedOnce = fileScopeRequest?.resolvedPath
+            fileScopeRequest = nil
+            executeFileToolCommand(call, toolName: toolName, approvedOnce: approvedOnce)
             return
         }
 
         await executeCommand(command)
+    }
+
+    /// Approve a pending folder-access request and remember the folder for later sessions.
+    func approveCommandAlways() async {
+        if let request = fileScopeRequest, request.canGrantAlways {
+            AIAgentFileGrants.add(request.folder)
+        }
+        await approveCommand()
     }
 
     /// Execute a command (shared by approveCommand and YOLO mode)
@@ -797,6 +853,7 @@ final class AIAgentSession {
 
         // Clear any pending file tool call
         pendingFileToolCall = nil
+        fileScopeRequest = nil
 
         Self.logger.info("Command rejected: \(command.command)")
 
@@ -940,6 +997,8 @@ final class AIAgentSession {
     /// Clear conversation history
     func clearHistory() {
         messages.removeAll()
+        conversationSystemPrompt = nil
+        conversationTools = nil
         state = .idle
         totalTokensUsed = 0
         lastPromptTokens = 0
@@ -955,7 +1014,10 @@ final class AIAgentSession {
 
         // Clear conversation history
         messages.removeAll()
+        conversationSystemPrompt = nil
+        conversationTools = nil
         pendingFileToolCall = nil
+        fileScopeRequest = nil
         state = .idle
         totalTokensUsed = 0
         lastPromptTokens = 0
@@ -1055,19 +1117,19 @@ final class AIAgentSession {
 
     // MARK: - Private Helpers
 
-    private func processResponse(_ response: AIProviderResponse, thinking: AIThinkingBlock?) async throws {
+    private func processResponse(_ response: AIProviderResponse, thinking: AIThinkingBlock?, blocks: [AIAssistantBlock]?) async throws {
         Self.logger.debug("Processing response: \(String(describing: response.content))")
 
         switch response.content {
         case .text(let text):
             Self.logger.debug("Response is text only (\(text.count) chars), thinking: \(thinking?.content.count ?? 0) chars")
             // Store text with structured thinking (preserves signature for API round-trip)
-            messages.append(.assistant(text, thinking: thinking))
+            messages.append(.assistant(text, thinking: thinking, blocks: blocks))
             state = .idle
 
         case .toolCalls(let calls):
             Self.logger.debug("Response has \(calls.count) tool call(s): \(calls.map { $0.name }.joined(separator: ", "))")
-            try await handleToolCalls(calls, precedingText: nil, thinking: thinking)
+            try await handleToolCalls(calls, precedingText: nil, thinking: thinking, blocks: blocks)
 
         case .textAndToolCalls(let text, let calls):
             Self.logger.debug("Response has text (\(text.count) chars) + \(calls.count) tool call(s): \(calls.map { $0.name }.joined(separator: ", "))")
@@ -1075,18 +1137,18 @@ final class AIAgentSession {
             // That would create two consecutive assistant messages, which violates the API.
             // The tool calls message (added by handleToolCalls) represents this assistant turn.
             // Store original text for API round-trips - UI filtering happens in displayText
-            try await handleToolCalls(calls, precedingText: text, thinking: thinking)
+            try await handleToolCalls(calls, precedingText: text, thinking: thinking, blocks: blocks)
         }
     }
 
-    private func handleToolCalls(_ calls: [AIToolCall], precedingText: String?, thinking: AIThinkingBlock?) async throws {
+    private func handleToolCalls(_ calls: [AIToolCall], precedingText: String?, thinking: AIThinkingBlock?, blocks: [AIAssistantBlock]?) async throws {
         Self.logger.debug("Handling \(calls.count) tool calls")
         for call in calls {
             Self.logger.debug("  - Tool: \(call.name), ID: \(call.id), Args: \(call.arguments.prefix(200))")
         }
 
         // Add tool calls to messages for history (include preceding text and thinking for UI display and API round-trip)
-        messages.append(.assistantToolCalls(calls, precedingText: precedingText, thinking: thinking))
+        messages.append(.assistantToolCalls(calls, precedingText: precedingText, thinking: thinking, blocks: blocks))
 
         // Initialize batch tracking - store all calls as pending
         pendingToolCalls = calls
@@ -1108,7 +1170,24 @@ final class AIAgentSession {
         let remainingCount = pendingToolCalls.count
         Self.logger.debug("Processing tool call \(nextCall.name) (\(remainingCount) remaining)")
 
-        switch nextCall.name {
+        // Models occasionally change a tool name's case; accept an unambiguous match.
+        let tools = conversationTools ?? availableTools
+        let toolName = tools.first { $0.name.caseInsensitiveCompare(nextCall.name) == .orderedSame }?.name ?? nextCall.name
+
+        // The tool list stays frozen for replay, so a setting turned off mid-conversation is
+        // enforced here instead.
+        if (toolName == "web_search" || toolName == "web_fetch") && !AICredentialsManager.shared.webSearchEnabled {
+            batchedToolResults.append(AIToolResult(
+                toolCallId: nextCall.id,
+                output: "Error: Web search is turned off in Settings.",
+                isError: true,
+                isFromXMLToolCall: nextCall.isFromXMLParsing
+            ))
+            try processNextPendingToolCall(precedingText: nil)
+            return
+        }
+
+        switch toolName {
         case "ask_user":
             try handleAskUserCall(nextCall, precedingText: precedingText)
 
@@ -1135,7 +1214,7 @@ final class AIAgentSession {
             Self.logger.warning("Unknown tool call: \(nextCall.name)")
             batchedToolResults.append(AIToolResult(
                 toolCallId: nextCall.id,
-                output: "Error: Unknown tool '\(nextCall.name)'",
+                output: "Error: Unknown tool '\(nextCall.name)'. Available tools: \(tools.map(\.name).joined(separator: ", "))",
                 isError: true,
                 isFromXMLToolCall: nextCall.isFromXMLParsing
             ))
@@ -1274,10 +1353,54 @@ final class AIAgentSession {
 
     // MARK: - File Tool Handlers
 
-    /// Working directory for file tools (uses terminal CWD if available, falls back to Documents)
+    /// Working directory for file tools: the terminal's directory when known. Without
+    /// one, Mac uses a transient scratch directory (never ~/Documents or $HOME);
+    /// iOS falls back to Documents, its shell HOME.
     private var fileToolWorkingDirectory: String {
+        #if targetEnvironment(macCatalyst)
+        initialWorkingDirectory ?? AIAgentFileGrants.scratchDirectory
+        #else
         initialWorkingDirectory
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path
+        #endif
+    }
+
+    /// Mac: enforce the folder scope before approval-mode logic. A path outside the
+    /// working directory, the user's grants and the scratch directory always asks
+    /// (even in YOLO mode: folder access is a boundary, not a per-command risk);
+    /// credential locations are refused outright. Returns true when the call was
+    /// handled here (refused, or parked for the user); false to continue normally.
+    private func gateFileToolScope(
+        _ call: AIToolCall,
+        toolName: String,
+        path: String,
+        command: AIAgentCommand
+    ) -> Bool {
+        #if targetEnvironment(macCatalyst)
+        let workingDirectory = fileToolWorkingDirectory
+        let resolved = AIAgentFileToolHandler.resolvePath(path, workingDirectory: workingDirectory)
+        switch AIAgentFileToolHandler.accessDecision(forResolvedPath: resolved, workingDirectory: workingDirectory) {
+        case .allowed:
+            return false
+        case .denied(let reason):
+            Self.logger.error("\(toolName, privacy: .public) refused (protected path): \(resolved, privacy: .public)")
+            batchedToolResults.append(AIToolResult(
+                toolCallId: call.id,
+                output: "Error: Access denied. \(reason): \(path)",
+                isError: true,
+                isFromXMLToolCall: call.isFromXMLParsing
+            ))
+            try? processNextPendingToolCall(precedingText: nil)
+            return true
+        case .needsGrant(let request):
+            fileScopeRequest = request
+            pendingFileToolCall = (call, toolName)
+            state = .awaitingApproval(command)
+            return true
+        }
+        #else
+        return false
+        #endif
     }
 
     private func handleReadFileCall(_ call: AIToolCall) {
@@ -1305,6 +1428,8 @@ final class AIAgentSession {
             declaredOperationType: .read,
             isFromXMLToolCall: call.isFromXMLParsing
         )
+
+        if gateFileToolScope(call, toolName: "read_file", path: path, command: syntheticCommand) { return }
 
         if shouldAutoApproveCommand(syntheticCommand) {
             // Auto-execute read
@@ -1364,6 +1489,8 @@ final class AIAgentSession {
             isFromXMLToolCall: call.isFromXMLParsing
         )
 
+        if gateFileToolScope(call, toolName: "write_file", path: path, command: syntheticCommand) { return }
+
         if shouldAutoApproveCommand(syntheticCommand) {
             let result = AIAgentFileToolHandler.writeFile(
                 path: path,
@@ -1418,6 +1545,8 @@ final class AIAgentSession {
             isFromXMLToolCall: call.isFromXMLParsing
         )
 
+        if gateFileToolScope(call, toolName: "edit_file", path: path, command: syntheticCommand) { return }
+
         if shouldAutoApproveCommand(syntheticCommand) {
             let result = AIAgentFileToolHandler.editFile(
                 path: path,
@@ -1439,7 +1568,7 @@ final class AIAgentSession {
     }
 
     /// Execute a pending file tool call after approval
-    private func executeFileToolCommand(_ call: AIToolCall, toolName: String) {
+    private func executeFileToolCommand(_ call: AIToolCall, toolName: String, approvedOnce: String? = nil) {
         let result: CommandExecutionResult
 
         switch toolName {
@@ -1449,7 +1578,8 @@ final class AIAgentSession {
             let limit: Int? = call.argument("limit")
             result = AIAgentFileToolHandler.readFile(
                 path: path, offset: offset, limit: limit,
-                workingDirectory: fileToolWorkingDirectory
+                workingDirectory: fileToolWorkingDirectory,
+                approvedOnce: approvedOnce
             )
 
         case "write_file":
@@ -1457,7 +1587,8 @@ final class AIAgentSession {
             let content: String = call.argument("content") ?? ""
             result = AIAgentFileToolHandler.writeFile(
                 path: path, content: content,
-                workingDirectory: fileToolWorkingDirectory
+                workingDirectory: fileToolWorkingDirectory,
+                approvedOnce: approvedOnce
             )
 
         case "edit_file":
@@ -1466,7 +1597,8 @@ final class AIAgentSession {
             let newString: String = call.argument("new_string") ?? ""
             result = AIAgentFileToolHandler.editFile(
                 path: path, oldString: oldString, newString: newString,
-                workingDirectory: fileToolWorkingDirectory
+                workingDirectory: fileToolWorkingDirectory,
+                approvedOnce: approvedOnce
             )
 
         default:
@@ -1659,6 +1791,24 @@ final class AIAgentSession {
         state = .idle
     }
 
+    /// Claude models that write progress notes between tool calls; the no-narration rules
+    /// other models need would suppress them.
+    private var modelWritesProgressUpdates: Bool {
+        let modelID = currentModelID.hasPrefix("bedrock-") ? String(currentModelID.dropFirst(8)) : currentModelID
+        return ["claude-fable-5", "claude-opus-5-5", "claude-sonnet-5-5"].contains { modelID.hasPrefix($0) }
+    }
+
+    /// Anthropic's suggested wording for keeping the user informed during long tool runs.
+    private static let progressUpdateGuidance = """
+        ## How to Respond
+        - Before you start, say in a line what you're about to do; brief updates while you work help the user follow along.
+        - Call tools to do the work rather than describing commands; explain results after you receive output.
+        - Use ask_user only when you need information (a path, a choice, a clarification).
+        - If you have more work to do, your response must contain a tool call.
+
+
+        """
+
     private func buildSystemPrompt() -> String {
         // Catalyst has no ios_system local sessions, so the constrained
         // prompt only exists on iOS/iPadOS.
@@ -1691,7 +1841,7 @@ final class AIAgentSession {
         Text Processing: grep, egrep, fgrep, rg, sed, awk, wc, sort, uniq, diff, head, tail, tr, md5
         Archives: tar, gzip, gunzip, compress, uncompress
         Network: curl, nc, dig, host, nslookup, whois, ifconfig
-        Developer: git, bat, jq, gix, rg
+        Developer: git, bat, jq, rg
         Shell Utils: echo, env, printenv, date, uname, whoami, tee, uptime, pbcopy, pbpaste
         Other: df, id, w, chgrp
 
@@ -1776,6 +1926,10 @@ final class AIAgentSession {
         - All files are in the app's Documents directory or bookmarked external locations
         - No access to system files or other app containers
 
+
+        """
+
+        prompt += modelWritesProgressUpdates ? Self.progressUpdateGuidance : """
         ## How to Respond
         - Call tools IMMEDIATELY when you need to do something
         - Do NOT narrate before tool calls. JUST CALL THE TOOL
@@ -1927,6 +2081,10 @@ final class AIAgentSession {
         - For complex multi-step operations, combine into a single compound command
         - If you need to reference a path multiple times, use the full absolute path each time
 
+
+"""
+
+        prompt += modelWritesProgressUpdates ? Self.progressUpdateGuidance : """
         ## How to Respond
         - Call execute_command IMMEDIATELY when you need to run a command
         - Do NOT narrate before tool calls. No "Let me...", "I'll...", "I need to..." - JUST CALL THE TOOL
@@ -1949,6 +2107,10 @@ final class AIAgentSession {
         - After command output → "The directory contains 5 files..." (explanation is OK here)
         - Need another command? → [call execute_command: ...] (don't say "Let me...", just call it)
 
+
+"""
+
+        prompt += """
         ## ask_user Tool
         Use ONLY when you need information:
         - `yes_no`: Simple binary choice

@@ -32,6 +32,9 @@
 //    - TrzszGoCallbackBridges.swift
 //    - TrzszGoForwardCallbackBridge.swift
 //
+//  The in-app Tailscale engine has no transport refs; its Swift→Go calls
+//  live in Features/VPN/Tailnet/InApp/TailnetGo.swift instead.
+//
 //  Callers hold opaque `Sendable` ref structs (`TSSHTransportRef`,
 //  `TSSHSessionRef`, `TSSHForwarderRef`); the underlying `Iosbridge*` objects
 //  never escape the gate.
@@ -235,6 +238,13 @@ actor TSSHCallGate {
     // MARK: - Transport lifecycle
 
     func connect(_ params: TSSHTransportParams, via proxyRef: TSSHTransportRef? = nil) async throws -> TSSHTransportRef {
+        #if !CHINA_BUILD
+        // A resumed session skips the resolvers that start in-app Tailscale on
+        // demand; bring it up before Go picks the UDP path.
+        if proxyRef == nil {
+            _ = await TailnetDialer.route(params.host)
+        }
+        #endif
         guard let config = IosbridgeNewTransportConfig() else {
             throw TSSHCallGateError.configCreationFailed
         }
@@ -646,6 +656,29 @@ actor TSSHCallGate {
         }
     }
 
+    /// Read up to `maxBytes` of the command's stderr. Same blocking and EOF
+    /// convention as `execRead`.
+    func execReadStderr(
+        on ref: TSSHTransportRef,
+        channelRef: Int64,
+        maxBytes: Int
+    ) async throws -> Data? {
+        let transport = registry.withLock { $0.transports[ref] }
+        guard let transport else {
+            throw TSSHCallGateError.unknownTransport
+        }
+        nonisolated(unsafe) let t = transport
+        let clamped = min(maxBytes, Int(Int32.max))
+        return try await runOnWorker {
+            do {
+                let data = try t.execReadStderr(channelRef, maxBytes: clamped)
+                return data.isEmpty ? nil : data
+            } catch let error where Self.isBridgedNilReturn(error) {
+                return nil
+            }
+        }
+    }
+
     /// Swift's `_GenericObjCError.nilError`: a throwing ObjC method that
     /// returned nil without setting an error.
     private nonisolated static func isBridgedNilReturn(_ error: Error) -> Bool {
@@ -756,7 +789,6 @@ actor TSSHCallGate {
     func openShellOrCommand(
         on sessionRef: TSSHSessionRef,
         lang: String?,
-        languages: String?,
         agentForwarding: Bool,
         term: String,
         rows: Int,
@@ -770,19 +802,12 @@ actor TSSHCallGate {
         }
         nonisolated(unsafe) let s = session
         return try await runOnWorker { () -> Int64 in
-            // LANG / LANGUAGE — server may reject env requests; log but continue.
+            // LANG — server may reject env requests; log but continue.
             if let lang {
                 do {
                     try s.setenv("LANG", value: lang)
                 } catch {
                     Self.logger.warning("Failed to set LANG: \(error.localizedDescription)")
-                }
-            }
-            if let languages {
-                do {
-                    try s.setenv("LANGUAGE", value: languages)
-                } catch {
-                    Self.logger.warning("Failed to set LANGUAGE: \(error.localizedDescription)")
                 }
             }
             // Identify the client to the remote host; same silent-drop caveat as LANG.

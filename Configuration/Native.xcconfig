@@ -1,0 +1,29 @@
+// Native.xcconfig - Standalone flavor that uses native macOS access paths.
+//
+// NATIVE layers on STANDALONE for builds that have no Apple-issued
+// provisioning profile (ad-hoc or free Personal Team signing, e.g. a
+// package-manager build). The app is still the Mac Catalyst binary; what
+// changes is that the two things the Catalyst runtime cannot do without a
+// profile run as native macOS code instead:
+//
+//   - Keychain: a Catalyst process only reaches the data protection keychain
+//     (TN3137), which needs profile-backed entitlements. Every SecItem call is
+//     proxied to the embedded native `rootshell-keychain` tool, which uses the
+//     login keychain. See rootshell/Core/Security/NativeSecItemShim.swift.
+//   - Local shells: spawned directly on a PTY the app opens itself, so no
+//     rootshell-helper (and no relaxed helper peer trust) is needed.
+//     See rootshell/Features/LocalShell/NativeLocalShellSpawner.swift.
+//
+// Nothing here affects the Standalone, AppStore or China flavors.
+#include "Standalone.xcconfig"
+
+OTHER_SWIFT_FLAGS = $(inherited) -D NATIVE
+
+// No provisioning profile: nothing that needs a profile-backed entitlement.
+CODE_SIGN_ENTITLEMENTS[sdk=macosx*] = rootshell/Entitlements/Native-MacCatalyst.entitlements
+
+// "-" is the sentinel AppIdentifiers reads as "no keychain access group".
+ROOTSHELL_KEYCHAIN_ACCESS_GROUP = -
+// CloudKit and the Sparkle feed both need identities this flavor lacks.
+ROOTSHELL_ICLOUD_CONTAINER =
+ROOTSHELL_SPARKLE_FEED_URL =

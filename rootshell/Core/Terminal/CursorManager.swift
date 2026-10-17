@@ -452,11 +452,8 @@ class CursorManager {
             .replacingOccurrences(of: "{{COLOR_A}}", with: colorAStr)
             .replacingOccurrences(of: "{{COLOR_B}}", with: colorBStr)
 
-        // Write to Documents/.ghostty/shaders/
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let shadersDir = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("shaders", isDirectory: true)
+        // Write to GhosttyStorageLocation shaders/
+        let shadersDir = GhosttyStorageLocation.url(forRelativePath: "shaders")
 
         if !FileManager.default.fileExists(atPath: shadersDir.path) {
             try? FileManager.default.createDirectory(at: shadersDir, withIntermediateDirectories: true)

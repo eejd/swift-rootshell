@@ -344,6 +344,13 @@ public class HelperConnection {
             Ghostty.logger.info("Helper not responding: \(error.localizedDescription)")
         }
 
+        // A sandboxed app can't launch a replacement, and a helper that
+        // rejected our ping may still be live, so leave its sockets alone.
+        guard !PlatformDetection.isSandboxed else {
+            isKnownRunning = false
+            return false
+        }
+
         // Helper not available - clean up stale sockets before launching
         cleanupStaleSockets()
 
@@ -501,7 +508,8 @@ public class HelperConnection {
         }
     }
 
-    /// Cleans up stale socket files from previous helper runs.
+    /// Cleans up stale socket files from previous helper runs. Only the helper's
+    /// own sockets: others (agent, VPN host control) belong to live processes.
     private func cleanupStaleSockets() {
         guard let containerURL = AppGroupHelper.containerURL else {
             return
@@ -509,7 +517,7 @@ public class HelperConnection {
 
         do {
             let files = try FileManager.default.contentsOfDirectory(atPath: containerURL.path)
-            for file in files where file.hasSuffix(".sock") && file != "agent.sock" {
+            for file in files where Self.isHelperSocketName(file) {
                 let socketPath = containerURL.appendingPathComponent(file).path
                 Ghostty.logger.debug("Removing stale socket: \(file)")
                 try? FileManager.default.removeItem(atPath: socketPath)
@@ -517,6 +525,14 @@ public class HelperConnection {
         } catch {
             Ghostty.logger.warning("Failed to enumerate App Group container: \(error)")
         }
+    }
+
+    /// `commands.sock`, or a session socket named by an 8-hex-digit UUID prefix.
+    private static func isHelperSocketName(_ file: String) -> Bool {
+        if file == "commands.sock" { return true }
+        guard file.hasSuffix(".sock") else { return false }
+        let stem = file.dropLast(".sock".count)
+        return stem.count == 8 && stem.allSatisfy(\.isHexDigit)
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "originHash" : "718351ee53cf0ad6d6b52b40377a5986832722d7adfd75b2064881de3df84be2",
+  "originHash" : "bedb1ee7fd3019686a4e196c1867d2914959a21146531b393017dc1c7dbd4847",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -33,17 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/Citadel-rootshell.git",
       "state" : {
-        "revision" : "16a2f6a20d59c21d73638f537aad1b08428887d1",
-        "version" : "0.12.6"
-      }
-    },
-    {
-      "identity" : "cryptoswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
-      "state" : {
-        "revision" : "e45a26384239e028ec87fbcc788f513b67e10d8f",
-        "version" : "1.9.0"
+        "revision" : "946dc98cd618e60e43dfcf68de5d7296b4d991af",
+        "version" : "0.12.11"
       }
     },
     {
@@ -56,12 +47,21 @@
       }
     },
     {
+      "identity" : "fluidaudio-rootshell",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kitknox/fluidaudio-rootshell.git",
+      "state" : {
+        "revision" : "bc3521103941a5e4b395604bc4402274210c68d8",
+        "version" : "0.17.4-rootshell.2"
+      }
+    },
+    {
       "identity" : "ghosttykit-rootshell",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/ghosttykit-rootshell.git",
       "state" : {
-        "revision" : "fe89a59675e8ac8fb8a65be73fcd805905d25f57",
-        "version" : "0.2.13"
+        "revision" : "3d05ef4d2ec0fc0b9e473288057ef2cb0f504512",
+        "version" : "0.2.18"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/helix-rootshell.git",
       "state" : {
-        "revision" : "549560b940a2968a1f05fb780537af5da4000316",
-        "version" : "0.1.5"
+        "revision" : "581415db2e63b09ee61bc5981f704683e0443651",
+        "version" : "0.1.8"
       }
     },
     {
@@ -78,8 +78,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/ios_system-rootshell.git",
       "state" : {
-        "revision" : "8f84ebfc7ee44cb05402cabdd1a82b4214a173cd",
-        "version" : "0.1.0"
+        "revision" : "d26afc264a78723afba6286695eadba5184dd7af",
+        "version" : "0.1.1"
+      }
+    },
+    {
+      "identity" : "jmespath.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jmespath/jmespath.swift.git",
+      "state" : {
+        "revision" : "3877a5060e85ae33e3b9fe51ab581784f65ec80e",
+        "version" : "1.0.3"
       }
     },
     {
@@ -87,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/joe-rootshell.git",
       "state" : {
-        "revision" : "cc2693d65b8f937aa484edce41eb9018f6553f6a",
-        "version" : "0.1.0"
+        "revision" : "68763f078e4a48b858540de121935171badd4103",
+        "version" : "0.1.2"
       }
     },
     {
@@ -119,15 +128,6 @@
       }
     },
     {
-      "identity" : "model",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftkube/model.git",
-      "state" : {
-        "revision" : "883df816465997f8f523d07702af16da4e4614c3",
-        "version" : "0.18.0"
-      }
-    },
-    {
       "identity" : "network_ios-rootshell",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/network_ios-rootshell.git",
@@ -150,8 +150,25 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/rootshell-vnc.git",
       "state" : {
-        "revision" : "1e452c5d8bc1a2447dae308f66d4aff193115b57",
-        "version" : "0.1.4"
+        "revision" : "c56ae028a664c4c45dcb3e9795a03aa002fb78c8",
+        "version" : "0.1.6"
+      }
+    },
+    {
+      "identity" : "soto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/soto-project/soto.git",
+      "state" : {
+        "revision" : "78d45179881c2e27b3b82548fdc376ccc2611c77",
+        "version" : "7.15.0"
+      }
+    },
+    {
+      "identity" : "soto-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/soto-project/soto-core.git",
+      "state" : {
+        "revision" : "b88bc5ccd50dc489f37b3568ba9c7c7c8c72714c"
       }
     },
     {
@@ -186,8 +203,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-async-algorithms.git",
       "state" : {
-        "revision" : "2773d4125311133a2f705ec374c363a935069d45",
-        "version" : "1.1.0"
+        "revision" : "9d349bcc328ac3c31ce40e746b5882742a0d1272",
+        "version" : "1.1.3"
       }
     },
     {
@@ -258,8 +275,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
-        "version" : "1.6.4"
+        "revision" : "9c6fb14227f55d8f711ce3847dc2f419fb0ecacb",
+        "version" : "1.15.1"
       }
     },
     {
@@ -303,8 +320,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/swift-nio-ssh-rootshell.git",
       "state" : {
-        "revision" : "622d9983bc81d4e785895ca2cb210bb812b9b163",
-        "version" : "0.1.4"
+        "revision" : "3f517bd82ed2846b4c1cc06348df04efca02befd",
+        "version" : "0.1.5"
       }
     },
     {
@@ -348,8 +365,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swift-server/swift-service-lifecycle.git",
       "state" : {
-        "revision" : "1de37290c0ab3c5a96028e0f02911b672fd42348",
-        "version" : "2.9.1"
+        "revision" : "7f9326b0326ff86e3646295ea6e891f68c471c5e",
+        "version" : "2.12.0"
       }
     },
     {
@@ -366,8 +383,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/Swiftkube-rootshell.git",
       "state" : {
-        "revision" : "c3c9bf905aa4934e79e88b7b2427f155b58dc4e3",
-        "version" : "0.25.1"
+        "revision" : "be1dd15603082d63dbb07ba6a64e10c42ae812f6",
+        "version" : "0.26.0"
       }
     },
     {
@@ -384,8 +401,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/trzsz-ssh-rootshell.git",
       "state" : {
-        "revision" : "5a32b6b954c4accfae5cfab679ce3bf6af4ab189",
-        "version" : "0.2.6"
+        "revision" : "29bcac4095c6d635168e7962d3e41145f72b4d7f",
+        "version" : "0.2.16"
       }
     },
     {
@@ -393,8 +410,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kitknox/vim-rootshell.git",
       "state" : {
-        "revision" : "413e174222cb100840561e264446ffd050738205",
-        "version" : "0.1.0"
+        "revision" : "49d5deb3274c9609486244d27526a7efeda3fe79",
+        "version" : "0.1.1"
       }
     },
     {

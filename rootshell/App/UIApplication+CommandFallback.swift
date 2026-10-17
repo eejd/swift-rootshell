@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import os
 
 /// App shortcuts whose destination can switch while a VNC pane is focused.
 /// A notification marker lets MainView route the chord exclusively to VNC;
@@ -103,6 +104,18 @@ extension UIApplication {
         ghostty_postNotification(.openInFolder)
     }
 
+    @objc func menuToggleFileManager(_ sender: Any?) {
+        ghostty_postNotification(.toggleFileManager)
+    }
+
+    @objc func menuToggleIPLookup(_ sender: Any?) {
+        ghostty_postNotification(.toggleIPLookup)
+    }
+
+    @objc func menuToggleHTTPCapture(_ sender: Any?) {
+        ghostty_postNotification(.toggleHTTPCapture)
+    }
+
     @objc func menuToggleThemePicker(_ sender: Any?) {
         ghostty_postNotification(.toggleThemePicker)
     }
@@ -152,15 +165,47 @@ extension UIApplication {
 
     // MARK: - Menu Actions (SwiftUI Commands)
 
+    /// Only MainView observes the new-tab and new-window notifications, so with
+    /// every window closed on Mac Catalyst nothing would answer them. Open a
+    /// window directly instead. The Standalone visor counts only while it's
+    /// shown: a tab added to the hidden visor would be invisible.
+    @MainActor
+    private func ghostty_openWindowIfNoneVisible() -> Bool {
+        #if targetEnvironment(macCatalyst)
+        let hasWindow = connectedScenes.contains { scene in
+            guard scene is UIWindowScene else { return false }
+            if CatalystSceneDelegate.isVisorScene(scene) {
+                #if STANDALONE
+                return VisorController.shared.isVisible
+                #else
+                return false
+                #endif
+            }
+            return scene.activationState != .background && scene.activationState != .unattached
+        }
+        guard !hasWindow else { return false }
+        Ghostty.logger.info("No open window: opening a new one for a new-tab/new-window command")
+        requestSceneSessionActivation(nil, userActivity: nil, options: nil) { error in
+            Ghostty.logger.error("Failed to create new window: \(error.localizedDescription)")
+        }
+        return true
+        #else
+        return false
+        #endif
+    }
+
     @objc func menuCreateLocalShell(_ sender: Any?) {
+        if ghostty_openWindowIfNoneVisible() { return }
         ghostty_postNotification(.createLocalShell)
     }
 
     @objc func menuNewTab(_ sender: Any?) {
+        if ghostty_openWindowIfNoneVisible() { return }
         ghostty_postNotification(.newTab)
     }
 
     @objc func menuNewWindow(_ sender: Any?) {
+        if ghostty_openWindowIfNoneVisible() { return }
         ghostty_postNotification(.newWindow)
     }
 
@@ -193,7 +238,10 @@ extension UIApplication {
     }
 
     @objc func menuCloseSplit(_ sender: Any?) {
-        ghostty_postNotification(.closeSplit)
+        ghostty_postNotification(
+            .closeSplit,
+            userInfo: [GhosttyCommandRouting.userInitiatedCloseSplitKey: true]
+        )
     }
 
     @objc func menuToggleSplitZoom(_ sender: Any?) {
@@ -202,6 +250,14 @@ extension UIApplication {
 
     @objc func menuEqualizeSplits(_ sender: Any?) {
         ghostty_postNotification(.equalizeSplits)
+    }
+
+    @objc func menuChoosePaneToZoom(_ sender: Any?) {
+        ghostty_postNotification(.choosePaneToZoom)
+    }
+
+    @objc func menuChoosePaneToSwap(_ sender: Any?) {
+        ghostty_postNotification(.choosePaneToSwap)
     }
 
     @objc func menuOpenSettings(_ sender: Any?) {
@@ -225,6 +281,10 @@ extension UIApplication {
 
     @objc func menuToggleVoiceAgent(_ sender: Any?) {
         ghostty_postNotification(.toggleVoiceAgent)
+    }
+
+    @objc func menuToggleDictation(_ sender: Any?) {
+        ghostty_postNotification(.toggleDictation)
     }
 
     @objc func menuToggleTabBar(_ sender: Any?) {
@@ -310,6 +370,10 @@ extension UIApplication {
 
     @objc func menuDiscoverSessions(_ sender: Any?) {
         ghostty_postNotification(.discoverSessions)
+    }
+
+    @objc func menuDetachSession(_ sender: Any?) {
+        ghostty_postNotification(.detachSession)
     }
 
     @objc func menuDetachOtherClients(_ sender: Any?) {

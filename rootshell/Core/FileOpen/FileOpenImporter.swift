@@ -3,7 +3,7 @@
 //  rootshell
 //
 //  Copies a file shared from another app ("Open in rootshell") into
-//  ~/incoming (Documents/incoming) so the local shell's editors can read
+//  the incoming folder (see `importFile`) so the local shell's editors can read
 //  and write it. Two delivery modes are handled: system-made copies in
 //  Documents/Inbox (moved out — Inbox contents can't be edited in place)
 //  and security-scoped URLs to external originals (copied, original left
@@ -52,8 +52,9 @@ nonisolated enum FileOpenImporter {
     static let incomingDirectoryName = "incoming"
     private static let worker = FileOpenImportWorker()
 
-    /// Imports the shared file into Documents/incoming and returns the
-    /// final absolute path.
+    /// Imports the shared file into the app's incoming folder (Documents/incoming
+    /// on sandboxed builds, Application Support/RootShell/incoming on STANDALONE
+    /// Mac) and returns the final absolute path.
     static func importFile(from url: URL) async throws -> String {
         try await worker.importFile(from: url)
     }
@@ -64,7 +65,16 @@ nonisolated enum FileOpenImporter {
             throw FileOpenError.copyFailed("Documents directory unavailable")
         }
 
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        // Unsandboxed Mac: ~/Documents is TCC-protected, so copies land in the
+        // app's own Application Support folder instead. Older copies in
+        // Documents/incoming are not read automatically; Settings → Import
+        // from Documents copies them here on request.
+        let incomingDir = GhosttyStorageLocation.rootDirectory
+            .appendingPathComponent(incomingDirectoryName, isDirectory: true)
+        #else
         let incomingDir = documents.appendingPathComponent(incomingDirectoryName, isDirectory: true)
+        #endif
         do {
             try fm.createDirectory(at: incomingDir, withIntermediateDirectories: true)
         } catch {

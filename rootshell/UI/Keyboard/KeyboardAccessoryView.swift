@@ -129,6 +129,20 @@ class KeyboardAccessoryView: UIInputView {
         }
     }
 
+    /// Callback when the file manager button is tapped
+    var onFileManagerRequested: (() -> Void)? {
+        didSet {
+            toolbarView.onFileManagerRequested = onFileManagerRequested
+        }
+    }
+
+    /// Callback when the HTTP capture button is tapped
+    var onHTTPCaptureRequested: (() -> Void)? {
+        didSet {
+            toolbarView.onHTTPCaptureRequested = onHTTPCaptureRequested
+        }
+    }
+
     /// Callback when accessory layout changes and input views should refresh
     var onLayoutInvalidated: (() -> Void)?
 
@@ -154,7 +168,7 @@ class KeyboardAccessoryView: UIInputView {
 
     // MARK: - Initialization
 
-    init(sizes: KeyboardSizes = .current()) {
+    init(sizes: KeyboardSizes) {
         toolbarView = KeyboardToolbarView(sizes: sizes)
 
         let frame = CGRect(
@@ -191,29 +205,15 @@ class KeyboardAccessoryView: UIInputView {
         allowsSelfSizing = true
         backgroundColor = .clear
 
-        toolbarView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(toolbarView)
-
-        let toolbarBottom = toolbarView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        NSLayoutConstraint.activate([
-            toolbarView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            toolbarView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            toolbarView.topAnchor.constraint(equalTo: topAnchor),
-            toolbarBottom
-        ])
-        toolbarBottomConstraint = toolbarBottom
-
         bottomStripBlurView.translatesAutoresizingMaskIntoConstraints = false
         bottomStripBlurView.isUserInteractionEnabled = false
         bottomStripBlurView.isHidden = true
         bottomStripTintView.translatesAutoresizingMaskIntoConstraints = false
         bottomStripTintView.backgroundColor = toolbarView.glassTintColor(for: traitCollection)
-        insertSubview(bottomStripBlurView, belowSubview: toolbarView)
+        addSubview(bottomStripBlurView)
         bottomStripBlurView.contentView.addSubview(bottomStripTintView)
+        attachToolbar()
         NSLayoutConstraint.activate([
-            bottomStripBlurView.topAnchor.constraint(equalTo: toolbarView.bottomAnchor),
-            bottomStripBlurView.leadingAnchor.constraint(equalTo: toolbarView.plateLeadingAnchor),
-            bottomStripBlurView.trailingAnchor.constraint(equalTo: toolbarView.plateTrailingAnchor),
             bottomStripBlurView.bottomAnchor.constraint(equalTo: bottomAnchor),
             bottomStripTintView.topAnchor.constraint(equalTo: bottomStripBlurView.contentView.topAnchor),
             bottomStripTintView.leadingAnchor.constraint(equalTo: bottomStripBlurView.contentView.leadingAnchor),
@@ -240,6 +240,38 @@ class KeyboardAccessoryView: UIInputView {
         addGestureRecognizer(bottomEdgePanGesture)
         self.bottomEdgePanGesture = bottomEdgePanGesture
         #endif
+    }
+
+    /// Toolbar constraints, including the strip's, which hang off its plate.
+    private func attachToolbar() {
+        toolbarView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(toolbarView)
+        let toolbarBottom = toolbarView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -reservedBottomSafeArea)
+        NSLayoutConstraint.activate([
+            toolbarView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            toolbarView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            toolbarView.topAnchor.constraint(equalTo: topAnchor),
+            toolbarBottom,
+            bottomStripBlurView.topAnchor.constraint(equalTo: toolbarView.bottomAnchor),
+            bottomStripBlurView.leadingAnchor.constraint(equalTo: toolbarView.plateLeadingAnchor),
+            bottomStripBlurView.trailingAnchor.constraint(equalTo: toolbarView.plateTrailingAnchor),
+        ])
+        toolbarBottomConstraint = toolbarBottom
+    }
+
+    /// UIKit wraps this accessory in its own view controller, so the accessory
+    /// cannot join another hierarchy. Its toolbar row can (below the Duo's fold).
+    func lendToolbar() -> KeyboardToolbarView {
+        toolbarView.removeFromSuperview()
+        return toolbarView
+    }
+
+    func reclaimToolbar() {
+        guard toolbarView.superview !== self else { return }
+        toolbarView.removeFromSuperview()
+        attachToolbar()
+        setNeedsLayout()
+        invalidateIntrinsicContentSize()
     }
 
     #if !os(visionOS) && !targetEnvironment(macCatalyst)
@@ -317,10 +349,10 @@ class KeyboardAccessoryView: UIInputView {
         return true
     }
 
-    func setBottomEdgeHomeGestureProtectionEnabled(_ enabled: Bool) {
-        toolbarView.setDefersKeysForBottomEdgeGesture(enabled)
+    func setInteractionMode(_ mode: KeyboardToolbarInteractionMode) {
+        toolbarView.setInteractionMode(mode)
         #if !os(visionOS) && !targetEnvironment(macCatalyst)
-        bottomEdgePanGesture?.isEnabled = enabled
+        bottomEdgePanGesture?.isEnabled = mode == .screenEdge
         #endif
     }
 

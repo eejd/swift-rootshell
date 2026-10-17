@@ -36,11 +36,7 @@ final class CloudKitOfflineQueue {
     }()
 
     init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        self.queueURL = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("sync", isDirectory: true)
-            .appendingPathComponent("pending_changes.json")
+        self.queueURL = GhosttyStorageLocation.url(forRelativePath: "sync/pending_changes.json")
 
         load()
     }

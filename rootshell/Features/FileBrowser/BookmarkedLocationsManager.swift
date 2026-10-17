@@ -106,11 +106,11 @@ final class BookmarkedLocationsManager: ObservableObject {
     }
 
     private var configDir: URL {
-        documentsURL.appendingPathComponent(".ghostty")
+        storageURL.deletingLastPathComponent()
     }
 
     private var storageURL: URL {
-        configDir.appendingPathComponent("bookmarked_locations.json")
+        GhosttyStorageLocation.url(forRelativePath: "bookmarked_locations.json")
     }
 
     // MARK: - Public API

@@ -17,7 +17,7 @@ final class HerdrLocalPTYChannel: HerdrPTYChannel {
         }
         let session: CatalystLocalShellSession = try await withCheckedThrowingContinuation { ready in
             CatalystLocalShellSession.create(
-                rows: UInt16(clamping: rows), cols: UInt16(clamping: cols), shell: shell,
+                rows: UInt16(clamping: rows), cols: UInt16(clamping: cols), pixelWidth: 0, pixelHeight: 0, shell: shell,
                 enableShellIntegration: false, paneToken: paneToken
             ) { ready.resume(with: $0) }
         }

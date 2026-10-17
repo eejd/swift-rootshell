@@ -44,6 +44,10 @@ struct MainView: View {
     
     // MARK: - Properties
     
+    @Environment(\.duoLayout) var duoLayout
+    @Environment(\.horizontalSizeClass) var workspaceSizeClass
+    @State var duoTabletopDisabled = false
+    @State var duoTabletopAvailable = false
     @EnvironmentObject var ghosttyApp: Ghostty.App
     @Environment(\.openWindow) var openWindow
     @Environment(\.dismissWindow) var dismissWindow
@@ -74,10 +78,6 @@ struct MainView: View {
             return .inactive
         }
     }()
-    #if !targetEnvironment(macCatalyst) && !os(visionOS)
-    @State var shortRemoteSessionBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
-    @State var shortRemoteSessionBackgroundTaskIDBox: ShortRemoteSessionBackgroundTaskIDBox?
-    #endif
 
     /// Per-window tab state. Replaces the previous `@State var terminals:
     /// [TerminalTab] = []` design where any per-tab mutation invalidated all
@@ -133,12 +133,19 @@ struct MainView: View {
     @State var keyResolutionTrzszServerPath: String?
     @State var keyResolutionSplitOption: SSHConnectionView.SplitOption = .newTab
     @State var pendingBrowseSelection: BrowseHostSelection? = nil
-    /// "Ask Each Time" tmux tab-close: the tab whose ⌘W/✕ is awaiting the
-    /// user's choice in the close action sheet. (id=tmux-tab-close-action)
-    @State var pendingTmuxCloseTabID: UUID?
-    /// "Ask Each Time" close of a herdr control-mode tab.
-    @State var pendingHerdrCloseTabID: UUID?
+    /// "Ask Each Time" close of a tmux or herdr control-mode tab: the tab whose
+    /// ⌘W/✕ is awaiting the user's choice in the close action sheet.
+    /// (id=tmux-tab-close-action)
+    @State var pendingMuxCloseTabID: UUID?
+    /// User-requested pane close awaiting confirmation. The UUID preserves the
+    /// original target if focus or tab selection changes while the dialog is up.
+    @State var pendingClosePaneID: UUID?
+    /// User-requested tab close awaiting confirmation.
+    @State var pendingTabClose: PendingTabClose?
     @State var pendingNewTabRequest: NewTabRequest?
+    /// Transient post-detach / already-attached banner.
+    @State var muxDetachBanner: MuxDetachBannerState?
+    @State var muxDetachBannerDismissTask: Task<Void, Never>?
     @State var unavailableNewTabRequest: NewTabRequest?
     @State var authenticationRetryRequest: SSHAuthenticationRetryRequest?
     @State var reconnectConfig: SSHConfig?
@@ -249,6 +256,10 @@ struct MainView: View {
     // rounds, presented one at a time via a sheet (needs free-form text entry).
     @State var keyboardInteractiveQueue: [PendingKeyboardInteractiveChallenge] = []
     @State var showKeyboardInteractivePrompt = false
+
+    // Credential requests from `rootshell-askpass`, presented one at a time.
+    @State var askpassQueue: [RemoteAskpassRequest] = []
+    @State var showAskpassPrompt = false
     
     
     // Search state change trigger - incremented to force re-render when search opens/closes
@@ -260,6 +271,8 @@ struct MainView: View {
     @State var sessionDiscoveryVersion: Int = 0
     @State var windowSceneSessionID: String?
     @State var windowSafeAreaInsets: EdgeInsets = EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+    // Window-space bottom of the system status bar; 0 while it is hidden.
+    @State var statusBarBottom: CGFloat = 0
 #if targetEnvironment(macCatalyst)
     // Per-window geometry restore is stashed in onAppear and applied exactly once
     // the windowId→scene link is published by WindowSceneReporter — an event,
@@ -285,11 +298,41 @@ struct MainView: View {
     // Theme picker overlay state
     @State var showThemePickerOverlay = false
     @State var showQuickSettingsOverlay = false
+    @State var showKeyboardChooser = false
+    @State var connectionSheetAwaitsKeyboardChooser = false
     /// Open in Folder palette; the target is captured when it opens.
     @State var showOpenInFolderOverlay = false
     @State var openInFolderModel: OpenInFolderModel?
     /// A split / new-tab chord caught by the menu rail while the palette is up.
     @State var openInFolderShortcut: OpenInFolderShortcut?
+
+    // File manager: the model is created on first open and kept while hidden.
+    @State var showFileManager = false
+    @State var fileManagerModel: FileManagerModel?
+    @State var fileManagerPresentation: PanelPresentation = SettingsStore.shared.value(Settings.Transfer.fileManagerPresentation)
+    /// Live width during a drag; persisted only on commit, like the AI sidebar's.
+    @State var fileManagerSidebarWidth: CGFloat = CGFloat(SettingsStore.shared.value(Settings.Transfer.fileManagerSidebarWidth))
+    @State var fileManagerSidebarIsDragging = false
+    /// A Files-tab choice waiting for the connection sheet to finish dismissing.
+    @State var pendingFileManagerOpen: (endpoint: FileEndpoint, presentation: PanelPresentation?)?
+
+    #if !CHINA_BUILD
+    // HTTP capture panel: shares the trailing docked slot with the file manager.
+    @State var showHTTPCapture = false
+    @State var httpCaptureModel: HTTPCaptureModel?
+    @State var httpCapturePresentation: PanelPresentation = SettingsStore.shared.value(Settings.HTTPCapture.presentation)
+    @State var httpCaptureSidebarWidth: CGFloat = CGFloat(SettingsStore.shared.value(Settings.HTTPCapture.sidebarWidth))
+    @State var httpCaptureSidebarIsDragging = false
+    /// Settings asked for the capture panel; it opens once Settings has closed.
+    @State var pendingHTTPCaptureOpen = false
+    #endif
+
+    /// Dictation HUD, used where the terminal keyboard's Dictation page is not showing.
+    @State var showDictationHUD = false
+
+    /// IP Lookup HUD; the model reads the clipboard when it opens.
+    @State var showIPLookup = false
+    @State var ipLookupModel: IPLookupModel?
 
     // Clipboard manager overlay state
     @State var showClipboardManager = false
@@ -306,6 +349,8 @@ struct MainView: View {
     /// the terminal (instead of a floating overlay over it). Routes
     /// `showingTabSwitcher` to docked vs floating — see `tabSidebarIsDocked`.
     @Setting(Settings.Sidebar.pinned) var tabSidebarPinned
+    /// Draws panes and docked columns as rounded cards; see PaneCardStyle.
+    @Setting(Settings.Window.roundedPanes) var roundedPanes
 
     /// When the floating (non-pinned) sidebar is open, auto-close it after the
     /// user selects a tab. Off by default (sidebar stays open until dismissed).
@@ -335,7 +380,7 @@ struct MainView: View {
         #if os(visionOS)
         return false
         #else
-        return UIDevice.current.userInterfaceIdiom != .phone
+        return workspaceSizeClass == .regular
         #endif
     }
 
@@ -403,7 +448,11 @@ struct MainView: View {
         // grow on structural events (tab add/remove, manual selection, sheet
         // visibility, theme picker, keyboard frame).
         LifecycleDebugLogger.shared.bumpBodyEvaluation()
-        let content = GeometryReader { geometry in
+        let content = DuoWorkspaceGeometry(
+            context: effectiveDuoLayout,
+            headerHeight: showsHorizontalTabHeader ? TabMetrics.tabBarHeight : 0,
+            headerTopLimit: tabHeaderTopLimit
+        ) { geometry, workspace in
             #if !os(visionOS)
             let _ = effectManager.keyboardStateVersion
             let defersBottomSystemGesture = !isAnySheetPresented
@@ -421,120 +470,72 @@ struct MainView: View {
             ZStack {
                 // Full-bleed backgrounds
                 fullBleedBackground(geometry: geometry, theme: resolvedTheme)
+                windowBackdrop(geometry: geometry, theme: resolvedTheme)
 
                 VStack(spacing: 0) {
                     // Top toolbar spacer when tab bar is hidden (Catalyst only)
                     catalystTabBarSpacer(geometry: geometry)
 
-                    if !tabBarHidden {
-                        HStack(spacing: 0) {
-                            tabBarLeadingSpacer(geometry: geometry, theme: resolvedTheme)
-
-                            // Tab bar - switches between display modes
-                            //
-                            // The previous design carried a `tabBarVersion`
-                            // counter that was bumped from drop completions
-                            // and notification observers, with `.id(tabBarVersion)`
-                            // forcing a structural rebuild of the entire tab
-                            // bar subtree on every increment. With per-tab
-                            // observation via `TabModel`, the tab bar
-                            // re-evaluates only on the property reads it
-                            // actually performs, so no manual refresh signal
-                            // is needed.
-                            tabBarTrack(in: geometry, theme: resolvedTheme)
-                                .layoutPriority(0)
-                                // Toggling grouped mode changes `navigationTabs`,
-                                // which can flip the tab-bar display mode (e.g.
-                                // equalWidth→singleTab when two tabs live in
-                                // different groups). Animating that structural
-                                // swap makes the selected tab's glass capsule
-                                // morph for ~1s, during which the roam "R" badge
-                                // composites against the unsettled glass and looks
-                                // washed out. Snap the layout for grouped-mode
-                                // toggles so the badge is correct immediately;
-                                // ordinary tab add/remove + resize still animate
-                                // (this innermost transaction only fires when
-                                // `isGroupedModeEnabled` itself changes).
-                                .transaction(value: tabsModel.isGroupedModeEnabled) { $0.animation = nil }
-                                .animation(.easeInOut(duration: 0.25), value: terminals.count)
-#if targetEnvironment(macCatalyst)
-                                .blockWindowDrag(when: usesTitlebarTabs)
-#endif
-
-                            if usesCompactTabSpacing {
-                                tabBarAddButton(theme: resolvedTheme)
-                                integratedTabBarDragRegion()
-                                    .layoutPriority(-1)
-                                tabBarSettingsButton(theme: resolvedTheme)
-                            } else {
-                                TabStyleContextMenuRegion(
-                                    selectedStyleRawValue: topTabStyleRawValueBinding
-                                )
-                                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-                                .layoutPriority(-1)
-                                tabBarActionButtons(theme: resolvedTheme)
-                            }
+                    if showsHorizontalTabHeader {
+                        GeometryReader { headerGeometry in
+                            horizontalTabHeader(geometry: headerGeometry, resolvedTheme: resolvedTheme)
                         }
                         .frame(height: TabMetrics.tabBarHeight)
-                        .frame(maxWidth: .infinity)
+                        .padding(workspace.headerInsets)
                         .background {
-                            ZStack {
-                                tabBarChromeBackground(resolvedTheme)
-
-                                // Background layer on purpose: the active tab
-                                // occludes the run beneath it, so the line
-                                // reads as rising around that tab.
-                                if topTabStyle.usesStripLayout {
-                                    IntegratedTabEdgeRuleView(
-                                        palette: resolvedTheme.integratedEdgePalette
-                                    )
-                                }
-                            }
-                            // Visual chrome must not own an interaction behind
-                            // every foreground tab, button, and empty-space menu.
-                            .allowsHitTesting(false)
-                        }
-                        .overlayPreferenceValue(IntegratedActiveTabBoundsPreferenceKey.self) { bounds in
-                            integratedOSCProgressEdge(activeTabBounds: bounds)
-                        }
-                        .modifier(ContainerCornerModifier())
-#if targetEnvironment(macCatalyst)
-                        .catalystCursorRegion()
-#endif
-                        .onPreferenceChange(TabFramePreferenceKey.self) { frames in
-                            // Tab frame preferences are only used by Catalyst
-                            // titlebar dragging. Guard and defer the write so
-                            // selection animations don't feed layout-pass
-                            // preferences back into MainView every frame.
-                            DispatchQueue.main.async {
-                                if tabFrames != frames {
-                                    tabFrames = frames
-                                }
+                            if duoLayout.placesHeaderBesideTopRegions
+                                && topTabStyle.usesStripLayout {
+                                // The controls avoid the camera column, but
+                                // the strip meets the full-width terminal.
+                                (effectManager.isBackdropEnabled ? Color.clear : tabBarChromeBackground(resolvedTheme))
+                                    .overlay {
+                                        if !integratedTabsJoinCards {
+                                            IntegratedTabEdgeRuleView(palette: resolvedTheme.integratedEdgePalette)
+                                        }
+                                    }
+                                    .allowsHitTesting(false)
                             }
                         }
                     }
                     
-                    // Terminal view
-                    if ghosttyApp.readiness == .ready, !terminals.isEmpty {
-                        terminalAndSidebarContent(geometry: geometry)
-                    } else if ghosttyApp.readiness == .ready, terminals.isEmpty, !windowClosingAfterTabTransfer {
-                        // Empty state - shown when all tabs are closed
-                        EmptyStateResponder(
-                            onNewTab: addNewTab,
-                            onNewLocalShell: handleNewTabCommand
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if ghosttyApp.readiness == .ready, terminals.isEmpty {
-                        Color.clear
+                    Color.clear.frame(height: workspace.cameraClearance)
+                    // This reader measures the terminal region after chrome and
+                    // hinge reservations, keeping keyboard overlap scene-local.
+                    GeometryReader { terminalGeometry in
+                        // The detach banner also covers the empty state after tmux prunes its tabs.
+                        if ghosttyApp.readiness == .ready, !terminals.isEmpty {
+                            terminalAndSidebarContent(geometry: terminalGeometry, theme: resolvedTheme)
+                        } else if ghosttyApp.readiness == .ready, terminals.isEmpty, !windowClosingAfterTabTransfer {
+                            // Empty state - shown when all tabs are closed
+                            EmptyStateResponder(
+                                onNewTab: addNewTab,
+                                onNewLocalShell: handleNewTabCommand
+                            )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if ghosttyApp.readiness == .loading {
-                        loadingView
-                    } else if ghosttyApp.readiness == .error {
-                        errorView
+                        } else if ghosttyApp.readiness == .ready, terminals.isEmpty {
+                            Color.clear
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else if ghosttyApp.readiness == .loading {
+                            loadingView
+                        } else if ghosttyApp.readiness == .error {
+                            errorView
+                        }
                     }
+                    .overlay(alignment: .top) {
+                        if ghosttyApp.readiness == .ready {
+                            muxDetachBannerOverlay
+                        }
+                    }
+                    .padding(workspace.terminalInsets)
+                    Color.clear.frame(height: workspace.lowerReservation)
+                }
+                .background(DuoInputRegionReporter(region: workspace.inputRegion, fold: workspace.fold))
+                .onChange(of: workspace.tabletopAvailable, initial: true) { _, available in
+                    duoTabletopAvailable = available
+                    if !available { duoTabletopDisabled = false }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-                .background(WindowSceneReporter(onUpdate: { scene, safeAreaInsets, isKeyWindow in
+                .background(WindowSceneReporter(onUpdate: { scene, safeAreaInsets, isKeyWindow, newStatusBarBottom in
                     let newID = scene?.session.persistentIdentifier
                     let newInsets = EdgeInsets(
                         top: safeAreaInsets.top,
@@ -566,6 +567,9 @@ struct MainView: View {
                             windowSafeAreaInsets.bottom != newInsets.bottom ||
                             windowSafeAreaInsets.trailing != newInsets.trailing {
                             windowSafeAreaInsets = newInsets
+                        }
+                        if statusBarBottom != newStatusBarBottom {
+                            statusBarBottom = newStatusBarBottom
                         }
                         if windowIsKeyWindow != isKeyWindow {
                             windowIsKeyWindow = isKeyWindow
@@ -625,7 +629,7 @@ struct MainView: View {
                 // Pass the TabModel (class reference, structural under Observation),
                 // not the title — keeps the title read inside the overlay's body
                 // so per-tab title mutations don't invalidate MainView.body.
-                if tabIndicator.isShowing && tabBarHidden && terminals.indices.contains(selectedTabIndex) {
+                if tabIndicator.isShowing && !showsHorizontalTabHeader && !showsDuoSideRail && terminals.indices.contains(selectedTabIndex) {
                     // Position/count/shortcut reflect navigable tabs; hidden
                     // tmux windows are skipped, and grouped mode scopes this
                     // to the active group.
@@ -643,36 +647,31 @@ struct MainView: View {
                     // (pinned) tab sidebar consumes the leading edge and the
                     // AI agent sidebar the trailing edge.
                     .padding(.leading, dockedTabSidebarWidth(windowWidth: geometry.size.width))
-                    .padding(.trailing, aiAgentSidebarCurrentWidth())
+                    .padding(.trailing, aiAgentSidebarCurrentWidth() + fileManagerSidebarCurrentWidth + httpCaptureDockedWidth)
                     .transition(.opacity)
                 }
             }
             .overlay(alignment: .topLeading) {
                 // Health tooltip overlay - positioned using global coordinates.
                 // Placed in overlay to ensure it renders above all other content.
-                // The hovered TabModel lookup uses `id` (a `let UUID`) which is
-                // immutable and not Observation-tracked. The `connectionHealth`
-                // read happens inside HealthPopoverOverlay.body, scoping
-                // keepalive-ping invalidations to that overlay subview.
-                let hoveredTab = tabHover.hoveredTabId.flatMap { id in
-                    terminals.first(where: { $0.id == id })
-                }
+                // Hover, tab frame, and health reads all happen inside the
+                // overlay's body so hovering never invalidates MainView.body.
                 HealthPopoverOverlay(
-                    tab: hoveredTab,
-                    tabFrame: tabHover.hoveredTabId.flatMap { tabFrames[$0] },
+                    hover: tabHover,
+                    tabsModel: tabsModel,
+                    tabFrames: $tabFrames,
                     geometryWidth: geometry.size.width,
                     enabled: sshHealthMonitoringEnabled,
                     previews: tabHoverPreview
                 )
             }
-            .animation(.easeOut(duration: 0.2), value: tabHover.hoveredTabId)
         } // GeometryReader
         // The terminal manages keyboard clearance explicitly. Keep the root
         // layout stable when iOS hides/restores the keyboard around app
         // activation so foregrounding does not bounce the terminal.
         .ignoresSafeArea(.keyboard)
 
-        let sceneContent = applySceneModifiers(content)
+        let sceneContent = applySceneModifiers(applyDuoChrome(content))
         // Resolve sheet styling once for this body evaluation. Without this,
         // each .themedSheet / sheet-aware modifier inside `applySheetModifiers`
         // independently re-reads sheet theme + accent + color-scheme — 8+
@@ -684,11 +683,28 @@ struct MainView: View {
         // catches in the 52 0x8BADF00D crash IPS files (varying frames; same
         // root cause: MainView.body is too expensive).
         let sheetTheme = resolvedSheetTheme()
-        let sheetContent = applySheetModifiers(sceneContent, sheetTheme: sheetTheme)
+        let sheetContent = applyKeyboardChooser(
+            applySheetModifiers(sceneContent, sheetTheme: sheetTheme), sheetTheme: sheetTheme)
         let overlayContent = applyOverlayChangeHandlers(sheetContent)
         let alertContent = applyAlertModifiers(overlayContent)
         return applyLifecycleHandlers(alertContent)
             .iPadVisor(ghosttyApp: ghosttyApp, windowID: windowId, modalPresented: isAnySheetPresented)
+            .focusedSceneValue(\.canChoosePaneToZoom, canChooseSelectedPaneToZoom)
+            .focusedSceneValue(\.canChoosePaneToSwap,
+                               canChooseSelectedPaneToZoom && terminals[selectedTabIndex].isTmuxWindow)
+    }
+
+    private var canChooseSelectedPaneToZoom: Bool {
+        guard !isAnySheetPresented, terminals.indices.contains(selectedTabIndex) else { return false }
+        let tab = terminals[selectedTabIndex]
+        guard !tab.paneMove.isPending, tab.splitTree.count > 1 else { return false }
+        if tab.isTmuxWindow {
+            return TmuxController.controller(forWindowTab: tab)?.isActive == true
+        }
+        if let tabID = tab.herdrTabId {
+            return HerdrController.controller(forTab: tab)?.canChoosePaneToZoom(tabID: tabID) == true
+        }
+        return false
     }
 
 }

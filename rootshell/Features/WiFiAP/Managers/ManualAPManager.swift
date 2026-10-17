@@ -183,10 +183,9 @@ class ManualAPManager: ObservableObject {
     }
 
     private var domainsFileURL: URL {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsPath
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("wifi_ap_cache", isDirectory: true)
+        // Same directory WiFiAPCacheManager migrates as a whole, so resolve the
+        // folder (not the file) to avoid stranding the rest of the cache.
+        GhosttyStorageLocation.url(forRelativePath: "wifi_ap_cache")
             .appendingPathComponent("manual_ap_domains.json")
     }
 

@@ -49,7 +49,7 @@ struct KeyboardToolbarRepresentable: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> KeyboardToolbarView {
-        let toolbar = KeyboardToolbarView(sizes: .current())
+        let toolbar = KeyboardToolbarView(sizes: .iPad)
         let coordinator = context.coordinator
         toolbar.delegate = coordinator
 
@@ -110,6 +110,14 @@ struct KeyboardToolbarRepresentable: UIViewRepresentable {
 
         toolbar.onClipboardManagerRequested = { [weak toolbar] in
             NotificationCenter.default.post(name: .toggleClipboardManager, object: toolbar)
+        }
+
+        toolbar.onFileManagerRequested = { [weak toolbar] in
+            NotificationCenter.default.post(name: .toggleFileManager, object: toolbar)
+        }
+
+        toolbar.onHTTPCaptureRequested = { [weak toolbar] in
+            NotificationCenter.default.post(name: .toggleHTTPCapture, object: toolbar)
         }
 
         toolbar.onModifiersChanged = { [weak coordinator] modifiers in

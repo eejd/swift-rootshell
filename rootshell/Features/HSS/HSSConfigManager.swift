@@ -56,7 +56,7 @@ final class HSSConfigManager: ObservableObject {
 
     /// Import an HSS config file from a URL
     /// On macOS Catalyst: Creates a security-scoped bookmark for persistent access
-    /// On iOS: Copies the file to app's Documents folder
+    /// On iOS: Copies the file to the app's private storage (GhosttyStorageLocation)
     func importFile(from url: URL) throws {
         Self.logger.info("Importing HSS config from: \(url.path)")
 
@@ -97,13 +97,12 @@ final class HSSConfigManager: ObservableObject {
             throw HSSError.bookmarkCreationFailed
         }
         #else
-        // iOS: Copy file to Documents folder
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let hssFolder = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
-        let destinationURL = hssFolder.appendingPathComponent("hss_config.yml")
+        // iOS: Copy file to app-private storage
+        let destinationURL = GhosttyStorageLocation.url(forRelativePath: "hss_config.yml")
+        let hssFolder = destinationURL.deletingLastPathComponent()
 
         do {
-            // Create .ghostty folder if needed
+            // Create the storage folder if needed
             try FileManager.default.createDirectory(at: hssFolder, withIntermediateDirectories: true)
 
             // Remove existing file if present

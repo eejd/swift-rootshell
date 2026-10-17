@@ -2,9 +2,9 @@
 //  SFTPOperations.swift
 //  rootshell
 //
-//  Shared, stateless SFTP utilities used by both SFTPSession (CLI) and
-//  RFSFTPDataSource (file browser). All methods are static to avoid
-//  duplicating logic across consumers.
+//  Shared, stateless SFTP utilities used by SFTPSession (CLI), SCPTransfer
+//  and FileSystemEndpoint (file manager and rf). All methods are static to
+//  avoid duplicating logic across consumers.
 //
 
 import Foundation
@@ -13,17 +13,19 @@ import NIOCore
 import NIOFoundationCompat
 
 /// Shared stateless SFTP operations.
-/// Both the interactive SFTP shell (SFTPSession) and the file browser
-/// SFTP backend (RFSFTPDataSource) call through to these methods.
+/// The interactive SFTP shell (SFTPSession), scp, and FileSystemEndpoint's
+/// SFTP backend call through to these methods.
 enum SFTPOperations {
 
-    // MARK: - Directory Listing (rf file browser only)
+    // MARK: - Directory Listing
 
-    #if !targetEnvironment(macCatalyst)
-    /// List directory contents and map to RFEntry structs suitable for the file browser.
-    static func listDirectoryEntries(
+    /// List directory contents as RFEntry values. Symlinks are stat'ed so a link
+    /// to a directory lists as a directory, and their targets are read. With
+    /// `strict`, a malformed name fails the listing instead of being hidden.
+    nonisolated static func listDirectoryEntries(
         sftp: SFTPClient,
-        path: String
+        path: String,
+        strict: Bool = false
     ) async throws -> [RFEntry] {
         let nameMessages: [SFTPMessage.Name]
         do {
@@ -33,34 +35,72 @@ enum SFTPOperations {
         }
 
         var entries: [RFEntry] = []
+        var linkIndices: [Int] = []
         for nameMessage in nameMessages {
             for component in nameMessage.components {
                 let filename = component.filename
                 guard filename != "." && filename != ".." else { continue }
+                guard FileTransferLogic.isSingleComponent(filename) else {
+                    if strict { throw FileTransferLogic.UnsafeName(name: filename) }
+                    continue
+                }
 
-                let fullPath = joinPath(path, filename)
                 let entry = attributesToEntry(
                     filename: filename,
-                    path: fullPath,
+                    path: joinPath(path, filename),
                     attrs: component.attributes,
                     longname: component.longname
                 )
+                if entry.isSymlink { linkIndices.append(entries.count) }
                 entries.append(entry)
             }
+        }
+
+        // Resolve links concurrently; a dangling link keeps its lstat view.
+        let resolved = await withTaskGroup(of: (Int, SFTPFileAttributes?, String?).self) { group in
+            for index in linkIndices {
+                let linkPath = entries[index].path
+                group.addTask {
+                    async let target = try? sftp.getAttributes(at: linkPath)
+                    async let destination = try? sftp.readLink(at: linkPath)
+                    return (index, await target, await destination)
+                }
+            }
+            var results: [(Int, SFTPFileAttributes?, String?)] = []
+            for await result in group { results.append(result) }
+            return results
+        }
+        for (index, targetAttrs, destination) in resolved {
+            let link = entries[index]
+            var entry = targetAttrs.map {
+                attributesToEntry(filename: link.name, path: link.path, attrs: $0)
+            } ?? link
+            entry = RFEntry(
+                name: entry.name, path: entry.path, isDirectory: entry.isDirectory,
+                isSymlink: true, isHidden: entry.isHidden, isExecutable: entry.isExecutable,
+                size: entry.size, modifiedDate: entry.modifiedDate, gitStatus: nil,
+                permissions: link.permissions, symlinkTarget: destination, owner: link.owner
+            )
+            entries[index] = entry
         }
         return entries
     }
 
     /// Map SFTPFileAttributes to an RFEntry.
-    static func attributesToEntry(
+    nonisolated static func attributesToEntry(
         filename: String,
         path: String,
         attrs: SFTPFileAttributes,
         longname: String? = nil
     ) -> RFEntry {
         let isDir = isDirectory(attrs)
-        // Longname starting with 'l' indicates symlink in ls -l output
-        let isLink = longname?.first == "l"
+        let isLink: Bool
+        if let mode = attrs.permissions {
+            isLink = (mode & 0o170000) == 0o120000
+        } else {
+            // Longname starting with 'l' indicates symlink in ls -l output
+            isLink = longname?.first == "l"
+        }
         // Clamp to avoid trapping on a malicious/buggy server returning size > Int64.max.
         let size = Int64(clamping: attrs.size ?? 0)
 
@@ -80,16 +120,26 @@ enum SFTPOperations {
             isHidden: filename.hasPrefix("."),
             isExecutable: isExec,
             size: size,
-            modifiedDate: nil,
-            gitStatus: nil
+            modifiedDate: attrs.accessModificationTime?.modificationTime,
+            gitStatus: nil,
+            permissions: attrs.permissions,
+            owner: longname.flatMap(ownerFromLongname)
         )
     }
-    #endif
+
+    /// The owner column of an `ls -l` style longname, e.g. "kit" in
+    /// `-rw-r--r--    1 kit      staff    42 Jan  1 00:00 file`.
+    nonisolated static func ownerFromLongname(_ longname: String) -> String? {
+        let fields = longname.split(separator: " ", omittingEmptySubsequences: true)
+        guard fields.count >= 4, fields[0].count >= 10 else { return nil }
+        return String(fields[2])
+    }
 
     // MARK: - Recursive Enumeration
 
     /// Recursively enumerate all files in a remote directory.
-    /// Returns (path, size) pairs for files only.
+    /// Returns (path, size) pairs for files only. A malformed name fails it,
+    /// so a transfer never reports success with entries missing.
     static func enumerateRemoteDirectory(
         sftp: SFTPClient,
         path: String
@@ -101,6 +151,7 @@ enum SFTPOperations {
             for component in nameMessage.components {
                 let filename = component.filename
                 guard filename != "." && filename != ".." else { continue }
+                guard FileTransferLogic.isSingleComponent(filename) else { throw FileTransferLogic.UnsafeName(name: filename) }
 
                 let fullPath = joinPath(path, filename)
                 var attrs = component.attributes
@@ -118,121 +169,6 @@ enum SFTPOperations {
         }
 
         return results
-    }
-
-    // MARK: - File Reading
-
-    /// Read the first `maxBytes` of a remote file. Returns the data read.
-    /// Useful for preview (text, binary detection, etc.)
-    static func readFileHead(
-        sftp: SFTPClient,
-        path: String,
-        maxBytes: Int
-    ) async throws -> Data {
-        let file: SFTPFile
-        do {
-            file = try await sftp.openFile(filePath: path, flags: .read)
-        } catch {
-            throw SFTPError.from(sftpError: error, path: path)
-        }
-
-        defer {
-            Task { try? await file.close() }
-        }
-
-        // Read in one chunk up to maxBytes
-        let chunkSize = UInt32(min(maxBytes, 1_048_576))
-        let buffer = try await file.read(from: 0, length: chunkSize)
-        return Data(buffer: buffer)
-    }
-
-    /// Download an entire remote file to a local path.
-    /// Uses PipelinedTransfer for efficiency.
-    static func downloadFile(
-        sftp: SFTPClient,
-        remotePath: String,
-        localPath: String,
-        onProgress: (@Sendable (Int64) -> Void)? = nil
-    ) async throws {
-        // Ensure local directory exists
-        let localDir = (localPath as NSString).deletingLastPathComponent
-        if !localDir.isEmpty {
-            try FileManager.default.createDirectory(atPath: localDir, withIntermediateDirectories: true)
-        }
-
-        FileManager.default.createFile(atPath: localPath, contents: nil)
-        let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: localPath))
-        try handle.truncate(atOffset: 0)
-        defer { try? handle.close() }
-
-        let file: SFTPFile
-        do {
-            file = try await sftp.openFile(filePath: remotePath, flags: .read)
-        } catch {
-            throw SFTPError.from(sftpError: error, path: remotePath)
-        }
-
-        do {
-            let attrs = try? await file.readAttributes()
-            try await PipelinedTransfer.downloadFile(
-                file: file,
-                fileSize: attrs?.size,
-                to: handle
-            ) { bytes in
-                onProgress?(bytes)
-            }
-            try await file.close()
-        } catch {
-            try? await file.close()
-            throw SFTPError.from(sftpError: error, path: remotePath)
-        }
-    }
-
-    /// Upload a local file to a remote path.
-    /// Uses PipelinedTransfer for efficiency.
-    static func uploadFile(
-        sftp: SFTPClient,
-        localPath: String,
-        remotePath: String,
-        onProgress: (@Sendable (Int64) -> Void)? = nil
-    ) async throws {
-        // Ensure remote directory exists
-        let remoteDir = (remotePath as NSString).deletingLastPathComponent
-        if !remoteDir.isEmpty && remoteDir != "." && remoteDir != "/" {
-            try await createDirectoryIfNeeded(sftp: sftp, path: remoteDir)
-        }
-
-        let handle: FileHandle
-        do {
-            handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: localPath))
-        } catch {
-            throw SFTPError.fileNotFound(path: localPath)
-        }
-        defer { try? handle.close() }
-
-        let attrs = try? FileManager.default.attributesOfItem(atPath: localPath)
-        let fileSize = attrs?[.size] as? UInt64
-
-        let file: SFTPFile
-        do {
-            file = try await sftp.openFile(filePath: remotePath, flags: [.create, .write, .truncate])
-        } catch {
-            throw SFTPError.from(sftpError: error, path: remotePath)
-        }
-
-        do {
-            try await PipelinedTransfer.uploadFile(
-                file: file,
-                from: handle,
-                fileSize: fileSize
-            ) { bytes in
-                onProgress?(bytes)
-            }
-            try await file.close()
-        } catch {
-            try? await file.close()
-            throw SFTPError.from(sftpError: error, path: remotePath)
-        }
     }
 
     // MARK: - Directory Operations
@@ -272,7 +208,7 @@ enum SFTPOperations {
     // MARK: - Path Utilities
 
     /// Join two POSIX path components.
-    static func joinPath(_ base: String, _ component: String) -> String {
+    nonisolated static func joinPath(_ base: String, _ component: String) -> String {
         if component.isEmpty { return base }
         let cleanBase = base.hasSuffix("/") ? String(base.dropLast()) : base
         let cleanComponent = component.hasPrefix("/") ? String(component.dropFirst()) : component
@@ -281,7 +217,7 @@ enum SFTPOperations {
 
     /// Normalize a POSIX-style remote path lexically, collapsing `.` and `..`
     /// without requiring the path to exist on the remote server.
-    static func normalizePath(_ path: String) -> String {
+    nonisolated static func normalizePath(_ path: String) -> String {
         guard !path.isEmpty else { return "." }
 
         let isAbsolute = path.hasPrefix("/")
@@ -310,12 +246,12 @@ enum SFTPOperations {
     }
 
     /// Get the parent directory of a POSIX path.
-    static func parentPath(of path: String) -> String {
+    nonisolated static func parentPath(of path: String) -> String {
         (path as NSString).deletingLastPathComponent
     }
 
     /// Split path into directory and filename.
-    static func splitPath(_ path: String) -> (directory: String, filename: String) {
+    nonisolated static func splitPath(_ path: String) -> (directory: String, filename: String) {
         let nsPath = path as NSString
         return (nsPath.deletingLastPathComponent, nsPath.lastPathComponent)
     }
@@ -355,7 +291,7 @@ enum SFTPOperations {
     // MARK: - Attribute Checks
 
     /// Check if SFTP attributes indicate a directory (S_IFDIR).
-    static func isDirectory(_ attrs: SFTPFileAttributes) -> Bool {
+    nonisolated static func isDirectory(_ attrs: SFTPFileAttributes) -> Bool {
         if let mode = attrs.permissions {
             return (mode & 0o170000) == 0o040000
         }
@@ -495,7 +431,7 @@ enum SFTPOperations {
         for nameMessage in nameMessages {
             for component in nameMessage.components {
                 let filename = component.filename
-                guard filename != "." && filename != ".." else { continue }
+                guard FileTransferLogic.isSingleComponent(filename) else { continue }
                 if !includeDotfiles && filename.hasPrefix(".") { continue }
                 // SFTP-only path; its patterns use the canonical (escape-aware) form.
                 if matchesGlob(filename, pattern: filePattern, escapeAware: true) {

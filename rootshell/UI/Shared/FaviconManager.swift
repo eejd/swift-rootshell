@@ -42,8 +42,7 @@ actor FaviconCache {
     private nonisolated static let memoryMirror = OSAllocatedUnfairLock<[String: Data]>(initialState: [:])
 
     private nonisolated var cacheDir: URL {
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(".ghostty/favicon_cache", isDirectory: true)
+        let dir = GhosttyStorageLocation.url(forRelativePath: "favicon_cache")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
@@ -191,7 +190,7 @@ actor FaviconCache {
 // MARK: - FaviconFetcher
 
 enum FaviconFetcher {
-    private static let session: URLSession = {
+    private nonisolated static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 5
         config.timeoutIntervalForResource = 10
@@ -256,7 +255,7 @@ enum FaviconFetcher {
 
     private static func fetchHTML(url: URL, depth: Int) async -> String? {
         guard depth < maxRedirects else { return nil }
-        guard let (data, response) = try? await session.data(from: url) else { return nil }
+        guard let (data, response) = await fetchPrefix(url: url, limit: maxHTMLSize) else { return nil }
 
         if let httpResponse = response as? HTTPURLResponse,
            (301...308).contains(httpResponse.statusCode),
@@ -265,8 +264,7 @@ enum FaviconFetcher {
             return await fetchHTML(url: redirectURL.absoluteURL, depth: depth + 1)
         }
 
-        let truncated = data.prefix(maxHTMLSize)
-        let html = String(decoding: truncated, as: UTF8.self)
+        let html = String(decoding: data, as: UTF8.self)
 
         // Check for meta-refresh redirect
         if let refreshURL = parseMetaRefresh(html: html, baseURL: url) {
@@ -387,15 +385,32 @@ enum FaviconFetcher {
     }
 
     private static func fetchDirect(url: URL) async -> Data? {
-        guard let (data, response) = try? await session.data(from: url) else { return nil }
+        guard let (data, response) = await fetchPrefix(url: url, limit: maxBodySize) else { return nil }
 
         if let httpResponse = response as? HTTPURLResponse,
            !(200...299).contains(httpResponse.statusCode) {
             return nil
         }
 
-        let capped = data.prefix(maxBodySize)
-        return processImage(Data(capped))
+        return processImage(data)
+    }
+
+    /// Reads at most `limit` bytes, then cancels the transfer so an oversized
+    /// body is never buffered whole.
+    @concurrent
+    private nonisolated static func fetchPrefix(url: URL, limit: Int) async -> (Data, URLResponse)? {
+        guard let (bytes, response) = try? await session.bytes(from: url) else { return nil }
+        defer { bytes.task.cancel() }
+        var data = Data()
+        do {
+            for try await byte in bytes {
+                data.append(byte)
+                if data.count >= limit { break }
+            }
+        } catch {
+            return nil
+        }
+        return (data, response)
     }
 
     private static func processImage(_ data: Data) -> Data? {
@@ -566,6 +581,48 @@ struct FaviconImage: View {
             if let data = await FaviconManager.shared.favicon(for: domain),
                let uiImage = UIImage(data: data) {
                 image = uiImage
+            }
+        }
+    }
+}
+
+// MARK: - FaviconIcon (SwiftUI View)
+
+/// A domain's favicon, showing an SF Symbol while it loads or when there is none.
+struct FaviconIcon: View {
+    let domain: String?
+    let fallbackSymbol: String
+    var size: CGFloat = 17
+    /// nil inherits the surrounding foreground style.
+    var tint: Color? = .accentColor
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: size + 3, height: size + 3)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.2))
+            } else {
+                Image(systemName: fallbackSymbol)
+                    .font(.system(size: size))
+                    .foregroundStyle(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.foreground))
+            }
+        }
+        .accessibilityHidden(true)
+        .task(id: domain) {
+            image = nil
+            guard let domain else { return }
+            if let cached = FaviconManager.shared.cachedFavicon(for: domain) {
+                image = UIImage(data: cached)
+                return
+            }
+            // The fetch ignores cancellation; re-check before writing a stale domain's icon.
+            if let data = await FaviconManager.shared.favicon(for: domain), !Task.isCancelled {
+                image = UIImage(data: data)
             }
         }
     }

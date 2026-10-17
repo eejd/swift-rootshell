@@ -23,6 +23,12 @@ final class RFLocalDataSource: RFDataSource {
         other is RFLocalDataSource
     }
 
+    static var fileSystem: FileSystemEndpoint {
+        FileSystemEndpoint(backend: .local(.current()))
+    }
+
+    var fileSystem: FileSystemEndpoint { Self.fileSystem }
+
     // MARK: - Directory Listing
 
     func loadDirectory(at path: String) async throws -> [RFEntry] {
@@ -33,8 +39,8 @@ final class RFLocalDataSource: RFDataSource {
 
     func readFilePreview(at path: String, maxBytes: Int) async throws -> Data? {
         guard let fh = FileHandle(forReadingAtPath: path) else { return nil }
-        defer { fh.closeFile() }
-        return fh.readData(ofLength: maxBytes)
+        defer { try? fh.close() }
+        return try fh.read(upToCount: maxBytes) ?? Data()
     }
 
     func downloadToTemp(remotePath: String, maxBytes: Int?) async throws -> String {
@@ -96,23 +102,7 @@ final class RFLocalDataSource: RFDataSource {
         try fm.moveItem(atPath: sourcePath, toPath: destPath)
     }
 
-    // MARK: - Cross-Source Transfer
-
-    func downloadToLocal(remotePath: String, localPath: String,
-                         onProgress: @escaping @Sendable (Int64) -> Void) async throws {
-        try FileManager.default.copyItem(atPath: remotePath, toPath: localPath)
-    }
-
-    func uploadFromLocal(localPath: String, remotePath: String,
-                         onProgress: @escaping @Sendable (Int64) -> Void) async throws {
-        try FileManager.default.copyItem(atPath: localPath, toPath: remotePath)
-    }
-
     // MARK: - Path Utilities
-
-    func resolveHomePath() async throws -> String {
-        NSHomeDirectory()
-    }
 
     func joinPath(_ base: String, _ component: String) -> String {
         (base as NSString).appendingPathComponent(component)

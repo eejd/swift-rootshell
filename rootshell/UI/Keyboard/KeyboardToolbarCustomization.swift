@@ -77,6 +77,9 @@ enum KeyID: String, Codable, CaseIterable, Hashable, Sendable {
     case aiAgent
     case brightnessBoost
     case clipboardManager
+    case fileManager
+    case httpCapture
+    case dictation
 
     // Toggles (1)
     case drawerToggle
@@ -139,6 +142,9 @@ enum KeyID: String, Codable, CaseIterable, Hashable, Sendable {
         case .aiAgent: return String(localized: "AI Agent")
         case .brightnessBoost: return String(localized: "Brightness Boost")
         case .clipboardManager: return String(localized: "Clipboard Manager")
+        case .fileManager: return String(localized: "File Manager")
+        case .httpCapture: return String(localized: "HTTP Capture")
+        case .dictation: return String(localized: "Dictation")
         case .drawerToggle: return String(localized: "Drawer Toggle")
         }
     }
@@ -172,6 +178,9 @@ enum KeyID: String, Codable, CaseIterable, Hashable, Sendable {
         case .aiAgent: return "sparkles"
         case .brightnessBoost: return "sun.max"
         case .clipboardManager: return "list.clipboard"
+        case .fileManager: return "folder.badge.gearshape"
+        case .httpCapture: return "network.badge.shield.half.filled"
+        case .dictation: return "mic"
         case .drawerToggle: return "ellipsis"
         default: return nil
         }
@@ -234,6 +243,9 @@ enum KeyID: String, Codable, CaseIterable, Hashable, Sendable {
         case .aiAgent: return "__aiAgent__"
         case .brightnessBoost: return "__brightnessBoost__"
         case .clipboardManager: return "__clipboardManager__"
+        case .fileManager: return "__fileManager__"
+        case .httpCapture: return "__httpCapture__"
+        case .dictation: return "__dictation__"
         case .drawerToggle: return "__extraDrawer__"
         }
     }
@@ -267,10 +279,27 @@ enum KeyID: String, Codable, CaseIterable, Hashable, Sendable {
         case .aiAgent: return .aiAgent
         case .brightnessBoost: return .brightnessBoost
         case .clipboardManager: return .clipboardManager
+        case .fileManager: return .fileManager
+        case .httpCapture: return .httpCapture
+        case .dictation: return .dictation
         case .drawerToggle: return .extraKeysDrawerToggle
         default:
             // All symbol keys use single-text display
             return .text(keyValue)
+        }
+    }
+
+    /// False for keys whose feature this build or device lacks; they stay in the layout but don't render.
+    var isAvailable: Bool {
+        switch self {
+        case .dictation: return DictationSupport.isEnabled
+        case .httpCapture:
+            #if !CHINA_BUILD && (!targetEnvironment(macCatalyst) || STANDALONE)
+            return true
+            #else
+            return false
+            #endif
+        default: return true
         }
     }
 
@@ -290,7 +319,7 @@ enum KeyID: String, Codable, CaseIterable, Hashable, Sendable {
         case .arrowDrawerToggle, .arrowUp, .arrowDown, .arrowLeft, .arrowRight: return .navigation
         case .dismiss, .tabSwitcher, .compose, .writingAssistance, .toolbarSettings, .paste, .voiceAgent,
              .toggleFullScreen, .toggleTabBar, .newConnection, .appSettings,
-             .toggleMouseCapture, .aiAgent, .brightnessBoost, .clipboardManager: return .action
+             .toggleMouseCapture, .aiAgent, .brightnessBoost, .clipboardManager, .fileManager, .httpCapture, .dictation: return .action
         case .drawerToggle: return .toggle
         default: return .symbol
         }
@@ -349,7 +378,7 @@ struct ToolbarLayoutConfig: Equatable, Sendable {
 
     // MARK: - Defaults
 
-    static let currentVersion = 14
+    static let currentVersion = 17
 
     static func defaultConfig(for idiom: UIUserInterfaceIdiom) -> ToolbarLayoutConfig {
         switch idiom {
@@ -408,6 +437,7 @@ struct ToolbarLayoutConfig: Equatable, Sendable {
             .builtIn(.paste),
             .builtIn(.compose),
             .builtIn(.voiceAgent),
+            .builtIn(.dictation),
             .builtIn(.toggleFullScreen),
             .builtIn(.toggleTabBar),
             .builtIn(.newConnection),
@@ -415,6 +445,8 @@ struct ToolbarLayoutConfig: Equatable, Sendable {
             .builtIn(.aiAgent),
             .builtIn(.brightnessBoost),
             .builtIn(.clipboardManager),
+            .builtIn(.fileManager),
+            .builtIn(.httpCapture),
             .builtIn(.appSettings),
         ]],
         hiddenKeys: []
@@ -460,6 +492,7 @@ struct ToolbarLayoutConfig: Equatable, Sendable {
             .builtIn(.paste),
             .builtIn(.compose),
             .builtIn(.voiceAgent),
+            .builtIn(.dictation),
             .builtIn(.toggleFullScreen),
             .builtIn(.toggleTabBar),
             .builtIn(.newConnection),
@@ -467,6 +500,8 @@ struct ToolbarLayoutConfig: Equatable, Sendable {
             .builtIn(.aiAgent),
             .builtIn(.brightnessBoost),
             .builtIn(.clipboardManager),
+            .builtIn(.fileManager),
+            .builtIn(.httpCapture),
             .builtIn(.appSettings),
         ]],
         hiddenKeys: []

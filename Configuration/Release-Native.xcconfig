@@ -1,0 +1,3 @@
+// Release-Native.xcconfig - Release build for the Native variant
+#include "Release.xcconfig"
+#include "Native.xcconfig"

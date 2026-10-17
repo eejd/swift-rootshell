@@ -45,8 +45,12 @@ struct EffectSettingsView: View {
     @State private var isImportingVideo = false
     @State private var selectedPhotosVideoItem: PhotosPickerItem?
 
+    // Keep the presenter outside recycled List sections. A section can leave
+    // the visible list during the first sheet layout, dismissing its sheet.
+    @State private var showcaseEffect: AnyTerminalEffect?
+
     // Built-in effect IDs (non-video)
-    private let builtInEffectIds = ["aquarium", "aurora", "solarGraph", "fireflies", "butterflies", "jellyfish", "photoBackground"]
+    private let builtInEffectIds = ["aquarium", "aurora", "themeGradient", "solarGraph", "fireflies", "butterflies", "jellyfish", "photoBackground"]
 
     /// Built-in effects only (not video backgrounds)
     private var builtInEffects: [AnyTerminalEffect] {
@@ -175,6 +179,37 @@ struct EffectSettingsView: View {
                 #endif
             } header: {
                 SettingGroupHeader("Layout", group: .shaders)
+            }
+
+            Section {
+                SettingDescribedToggle(
+                    Settings.Shaders.themeGradientBackdrop,
+                    isOn: Binding(get: { effectManager.isBackdropEnabled },
+                                  set: { effectManager.isBackdropEnabled = $0 }),
+                    title: "Theme Gradient",
+                    description: "Fills the whole window behind tabs and panes with a soft glow in the theme's colors. It shows around Rounded Panes and through transparent terminals, beneath the effects above."
+                )
+                .themedRow()
+                if effectManager.isBackdropEnabled {
+                    #if targetEnvironment(macCatalyst)
+                    SettingDescribedToggle(
+                        Settings.Transparency.backdropTransparency,
+                        isOn: Binding(get: { transparencyManager.backdropTransparencyEnabled },
+                                      set: { transparencyManager.backdropTransparencyEnabled = $0 }),
+                        title: "Transparent Backdrop",
+                        description: "Apply the window opacity to the gradient too, so the desktop shows through it. When off, transparency only reveals the gradient behind the terminal."
+                    )
+                    .themedRow()
+                    #endif
+                    NavigationLink {
+                        EffectSettingsView(configurationEffect: effectManager.backdropEffect)
+                    } label: {
+                        Text("Configure Backdrop")
+                    }
+                    .themedRow()
+                }
+            } header: {
+                SettingGroupHeader("Backdrop", group: .shaders)
             }
 
             // My Videos Section (user-imported local videos)
@@ -313,26 +348,28 @@ struct EffectSettingsView: View {
             // Keyboard and sidebar controls do not activate the terminal effect.
             if let activeEffect = effectBeingConfigured {
                 Section("Settings") {
-                    // Intensity slider
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Intensity")
-                            Spacer()
-                            Text(localIntensity, format: .wholePercent)
-                                .foregroundColor(.secondary)
-                                .monospacedDigit()
-                                .frame(width: 50, alignment: .trailing)
-                        }
-                        Slider(value: $localIntensity, in: 0.05...0.6) { editing in
-                            isDraggingIntensity = editing
-                            if !editing {
-                                // Commit value when drag ends
-                                activeEffect.intensity = localIntensity
+                    // Intensity slider; the backdrop is always opaque
+                    if activeEffect.asEffect(ThemeGradientEffect.self)?.isBackdrop != true {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Intensity")
+                                Spacer()
+                                Text(localIntensity, format: .wholePercent)
+                                    .foregroundColor(.secondary)
+                                    .monospacedDigit()
+                                    .frame(width: 50, alignment: .trailing)
+                            }
+                            Slider(value: $localIntensity, in: 0.05...0.6) { editing in
+                                isDraggingIntensity = editing
+                                if !editing {
+                                    // Commit value when drag ends
+                                    activeEffect.intensity = localIntensity
+                                }
                             }
                         }
+                        .padding(.vertical, 4)
+                        .themedRow()
                     }
-                    .padding(.vertical, 4)
-                    .themedRow()
 
                     // Speed slider (for non-SolarGraph effects)
                     if activeEffect.id != "solarGraph" {
@@ -372,7 +409,7 @@ struct EffectSettingsView: View {
                 // SolarGraph-specific settings
                 if activeEffect.id == "solarGraph", let solarEffect = activeEffect.asEffect(SolarGraphEffect.self) {
                     // Transparency warning
-                    if transparencyManager.backgroundOpacity < 1.0 {
+                    if transparencyManager.effectiveBackgroundOpacity < 1.0 {
                         Section {
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: "exclamationmark.triangle.fill")
@@ -612,13 +649,17 @@ struct EffectSettingsView: View {
                 // Jellyfish-specific settings
                 if activeEffect.id == "jellyfish",
                    let jellyfishEffect = activeEffect.asEffect(JellyfishEffect.self) {
-                    JellyfishSettingsSection(effect: jellyfishEffect)
+                    JellyfishSettingsSection(effect: jellyfishEffect) {
+                        showcaseEffect = activeEffect
+                    }
                 }
 
                 // Aquarium-specific settings
                 if activeEffect.id == "aquarium",
                    let aquariumEffect = activeEffect.asEffect(AquariumEffect.self) {
-                    AquariumSettingsSection(effect: aquariumEffect) {
+                    AquariumSettingsSection(effect: aquariumEffect, onShowcase: {
+                        showcaseEffect = activeEffect
+                    }) {
                         aquariumEffect.resetToDefaults()
                         localIntensity = aquariumEffect.intensity
                         localSpeed = aquariumEffect.speed
@@ -629,6 +670,11 @@ struct EffectSettingsView: View {
                 if activeEffect.id == "aurora",
                    let auroraEffect = activeEffect.asEffect(AuroraEffect.self) {
                     AuroraSettingsSection(effect: auroraEffect)
+                }
+
+                // Both the area effect and the window backdrop
+                if let gradientEffect = activeEffect.asEffect(ThemeGradientEffect.self) {
+                    ThemeGradientSettingsSection(effect: gradientEffect)
                 }
 
                 // Live Preview
@@ -649,7 +695,9 @@ struct EffectSettingsView: View {
                             // Jellyfish visits are rare and slow, so the
                             // preview also uses a fast-spawning view
                             JellyfishView(effect: jellyfishEffect, previewMode: true)
-                        } else if activeEffect.id == "aurora" || activeEffect.id == "aquarium" {
+                                .blendMode(jellyfishEffect.isLightBackground ? .multiply : .plusLighter)
+                        } else if activeEffect.id == "aurora" || activeEffect.id == "aquarium"
+                                    || activeEffect.id == "themeGradient" {
                             // These shaders' light-theme output is white-based
                             // and needs the same blend mode MainView applies.
                             activeEffect.createEffectView()
@@ -679,6 +727,9 @@ struct EffectSettingsView: View {
         .themedList()
         .navigationTitle(configurationEffect?.displayName ?? String(localized: "Background Effect"))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $showcaseEffect) { effect in
+            EffectShowcaseView(effect: effect)
+        }
         .onAppear {
             syncLocalState()
             // Pre-fetch video index if already in video mode
@@ -1478,11 +1529,28 @@ private struct ButterfliesSettingsSection: View {
 /// Separate view that properly observes JellyfishEffect for reactive updates
 private struct JellyfishSettingsSection: View {
     @ObservedObject var effect: JellyfishEffect
+    let onShowcase: () -> Void
+    @State private var bloomDraft = 0.55
+    @State private var editingBloom = false
 
     /// Transient confirmation after tapping Visit Now
     @State private var visitAcknowledged = false
 
     var body: some View {
+        Section {
+            Picker("Rendering", selection: Binding(
+                get: { effect.renderingStyle },
+                set: { effect.renderingStyle = $0 }
+            )) {
+                ForEach(JellyfishEffect.RenderingStyle.allCases, id: \.self) { style in
+                    Text(style.displayName).tag(style)
+                }
+            }
+            .themedRow()
+        } footer: {
+            Text("Original uses simpler graphics for lower GPU usage. Enhanced adds translucent detail and richer glow.")
+        }
+
         Section("Visits") {
             Picker("Frequency", selection: Binding(
                 get: { effect.visitFrequency },
@@ -1556,6 +1624,25 @@ private struct JellyfishSettingsSection: View {
         }
 
         Section("Glow") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Bloom")
+                    Spacer()
+                    Text(bloomDraft, format: .percent.precision(.fractionLength(0)))
+                        .foregroundStyle(.secondary).monospacedDigit()
+                }
+                Slider(value: $bloomDraft, in: 0...1) { editing in
+                    editingBloom = editing
+                    if !editing { effect.bloom = bloomDraft }
+                }
+                    .accessibilityLabel(Text("Bloom"))
+            }
+            .onAppear { bloomDraft = effect.bloom }
+            .onChange(of: effect.bloom) { _, value in
+                if !editingBloom { bloomDraft = value }
+            }
+            .themedRow()
+
             Toggle(isOn: Binding(
                 get: { effect.shimmerEnabled },
                 set: { effect.shimmerEnabled = $0 }
@@ -1591,6 +1678,15 @@ private struct JellyfishSettingsSection: View {
                 }
                 .themedRow()
             }
+        }
+
+        Section {
+            Button(action: onShowcase) {
+                Label("Full-screen Jellyfish Preview", systemImage: "arrow.up.left.and.arrow.down.right")
+            }
+            .themedRow()
+        } footer: {
+            Text("Translucent bells, flowing oral arms, and luminous tentacles. Battery Saver reduces detail automatically. Reduce Motion softens swimming and disables shimmer.")
         }
     }
 }
@@ -1633,6 +1729,29 @@ private struct AuroraSettingsSection: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Ray Shimmer")
                     Text("Fast flicker of individual rays. Turn off for calm, slow drift only")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .themedRow()
+        }
+    }
+}
+
+// MARK: - Theme Gradient Settings Section
+
+private struct ThemeGradientSettingsSection: View {
+    @ObservedObject var effect: ThemeGradientEffect
+
+    var body: some View {
+        Section("Motion") {
+            Toggle(isOn: Binding(
+                get: { effect.drift },
+                set: { effect.drift = $0 }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Drift")
+                    Text("Colors follow the terminal theme palette. Turn off for a still gradient that uses no GPU after drawing")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

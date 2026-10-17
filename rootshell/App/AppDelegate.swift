@@ -34,6 +34,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         ForegroundWedgeWatchdog.shared.noteMainActorServiced("AppDelegate.launch")
         LifecycleDebugLogger.shared.logMarker("APP LAUNCH")
         TmuxDebugLogger.shared.marker("APP LAUNCH")
+        ProgramStatusDebugLogger.shared.logMarker("APP LAUNCH")
         LifecycleDebugLogger.shared.checkpoint("APP.launch", ms: nil, [
             ("protectedData", UIApplication.shared.isProtectedDataAvailable),
             ("backgroundLaunch", UIApplication.shared.applicationState == .background),
@@ -251,6 +252,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             MainActor.assumeIsolated {
                 PreviewRenderingLifecycle.didEnterBackground()
             }
+            MallocPressureRelief.requestNow()
             LifecycleDebugLogger.shared.checkpoint("SECURE.latch.arm", ms: nil, [
                 ("trigger", "didEnterBackground"),
             ])
@@ -454,9 +456,10 @@ final class ForegroundActivationGate: Sendable {
                 ("appState", String(describing: UIApplication.shared.applicationState)),
                 ("timeoutPolicy", String(describing: timeoutPolicy)),
             ])
+            // Not isAppBackgroundedAtomic: it stays set until the foreground body
+            // this gate defers clears it, so the fallback could never fire.
             if timeoutPolicy == .fireIfNotBackgrounded,
-               UIApplication.shared.applicationState != .background,
-               !Ghostty.isAppBackgroundedAtomic {
+               UIApplication.shared.applicationState != .background {
                 LifecycleDebugLogger.shared.checkpoint("FG.activationGate.deferredFireAfterTimeout", ms: nil, [
                     ("reason", reason),
                     ("appState", String(describing: UIApplication.shared.applicationState)),

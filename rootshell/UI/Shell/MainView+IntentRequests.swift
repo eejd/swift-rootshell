@@ -76,7 +76,7 @@ extension MainView {
         let claimed = AppIntentCoordinator.shared.consume(forScene: windowSceneSessionID)
         guard !claimed.isEmpty else { return }
         #if targetEnvironment(macCatalyst)
-        let helperRunning = HelperConnection.shared.isKnownRunning
+        let helperRunning = HelperConnection.shared.localShellsKnownAvailable
         #else
         let helperRunning = false
         #endif

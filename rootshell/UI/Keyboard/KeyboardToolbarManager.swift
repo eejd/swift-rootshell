@@ -281,7 +281,7 @@ class KeyboardToolbarManager {
     // MARK: - Capacity & Effective Layout
 
     /// How many standard buttons fit in the main row before runtime additions.
-    func mainRowCapacity(availableWidth: CGFloat, sizes: KeyboardSizes = .current()) -> Int {
+    func mainRowCapacity(availableWidth: CGFloat, sizes: KeyboardSizes) -> Int {
         let buttonWidth = sizes.button.normalWidth + sizes.toolbar.spacing
         guard buttonWidth > 0 else { return 0 }
         return max(1, Int((availableWidth + sizes.toolbar.spacing) / buttonWidth))
@@ -290,7 +290,7 @@ class KeyboardToolbarManager {
     /// Main row and drawers must share the same capacity and reservation. A
     /// displaced key leads the first drawer, ahead of its configured contents.
     func effectiveLayout(availableWidth: CGFloat, reservedMainRowSlots: Int = 0,
-                         sizes: KeyboardSizes = .current()) -> (main: [KeySlot], drawers: [[KeySlot]]) {
+                         sizes: KeyboardSizes) -> (main: [KeySlot], drawers: [[KeySlot]]) {
         KeyboardToolbarOverflow.layout(
             main: validSlots(config.mainRow),
             drawers: config.drawerRows.map { validSlots($0) },
@@ -300,13 +300,13 @@ class KeyboardToolbarManager {
             keepsDrawerToggleVisible: !config.hiddenKeys.contains(.drawerToggle))
     }
 
-    /// Filter out slots that reference deleted custom keys or hidden built-in keys
+    /// Filter out slots that reference deleted custom keys or hidden or unavailable built-in keys
     private func validSlots(_ slots: [KeySlot]) -> [KeySlot] {
         let customIDs = Set(customKeys.map(\.id))
         return slots.filter { slot in
             switch slot {
             case .builtIn(let keyID):
-                return !config.hiddenKeys.contains(keyID)
+                return keyID.isAvailable && !config.hiddenKeys.contains(keyID)
             case .custom(let uuid):
                 return customIDs.contains(uuid)
             }

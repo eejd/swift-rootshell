@@ -94,21 +94,15 @@ class ShaderManager {
 
     // MARK: - Path Resolution
 
-    /// Returns the Documents path for a custom shader
+    /// Returns the app-private storage path for a custom shader
     func documentsPathForCustomShader(_ filename: String) -> URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("shaders", isDirectory: true)
+        GhosttyStorageLocation.url(forRelativePath: "shaders")
             .appendingPathComponent(filename)
     }
 
     /// Returns the custom shaders directory, creating it if needed
     private var customShadersDirectory: URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let shadersDir = documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("shaders", isDirectory: true)
+        let shadersDir = GhosttyStorageLocation.url(forRelativePath: "shaders")
 
         if !FileManager.default.fileExists(atPath: shadersDir.path) {
             try? FileManager.default.createDirectory(at: shadersDir, withIntermediateDirectories: true)

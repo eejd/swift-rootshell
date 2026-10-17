@@ -7,7 +7,7 @@
 //  to tmux, the resume probe watchdog, detach/abort, gateway report-filtering
 //  byte COUNTS, and a low-rate live-state heartbeat (including a privacy-safe
 //  snapshot of the GhosttyKit viewer's internals) to
-//  Documents/.ghostty/tmux_debug.log. Companion to SSHDebugLogger /
+//  <GhosttyStorageLocation.rootDirectory>/tmux_debug.log. Companion to SSHDebugLogger /
 //  ResumeDebugLogger / LifecycleDebugLogger: same persistence pattern (serial
 //  queue, synchronizeFile() per write so entries survive force-quit, size
 //  rotation to tmux_debug.1.log).
@@ -87,8 +87,7 @@ final class TmuxDebugLogger: Sendable {
     private let gatewayInbound = OSAllocatedUnfairLock<[Int: GatewayInbound]>(initialState: [:])
 
     private init() {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let ghosttyDir = documentsURL.appendingPathComponent(".ghostty", isDirectory: true)
+        let ghosttyDir = GhosttyStorageLocation.rootDirectory
         self.logFileURL = ghosttyDir.appendingPathComponent("tmux_debug.log")
         self.rotatedLogFileURL = ghosttyDir.appendingPathComponent("tmux_debug.1.log")
 
@@ -314,10 +313,10 @@ final class TmuxDebugLogger: Sendable {
         rotateIfNeeded()
         if FileManager.default.fileExists(atPath: logFileURL.path) {
             if let handle = try? FileHandle(forWritingTo: logFileURL) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.synchronizeFile()
-                handle.closeFile()
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.synchronize()
+                try? handle.close()
             }
         } else {
             try? data.write(to: logFileURL, options: .atomic)

@@ -186,7 +186,8 @@ struct TransparencySettingsView: View {
                 }
 
                 // Glass styles blur on their own; radius/toggle only apply to Standard.
-                if transparencyManager.usesGlass {
+                // Off the Mac, Standard is plain opacity over the backdrop.
+                if transparencyManager.usesGlass || !SettingsPlatform.isCatalyst {
                     EmptyView()
                 } else if TransparencyManager.useSandboxBlur {
                     // Sandbox mode: simple toggle (NSVisualEffectView doesn't support custom radius)
@@ -221,7 +222,10 @@ struct TransparencySettingsView: View {
             } header: {
                 SettingGroupHeader("Window Transparency", group: .transparency)
             } footer: {
-                if transparencyManager.usesGlass {
+                if !SettingsPlatform.isCatalyst {
+                    Text("Lets the Theme Gradient backdrop show through the terminal. Applies while the backdrop is on in Background Effect.")
+                        .font(.caption)
+                } else if transparencyManager.usesGlass {
                     Text("Controls window transparency. Liquid Glass renders the desktop behind the window through a glass material tinted with the theme background.")
                         .font(.caption)
                 } else if TransparencyManager.useSandboxBlur {
@@ -249,7 +253,10 @@ struct TransparencySettingsView: View {
 // MARK: - Window Settings
 
 struct WindowSettingsView: View {
+    @Environment(\.duoLayout) private var duoLayout
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Setting(Settings.Tabs.topTabStyle) private var topTabStyle
+    @Setting(Settings.Tabs.duoFrontDisplayMode) private var duoFrontDisplayMode
     @Setting(Settings.Tabs.compactPillSpacing) private var compactPillTabSpacing
     @Setting(Settings.Tabs.hoverPreviews) private var tabHoverPreviewsEnabled
     @Setting(Settings.Tabs.hoverPreviewActivation) private var tabHoverPreviewActivation
@@ -419,7 +426,7 @@ struct WindowSettingsView: View {
                 #if !os(visionOS)
                 Toggle(isOn: $tabSidebarTranslucent) {
                     HStack(spacing: 6) {
-                        Text(UIDevice.current.userInterfaceIdiom == .phone
+                        Text(horizontalSizeClass != .regular
                             ? String(localized: "Translucent Tab Switcher")
                             : String(localized: "Translucent Tab Sidebar"))
                         SettingPinTag(Settings.Sidebar.translucent.erased)
@@ -428,9 +435,9 @@ struct WindowSettingsView: View {
                 .themedRow()
                 .settingContextMenu(Settings.Sidebar.translucent)
 
-                // Pinned/non-pinned only exists on iPad/Catalyst; on phone the
-                // switcher always dismisses on select, so the toggle is a no-op.
-                if UIDevice.current.userInterfaceIdiom != .phone {
+                // Compact layouts dismiss the switcher on selection; regular
+                // layouts can keep a sidebar open beside the terminal.
+                if horizontalSizeClass == .regular {
                     SettingDescribedToggle(
                         Settings.Sidebar.autoHideOnSelect,
                         title: "Auto-Hide Sidebar After Selection",
@@ -444,7 +451,7 @@ struct WindowSettingsView: View {
                 // titles wrap instead of truncating.
                 Stepper(value: $tabSidebarRowLines, in: 1...3) {
                     HStack {
-                        Text(UIDevice.current.userInterfaceIdiom == .phone
+                        Text(horizontalSizeClass != .regular
                             ? String(localized: "Tab Switcher Title Lines")
                             : String(localized: "Sidebar Title Lines"))
                             .settingRow(Settings.Sidebar.rowLines)
@@ -458,6 +465,38 @@ struct WindowSettingsView: View {
             } header: {
                 Text("Tab Bar")
             }
+
+            #if os(iOS) && !targetEnvironment(macCatalyst)
+            if #available(iOS 27.1, *), duoLayout.hasHinge {
+                Section {
+                    Picker(selection: $duoFrontDisplayMode) {
+                        ForEach(DuoFrontDisplayMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    } label: {
+                        Text("Layout")
+                            .settingRow(Settings.Tabs.duoFrontDisplayMode)
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(SettingFileLock.isReadOnly(Settings.Tabs.duoFrontDisplayMode.name))
+                    .themedRow()
+
+                    if duoFrontDisplayMode == .behindCamera {
+                        SettingDescribedToggle(
+                            Settings.Tabs.duoBehindCameraShowsTabs,
+                            title: "Show Top Tabs",
+                            description: "Text behind the camera will be hidden."
+                        )
+                        .themedRow()
+                    }
+                } header: {
+                    Text("Duo Front Display")
+                } footer: {
+                    Text("Choose the terminal layout when Duo is closed. Side Rail moves tabs beside the terminal. Below Camera keeps top tabs and uses the full width beneath the camera. Behind Camera lets the terminal extend beneath the camera.")
+                        .font(.caption)
+                }
+            }
+            #endif
 
             #if targetEnvironment(macCatalyst)
             Section {
@@ -480,14 +519,14 @@ struct WindowSettingsView: View {
 
             Section {
                 Stepper(value: Binding(
-                    get: { paddingManager.effectivePaddingX },
+                    get: { paddingManager.userPaddingX },
                     set: { paddingManager.setPaddingX($0) }
                 ), in: 0...32) {
                     HStack {
                         Text("Horizontal")
                             .settingRow(Settings.Terminal.paddingXOverride)
                         Spacer()
-                        Text("\(paddingManager.effectivePaddingX) pt")
+                        Text("\(paddingManager.userPaddingX) pt")
                             .foregroundColor(.secondary)
                             .font(.subheadline)
                     }
@@ -495,14 +534,14 @@ struct WindowSettingsView: View {
                 .themedRow()
 
                 Stepper(value: Binding(
-                    get: { paddingManager.effectivePaddingY },
+                    get: { paddingManager.userPaddingY },
                     set: { paddingManager.setPaddingY($0) }
                 ), in: 0...32) {
                     HStack {
                         Text("Vertical")
                             .settingRow(Settings.Terminal.paddingYOverride)
                         Spacer()
-                        Text("\(paddingManager.effectivePaddingY) pt")
+                        Text("\(paddingManager.userPaddingY) pt")
                             .foregroundColor(.secondary)
                             .font(.subheadline)
                     }
@@ -519,13 +558,24 @@ struct WindowSettingsView: View {
             } header: {
                 SettingGroupHeader("Window Padding", group: .terminal)
             } footer: {
-                Text(paddingManager.isCustom
-                     ? "Custom padding active. Reset to restore the platform default."
-                     : "Using platform default. Adjust the inset between terminal text and the window edges.")
-                    .font(.caption)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(paddingManager.isCustom
+                         ? "Custom padding active. Reset to restore the platform default."
+                         : "Using platform default. Adjust the inset between terminal text and the window edges.")
+                    if paddingManager.roundedPanesRaisesPadding {
+                        Text("Rounded Panes uses at least \(PaddingManager.roundedPanesMinimum) pt so text clears the rounded corners.")
+                    }
+                }
+                .font(.caption)
             }
 
             Section {
+                SettingDescribedToggle(
+                    Settings.Window.roundedPanes,
+                    title: "Rounded Panes",
+                    description: "Draws terminal panes, splits, and docked sidebars as rounded cards with gaps between them.")
+                .themedRow()
+
                 Picker(selection: $splitFocusBorderStyle) {
                     ForEach(SplitFocusBorderStyle.allCases, id: \.rawValue) { style in
                         Text(style.displayName).tag(style)
@@ -563,7 +613,7 @@ struct WindowSettingsView: View {
             } header: {
                 SettingGroupHeader("Split Panes", group: .window)
             } footer: {
-                Text("Controls the border shown around the focused pane when using split terminals.")
+                Text("Controls how panes are drawn and how the focused pane stands out in split terminal layouts. Close confirmations are in Terminal › Tabs.")
                     .font(.caption)
             }
 
@@ -719,7 +769,11 @@ struct WindowSettingsView: View {
                     .themedRow()
 
                 #if os(iOS) && !targetEnvironment(macCatalyst)
-                SettingToggle(Settings.Selection.useNativeLoupe, title: "Use Native Selection Loupe")
+                SettingDescribedToggle(
+                    Settings.Selection.useNativeLoupe,
+                    title: "Use Native Selection Loupe",
+                    description: "Keep this off to tap the app's loupe with a second finger for a right click while holding the terminal. Requires Scroll Mode. See Terminal → Gestures → Gesture Help."
+                )
                     .padding(.vertical, 4)
                     .themedRow()
                 #endif

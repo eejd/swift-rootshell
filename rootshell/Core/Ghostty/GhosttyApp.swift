@@ -110,6 +110,11 @@ protocol GhosttyActionDelegate: AnyObject {
     /// Called when terminal cell size changes
     func handleCellSizeChange(width: CGFloat, height: CGFloat)
 
+    /// Called after the IO thread resized the terminal of a pipe-backed
+    /// surface. The session's window change follows from here, never from
+    /// the ghostty_surface_set_size call, which only queues the resize.
+    func handlePTYResize(rows: Int, cols: Int, widthPx: Int, heightPx: Int)
+
     /// Called when renderer health status changes
     func handleRendererHealth(healthy: Bool)
 
@@ -127,6 +132,9 @@ protocol GhosttyActionDelegate: AnyObject {
 
     /// Called when progress report is requested
     func handleProgressReport(_ report: Ghostty.Action.ProgressReport)
+
+    /// Called for each OSC 7501 program status report (the pane keeps the records)
+    func handleProgramStatus(_ report: Ghostty.Action.ProgramStatus)
 
     /// Called when a shell command finishes (OSC 133 shell integration).
     /// exitCode is nil when the shell reported none; duration is wall time.
@@ -197,7 +205,20 @@ extension Ghostty {
             return secureDrawProhibitedFlag.withLock { $0 }
             #endif
         }
-        set { secureDrawProhibitedFlag.withLock { $0 = newValue } }
+        set {
+            secureDrawProhibitedFlag.withLock { $0 = newValue }
+            #if !targetEnvironment(macCatalyst)
+            // Mirror into the core's frame gate so no path can submit GPU work.
+            ghostty_presentation_set_allowed(!newValue)
+            #endif
+        }
+    }
+
+    /// Seeds the core frame gate from the latch, which starts armed.
+    nonisolated static func syncCorePresentationGate() {
+        #if !targetEnvironment(macCatalyst)
+        ghostty_presentation_set_allowed(!isSecureDrawProhibitedAtomic)
+        #endif
     }
 
     private nonisolated static let secureDrawProhibitedFlag = OSAllocatedUnfairLock(initialState: true)
@@ -380,6 +401,10 @@ extension Ghostty {
         /// Observer token for palette config changes
         private var paletteObserver: NSObjectProtocol?
 
+        /// Host tint setting and fingerprint observation
+        private var hostTintSettingsTask: Task<Void, Never>?
+        private var hostTintFingerprintTask: Task<Void, Never>?
+
         /// Observer token for HDR brightness-boost changes
         private var brightnessObserver: NSObjectProtocol?
 
@@ -455,7 +480,6 @@ extension Ghostty {
             registerCommandFunction("whatismyip4") { argc, argv in whatismyip4_main(argc, argv) }
             registerCommandFunction("whatismyip6") { argc, argv in whatismyip6_main(argc, argv) }
             registerCommandFunction("bssid") { argc, argv in bssid_main(argc, argv) }
-            registerCommandFunction("gix") { argc, argv in gix_main(argc, argv) }
             registerCommandFunction("imgtext") { argc, argv in imgtext_main(argc, argv) }
 
             // Setup joe text editor (debug builds only - GPL licensed, excluded from distribution)
@@ -492,9 +516,13 @@ extension Ghostty {
                 supports_selection_clipboard: true,
                 wakeup_cb: { userdata in App.wakeup(userdata) },
                 action_cb: { app, target, action in return App.action(app!, target: target, action: action) },
-                read_clipboard_cb: { userdata, loc, state in App.readClipboard(userdata, location: loc, state: state) },
-                confirm_read_clipboard_cb: { userdata, str, state, request in
-                    App.confirmReadClipboard(userdata, string: str, state: state, request: request)
+                read_clipboard_cb: { userdata, loc, state, mimes, mimesLen, list in
+                    App.readClipboard(
+                        userdata, location: loc, state: state,
+                        mimes: mimes, mimesLen: mimesLen, list: list)
+                },
+                confirm_read_clipboard_cb: { userdata, confirm, state, request in
+                    App.confirmReadClipboard(userdata, confirm: confirm, state: state, request: request)
                 },
                 write_clipboard_cb: { userdata, loc, content, len, confirm in
                     App.writeClipboard(userdata, location: loc, content: content, len: len, confirm: confirm)
@@ -513,7 +541,9 @@ extension Ghostty {
                 return
             }
             self.app = app
+            if let cfg = config.config { ghostty_app_set_color_scheme(app, Self.colorScheme(for: cfg)) }
             LaunchSignposts.end("launch.ghostty.appNew", appSP)
+            Ghostty.syncCorePresentationGate()
 
             // Register this instance for callback access
             // Use raw pointer address as key (not ObjectIdentifier which creates new wrapper each time)
@@ -565,6 +595,9 @@ extension Ghostty {
             // Listen for palette config changes
             self.setupPaletteSubscription()
 
+            // Listen for host tint setting and fingerprint changes
+            self.setupHostTintSubscription()
+
             // Listen for HDR brightness-boost changes
             self.setupBrightnessSubscription()
 
@@ -608,7 +641,12 @@ extension Ghostty {
             #if targetEnvironment(macCatalyst)
             guard let app = self.app else { return }
             #else
-            guard let app = self.app, !isInBackground else { return }
+            // While processing in the background the mailbox keeps draining so
+            // parsing never parks on it; the core's frame gate blocks presentation.
+            guard let app = self.app,
+                  BackgroundExecutionPolicy.allowsTick(
+                    isPresentationRevoked: isInBackground,
+                    phase: BackgroundExecutionCoordinator.phase) else { return }
             #endif
             let signpost = TmuxPipelineSignposts.begin("app.tick")
             defer { TmuxPipelineSignposts.end("app.tick", signpost) }
@@ -699,10 +737,13 @@ extension Ghostty {
                     continue
                 }
                 #endif
-                guard source != .global else { continue }
+                let tintFingerprint = hostTintFingerprint(for: surface)
+                guard source != .global || tintFingerprint != nil else { continue }
 
                 overridden += 1
-                if let surfaceConfig = Ghostty.Config.createConfigForTheme(themeName) {
+                if let surfaceConfig = makeSurfaceConfig(
+                    themeName: themeName, source: source,
+                    tintFingerprint: tintFingerprint, globalConfig: globalConfig) {
                     overrideSurfaces.append((surface, surfaceConfig))
                 }
             }
@@ -711,10 +752,19 @@ extension Ghostty {
             let herdrDeliveries = activeSurfaces.compactMap { surface in
                 prepareHerdrThemeDelivery(surface, config: overrideConfigs[Int(bitPattern: surface)] ?? globalConfig)
             }
+            let appScheme = Self.colorScheme(for: globalConfig)
+            let surfaceSchemes = activeSurfaces.compactMap { surface -> (ghostty_surface_t, ghostty_color_scheme_e)? in
+                guard !isHerdrSurface(surface) else { return nil }
+                return (surface, Self.colorScheme(for: overrideConfigs[Int(bitPattern: surface)] ?? globalConfig))
+            }
             nonisolated(unsafe) let appPtr = app
             nonisolated(unsafe) let cfg = globalConfig
             nonisolated(unsafe) let overrides = overrideSurfaces
+            nonisolated(unsafe) let schemes = surfaceSchemes
             Ghostty.TerminalView.ghosttyAPIQueue.async {
+                // A surface's scheme reaches its terminal on the next config update
+                ghostty_app_set_color_scheme(appPtr, appScheme)
+                for (surface, scheme) in schemes { ghostty_surface_set_color_scheme(surface, scheme) }
                 ghostty_app_update_config(appPtr, cfg)
                 for (surface, surfaceConfig) in overrides {
                     ghostty_surface_update_config(surface, surfaceConfig)
@@ -749,13 +799,40 @@ extension Ghostty {
             owned: Bool
         ) {
             let deliverHerdrTheme = prepareHerdrThemeDelivery(surface, config: surfaceConfig)
+            let scheme = isHerdrSurface(surface) ? nil : Self.colorScheme(for: surfaceConfig)
             nonisolated(unsafe) let surface = surface
             nonisolated(unsafe) let surfaceConfig = surfaceConfig
             Ghostty.TerminalView.ghosttyAPIQueue.async {
+                if let scheme { ghostty_surface_set_color_scheme(surface, scheme) }
                 ghostty_surface_update_config(surface, surfaceConfig)
                 deliverHerdrTheme?()
                 if owned { ghostty_config_free(surfaceConfig) }
             }
+        }
+
+        /// Herdr panes report the scheme herdr's server sends (prepareHerdrThemeDelivery).
+        private func isHerdrSurface(_ surface: ghostty_surface_t) -> Bool {
+            surfaceView(for: surface)?.herdrPaneBinding != nil
+        }
+
+        /// Dark or light from the background OSC 11 reports, so CSI ?996n and
+        /// mode 2031 agree with it. Ghostty's own default is light.
+        private static func colorScheme(for config: ghostty_config_t) -> ghostty_color_scheme_e {
+            var color = ghostty_config_color_s()
+            let reportKey = "osc-color-report-background", key = "background"
+            let usedKey: String
+            if ghostty_config_get(config, &color, reportKey, UInt(reportKey.utf8.count)) {
+                usedKey = reportKey
+            } else if ghostty_config_get(config, &color, key, UInt(key.utf8.count)) {
+                usedKey = key
+            } else {
+                Ghostty.logger.info("colorScheme: no background in config, defaulting to dark")
+                return GHOSTTY_COLOR_SCHEME_DARK
+            }
+            let luminance = (0.2126 * Double(color.r) + 0.7152 * Double(color.g) + 0.0722 * Double(color.b)) / 255
+            let scheme = luminance > 0.5 ? GHOSTTY_COLOR_SCHEME_LIGHT : GHOSTTY_COLOR_SCHEME_DARK
+            Ghostty.logger.info("colorScheme: \(usedKey, privacy: .public) rgb=\(color.r),\(color.g),\(color.b) luminance=\(luminance) -> \(scheme == GHOSTTY_COLOR_SCHEME_LIGHT ? "light" : "dark", privacy: .public)")
+            return scheme
         }
 
         /// Capture the finalized defaults before an owned config is freed.
@@ -892,6 +969,16 @@ extension Ghostty {
             #endif
             let (themeName, source) = ThemeOverrideManager.shared.resolveTheme(tabId: tabId, windowId: windowId)
 
+            if let tintFingerprint = hostTintFingerprint(for: surface), let globalConfig = config.config {
+                if let surfaceConfig = makeSurfaceConfig(
+                    themeName: themeName, source: source,
+                    tintFingerprint: tintFingerprint, globalConfig: globalConfig) {
+                    pushConfig(toSurface: surface, config: surfaceConfig, owned: true)
+                    logger.info("Surface theme refreshed with host tint: \(themeName)")
+                }
+                return
+            }
+
             switch source {
             case .global:
                 // No override - use the shared global config
@@ -904,6 +991,71 @@ extension Ghostty {
                 applyThemeToSurface(surface, themeName: themeName)
                 let sourceStr = source == .tab ? "tab" : "window"
                 logger.info("Surface theme refreshed to \(sourceStr) override: \(themeName)")
+            }
+        }
+
+        // MARK: - Host Tint
+
+        /// The remote host key fingerprint for a surface's connection when host tinting is on.
+        private func hostTintFingerprint(for surface: ghostty_surface_t) -> String? {
+            surfaceView(for: surface).flatMap {
+                HostFingerprintRegistry.shared.tintFingerprint(for: $0.connectionConfig)
+            }
+        }
+
+        /// Owned config for a surface that is off the plain global config: its
+        /// override theme and/or a host tint over the resolved background.
+        private func makeSurfaceConfig(
+            themeName: String,
+            source: ThemeOverrideManager.ThemeSource,
+            tintFingerprint: String?,
+            globalConfig: ghostty_config_t
+        ) -> ghostty_config_t? {
+            let themed = source == .global ? nil : Ghostty.Config.createConfigForTheme(themeName)
+            guard let tintFingerprint else { return themed }
+            let tinted = Self.makeHostTintConfig(themed ?? globalConfig, fingerprint: tintFingerprint)
+            if let themed, tinted != nil { ghostty_config_free(themed) }
+            return tinted ?? themed
+        }
+
+        /// Clone `base` with its background shifted toward the fingerprint's hue.
+        private static func makeHostTintConfig(_ base: ghostty_config_t, fingerprint: String) -> ghostty_config_t? {
+            var background = ghostty_config_color_s()
+            let key = "background"
+            guard ghostty_config_get(base, &background, key, UInt(key.utf8.count)),
+                  let result = ghostty_config_clone(base) else { return nil }
+            let hex = HostTint.tintedBackground(
+                red: background.r, green: background.g, blue: background.b, fingerprint: fingerprint)
+            let file = FileManager.default.temporaryDirectory
+                .appendingPathComponent("host-tint-\(UUID().uuidString).conf")
+            defer { try? FileManager.default.removeItem(at: file) }
+            do {
+                try "background = \(hex)\n".write(to: file, atomically: true, encoding: .utf8)
+                file.path.withCString { ghostty_config_load_file(result, $0) }
+                ghostty_config_finalize(result)
+                return result
+            } catch {
+                ghostty_config_free(result)
+                return nil
+            }
+        }
+
+        /// Re-push when the setting flips or a handshake reports a new fingerprint.
+        private func setupHostTintSubscription() {
+            let settingChanges = SettingsStore.shared.changes()
+            hostTintSettingsTask = Task { @MainActor [weak self] in
+                for await change in settingChanges {
+                    // External batches already reload the whole config via SettingsRefreshHub.
+                    guard change.origin == .local, change.contains(Settings.Theme.hostTint.name) else { continue }
+                    self?.pushGlobalConfigToApp()
+                }
+            }
+            let fingerprintChanges = HostFingerprintRegistry.shared.changes()
+            hostTintFingerprintTask = Task { @MainActor [weak self] in
+                for await _ in fingerprintChanges {
+                    guard SettingsStore.shared.get(Settings.Theme.hostTint) else { continue }
+                    self?.pushGlobalConfigToApp()
+                }
             }
         }
 
@@ -1123,12 +1275,10 @@ extension Ghostty {
 
         /// Set up subscription to transparency changes
         private func setupTransparencySubscription() {
-            #if targetEnvironment(macCatalyst)
             transparencySubscription = TransparencyManager.shared.transparencyDidChange
                 .sink { [weak self] in
                     self?.applyCurrentTransparency()
                 }
-            #endif
         }
 
         /// Set up listener for shader config changes
@@ -1434,7 +1584,6 @@ extension Ghostty {
         /// Apply the current transparency settings from TransparencyManager
         func applyCurrentTransparency() {
             guard !SettingsStore.shared.isApplyingBatch else { return }
-            #if targetEnvironment(macCatalyst)
             guard let app = self.app else {
                 logger.warning("Cannot apply transparency: app is nil")
                 return
@@ -1469,7 +1618,6 @@ extension Ghostty {
             } else {
                 logger.error("Failed to apply transparency")
             }
-            #endif
         }
 
         /// Apply background blur to all NSWindows (Mac Catalyst only)
@@ -2019,6 +2167,13 @@ extension Ghostty {
             surfaceDelegates[Int(bitPattern: surface)]?.delegate as? TerminalView
         }
 
+        /// The `TerminalView` behind a surface's userdata, or nil for any other
+        /// owner. Preview surfaces (`TmuxPreviewView`) render untrusted captured
+        /// output, so clipboard and tmux callbacks must never act for them.
+        nonisolated static func terminalView(fromSurfaceUserdata userdata: UnsafeMutableRawPointer) -> TerminalView? {
+            Unmanaged<AnyObject>.fromOpaque(userdata).takeUnretainedValue() as? TerminalView
+        }
+
         // MARK: - Runtime Callbacks
 
         /// Count wakeup calls for diagnostics (instance properties for MainActor isolation)
@@ -2061,6 +2216,10 @@ extension Ghostty {
                 let now = CFAbsoluteTimeGetCurrent()
 
                 if Ghostty.isAppBackgroundedAtomic {
+                    if BackgroundExecutionCoordinator.phase.allowsBackgroundTick {
+                        await runBackgroundPump(app)
+                        return
+                    }
                     LifecycleDebugLogger.shared.bumpSuppression("gate3_appTick")
                     let coalesced = wakeupCoalescer.withLock { state -> Int in
                         let coalesced = state.coalescedDuringBurst
@@ -2133,6 +2292,13 @@ extension Ghostty {
                         // wakeups arrive after that yield, the next wakeup_cb
                         // call sees pending=false and starts a fresh chain.
                         if Ghostty.isAppBackgroundedAtomic {
+                            // Backgrounded since the tick above: the pump takes
+                            // over the held bit, or wakeups arriving while the
+                            // mailbox is full would be lost.
+                            if BackgroundExecutionCoordinator.phase.allowsBackgroundTick {
+                                await runBackgroundPump(app)
+                                return
+                            }
                             LifecycleDebugLogger.shared.bumpSuppression("gate3_appTick")
                             wakeupCoalescer.withLock { state in
                                 state.pending = false
@@ -2159,6 +2325,101 @@ extension Ghostty {
             }
         }
 
+        // MARK: - Background Holds
+
+        private nonisolated struct HeldPasteboardWrite {
+            let item: [String: String]
+            let text: String?
+            let isSelection: Bool
+            let terminalView: TerminalView?
+        }
+
+        /// Tmux reconciles that arrived while backgrounded, coalesced per gateway
+        /// (see `HeldReconcileKind`).
+        private nonisolated static let heldTmuxReconciles = OSAllocatedUnfairLock(
+            uncheckedState: BackgroundHeldQueue<Int, TmuxReconcileDelivery>())
+
+        /// Latest OSC 52 write made while backgrounded.
+        private nonisolated static let heldPasteboardWrite = OSAllocatedUnfairLock<HeldPasteboardWrite?>(
+            uncheckedState: nil)
+
+        private nonisolated static func holdTmuxReconcile(_ delivery: TmuxReconcileDelivery, ownerSurface: Int) {
+            let kind = heldReconcileKind(for: delivery.ops)
+            let superseded = heldTmuxReconciles.withLockUnchecked {
+                $0.append(delivery, owner: ownerSurface, kind: kind)
+            }
+            for stale in superseded {
+                ghostty_tmux_reconcile_free(stale.payload)
+            }
+            TmuxDebugLogger.shared.event("RECONCILE", "held kind=\(kind) superseded=\(superseded.count)")
+        }
+
+        /// A full sync carries window titles but not focus or the session
+        /// title; focus and title payloads are single-op.
+        private nonisolated static func heldReconcileKind(for ops: [TmuxReconcileOp]) -> HeldReconcileKind {
+            switch ops.first {
+            case .syncBegin?:
+                let hasWindow = ops.contains {
+                    if case .ensureWindow = $0 { return true }
+                    return false
+                }
+                return hasWindow ? .fullSync : .teardown
+            case .setFocus(let windowId, _)? where ops.count == 1:
+                return .update(key: "focus:\(windowId)", coveredByFullSync: false)
+            case .setTabTitle(let windowId, _)? where ops.count == 1:
+                return .update(key: "tabTitle:\(windowId)", coveredByFullSync: true)
+            case .setWindowTitle? where ops.count == 1:
+                return .update(key: "sessionTitle", coveredByFullSync: false)
+            default:
+                return .update(key: "unkeyed:\(UUID().uuidString)", coveredByFullSync: false)
+            }
+        }
+
+        /// Applies what was held while backgrounded, in arrival order. Called at
+        /// the foreground gate, once presentation is allowed again.
+        func releaseBackgroundHolds() {
+            let reconciles = Self.heldTmuxReconciles.withLockUnchecked { $0.drain() }
+            for entry in reconciles {
+                let delivery = entry.element
+                TmuxReconcileSerializer.shared.enqueue {
+                    delivery.owner.applyTmuxReconcile(delivery.ops)
+                    ghostty_tmux_reconcile_free(delivery.payload)
+                }
+            }
+            #if os(iOS) || os(visionOS)
+            if let write = Self.heldPasteboardWrite.withLockUnchecked({ held in
+                defer { held = nil }
+                return held
+            }) {
+                Self.applyPasteboardItem(write.item)
+                Self.recordClipboardHistory(
+                    text: write.text,
+                    isSelection: write.isSelection,
+                    terminalView: write.terminalView)
+            }
+            #endif
+        }
+
+        /// Background mailbox pump. Holds the wakeup bit across a short delay so
+        /// a burst becomes one tick, and repeats while wakeups keep arriving.
+        private static func runBackgroundPump(_ app: App) async {
+            while true {
+                try? await Task.sleep(for: BackgroundExecutionPolicy.backgroundTickInterval)
+                app.appTick()
+                let again = wakeupCoalescer.withLock { state -> Bool in
+                    let coalesced = state.coalescedDuringBurst
+                    state.coalescedDuringBurst = 0
+                    guard coalesced > 0, Ghostty.isAppBackgroundedAtomic,
+                          BackgroundExecutionCoordinator.phase.allowsBackgroundTick else {
+                        state.pending = false
+                        return false
+                    }
+                    return true
+                }
+                guard again else { return }
+            }
+        }
+
         private static func scheduleDeferredResumeTick(for app: App) {
             let shouldSchedule = deferredResumeTickPending.withLock { pending -> Bool in
                 guard !pending else { return false }
@@ -2170,8 +2431,14 @@ extension Ghostty {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(180))
                 deferredResumeTickPending.withLock { $0 = false }
-                guard !Ghostty.isAppBackgroundedAtomic else {
-                    LifecycleDebugLogger.shared.bumpSuppression("gate3_appTick")
+                if Ghostty.isAppBackgroundedAtomic {
+                    // This tick may own the only pending drain; producers
+                    // blocked on a full mailbox wake the pump once it runs.
+                    if BackgroundExecutionCoordinator.phase.allowsBackgroundTick {
+                        app.appTick()
+                    } else {
+                        LifecycleDebugLogger.shared.bumpSuppression("gate3_appTick")
+                    }
                     return
                 }
                 if BisectFlags.gate3_appTick && Ghostty.isInResumeQuietWindowAtomic {
@@ -2207,8 +2474,14 @@ extension Ghostty {
             //   - DESKTOP_NOTIFICATION: user-visible alert; must fire while
             //     backgrounded so notifications go through.
             //   - MOUSE_OVER_LINK: synchronous call, no Task spawned.
-            //   - OPEN_URL: rare and user-initiated.
+            //   - OPEN_URL: dropped while backgrounded (nothing user-initiated).
+            //
+            // While processing in the background, ticks keep running: title,
+            // pwd, progress and command state flow to handlers that cache
+            // without publishing, and tmux topology is held until foreground.
             let isBackgrounded = Ghostty.isAppBackgroundedAtomic
+            let isBackgroundProcessing = isBackgrounded
+                && BackgroundExecutionCoordinator.phase.allowsBackgroundTick
 
             // Handle specific actions
             switch action.tag {
@@ -2224,7 +2497,7 @@ extension Ghostty {
                 return true
 
             case GHOSTTY_ACTION_SET_TITLE:
-                if isBackgrounded { return true }
+                if isBackgrounded && !isBackgroundProcessing { return true }
                 let titleAction = action.action.set_title
 
                 // Route to the appropriate surface delegate
@@ -2234,6 +2507,15 @@ extension Ghostty {
 
                     guard let titleCStr = titleAction.title else { return true }
                     guard let title = String(cString: titleCStr, encoding: .utf8) else { return true }
+
+                    // Background tick on main: deliver inline so a title flood
+                    // never becomes a queue of tasks. The handler caches only.
+                    if isBackgroundProcessing && Thread.isMainThread {
+                        MainActor.assumeIsolated {
+                            appInstance.surfaceDelegates[surfaceId]?.delegate?.handleTitleChange(title)
+                        }
+                        return true
+                    }
 
                     Task { @MainActor in
                         if let delegate = appInstance.surfaceDelegates[surfaceId]?.delegate {
@@ -2277,14 +2559,20 @@ extension Ghostty {
                     // owns the per-connection TmuxController. The payload's
                     // refcounts keep the viewer pane boxes alive across this hop,
                     // so applying on the next main-actor turn is safe.
-                    if let userdata = ghostty_surface_userdata(surface) {
-                        // Take a STRONG ref to the owner here, while the surface
-                        // (and its userdata owner) is still alive, and carry it
-                        // across the hop. The payload refcounts protect the viewer
-                        // panes but NOT this Swift owner; closing the tab/surface
-                        // before the task runs would otherwise use freed memory.
-                        let owner = Unmanaged<Ghostty.TerminalView>.fromOpaque(userdata).takeUnretainedValue()
+                    // Take a STRONG ref to the owner here, while the surface
+                    // (and its userdata owner) is still alive, and carry it
+                    // across the hop. The payload refcounts protect the viewer
+                    // panes but NOT this Swift owner; closing the tab/surface
+                    // before the task runs would otherwise use freed memory.
+                    if let userdata = ghostty_surface_userdata(surface),
+                       let owner = Self.terminalView(fromSurfaceUserdata: userdata) {
                         let delivery = TmuxReconcileDelivery(owner: owner, ops: ops, payload: payload)
+                        // Creating tabs and panes is UI work: hold it for the
+                        // foreground gate (releaseBackgroundHolds).
+                        if isBackgrounded {
+                            holdTmuxReconcile(delivery, ownerSurface: Int(bitPattern: surface))
+                            return true
+                        }
                         // Serialize the apply in ARRIVAL order. The action callback
                         // is off the main actor and a bare per-batch Task has no
                         // cross-task ordering guarantee, so a stale full-topology
@@ -2323,8 +2611,8 @@ extension Ghostty {
                         body = ""
                     }
                     let reply = TmuxCommandReply(tag: response.tag, body: body, isError: response.is_err)
-                    if let userdata = ghostty_surface_userdata(surface) {
-                        let owner = Unmanaged<Ghostty.TerminalView>.fromOpaque(userdata).takeUnretainedValue()
+                    if let userdata = ghostty_surface_userdata(surface),
+                       let owner = Self.terminalView(fromSurfaceUserdata: userdata) {
                         Task { @MainActor in
                             owner.tmuxController?.handleCommandReply(reply)
                         }
@@ -2339,8 +2627,8 @@ extension Ghostty {
                 // would only matter mid-display anyway).
                 if target.tag == GHOSTTY_TARGET_SURFACE {
                     let surface = target.target.surface
-                    if let userdata = ghostty_surface_userdata(surface) {
-                        let owner = Unmanaged<Ghostty.TerminalView>.fromOpaque(userdata).takeUnretainedValue()
+                    if let userdata = ghostty_surface_userdata(surface),
+                       let owner = Self.terminalView(fromSurfaceUserdata: userdata) {
                         Task { @MainActor in
                             owner.tmuxController?.noteSessionsChanged()
                         }
@@ -2363,8 +2651,8 @@ extension Ghostty {
                         name = ""
                     }
                     let sessionId = Int(clamping: info.session_id)
-                    if let userdata = ghostty_surface_userdata(surface) {
-                        let owner = Unmanaged<Ghostty.TerminalView>.fromOpaque(userdata).takeUnretainedValue()
+                    if let userdata = ghostty_surface_userdata(surface),
+                       let owner = Self.terminalView(fromSurfaceUserdata: userdata) {
                         Task { @MainActor in
                             if let controller = owner.tmuxController {
                                 controller.updateCurrentSession(id: sessionId, name: name)
@@ -2381,7 +2669,8 @@ extension Ghostty {
                 return true
 
             case GHOSTTY_ACTION_PWD:
-                if isBackgrounded { return true }
+                // handlePwdChange caches while backgrounded; foreground replays it.
+                if isBackgrounded && !isBackgroundProcessing { return true }
                 let pwdAction = action.action.pwd
 
                 // Route to the appropriate surface delegate
@@ -2566,8 +2855,40 @@ extension Ghostty {
 
                 return true
 
+            case GHOSTTY_ACTION_PTY_RESIZE:
+                // Delivered while backgrounded too: updatePTYSize applies the
+                // suppression gate itself, as the set_size hop used to.
+                let resize = action.action.pty_resize
+                guard target.tag == GHOSTTY_TARGET_SURFACE else { return true }
+                let surfaceId = Int(bitPattern: target.target.surface)
+                Task { @MainActor in
+                    appInstance.surfaceDelegates[surfaceId]?.delegate?.handlePTYResize(
+                        rows: Int(resize.rows), cols: Int(resize.cols),
+                        widthPx: Int(resize.width_px), heightPx: Int(resize.height_px)
+                    )
+                }
+                return true
+
+            case GHOSTTY_ACTION_PROGRAM_STATUS:
+                // Not gated on isBackgrounded: like command finished, a program
+                // blocking or finishing while backgrounded must reach the inbox.
+                // The payload is only valid during this callback, so copy it here.
+                guard target.tag == GHOSTTY_TARGET_SURFACE,
+                      let payload = action.action.program_status else { return true }
+                let surfaceId = Int(bitPattern: target.target.surface)
+                let report = Ghostty.Action.ProgramStatus(c: payload.pointee)
+                if ProgramStatusDebugLogger.shared.isEnabled {
+                    ProgramStatusDebugLogger.shared.event(
+                        "CALLBACK", "surface=\(surfaceId) \(report.logDescription)")
+                }
+                Task { @MainActor in
+                    appInstance.surfaceDelegates[surfaceId]?.delegate?.handleProgramStatus(report)
+                }
+                return true
+
             case GHOSTTY_ACTION_PROGRESS_REPORT:
-                if isBackgrounded { return true }
+                // handleProgressReport caches while backgrounded; foreground replays it.
+                if isBackgrounded && !isBackgroundProcessing { return true }
                 let progressReportAction = action.action.progress_report
 
                 // Route to the appropriate surface delegate
@@ -2707,6 +3028,7 @@ extension Ghostty {
                 return true
 
             case GHOSTTY_ACTION_OPEN_URL:
+                if isBackgrounded { return true }
                 let openUrl = action.action.open_url
                 guard let urlPtr = openUrl.url, openUrl.len > 0 else { return true }
                 let buf = UnsafeRawBufferPointer(start: urlPtr, count: Int(openUrl.len))
@@ -2727,59 +3049,141 @@ extension Ghostty {
         private static func readClipboard(
             _ userdata: UnsafeMutableRawPointer?,
             location: ghostty_clipboard_e,
-            state: UnsafeMutableRawPointer?
-        ) -> Bool {
+            state: UnsafeMutableRawPointer?,
+            mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+            mimesLen: Int,
+            list: Bool
+        ) -> ghostty_clipboard_read_result_e {
             #if os(iOS) || os(visionOS)
-            // Extract TerminalView from userdata (same pattern as macOS SurfaceView)
+            // Only a program's clipboard read can arrive while backgrounded;
+            // never hand it the user's pasteboard.
+            if Ghostty.isAppBackgroundedAtomic { return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE }
             // For clipboard operations, Ghostty passes the surface's userdata, not the app's
             guard let userdata = userdata else {
                 Ghostty.logger.warning("readClipboard called with nil userdata")
-                return false
+                return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
             }
-            let terminalView = Unmanaged<TerminalView>.fromOpaque(userdata).takeUnretainedValue()
+            guard let terminalView = Self.terminalView(fromSurfaceUserdata: userdata) else {
+                return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
+            }
             guard let surface = terminalView.surface else {
                 Ghostty.logger.warning("readClipboard: surface is nil")
-                return false
+                return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
             }
 
-            // Return false if there is no text-like clipboard content so
-            // performable paste bindings can pass through to the terminal.
-            guard let text = UIPasteboard.general.getOpinionatedStringContents() else {
-                return false
+            // iOS has one pasteboard, so every location reads the general one.
+            // Only the requested representations are read.
+            let pasteboard = UIPasteboard.general
+            var contents: [(mime: String, data: Data)] = []
+            var seen = Set<String>()
+            if let mimes {
+                for i in 0..<mimesLen {
+                    guard let ptr = mimes[i] else { continue }
+                    let mime = String(cString: ptr)
+                    guard seen.insert(mime).inserted,
+                          let data = pasteboard.ghosttyData(forMime: mime) else { continue }
+                    contents.append((mime, data))
+                }
             }
+            let available = list ? pasteboard.ghosttyAvailableMimes() : []
 
-            // Complete the clipboard request with the data
-            // This triggers Ghostty's paste encoding (bracketed paste, newline conversion, etc.)
-            text.withCString { ptr in
-                ghostty_surface_complete_clipboard_request(surface, ptr, state, false)
-            }
-            return true
+            // Unavailable lets performable paste bindings pass through to the terminal.
+            if contents.isEmpty && !list { return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE }
+
+            // Completing the request triggers Ghostty's paste encoding
+            // (bracketed paste, newline conversion, etc.)
+            completeClipboardRequest(surface, contents: contents, available: available, state: state)
+            return GHOSTTY_CLIPBOARD_READ_STARTED
             #else
-            return false
+            return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
             #endif
         }
 
         private static func confirmReadClipboard(
             _ userdata: UnsafeMutableRawPointer?,
-            string: UnsafePointer<CChar>?,
+            confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
             state: UnsafeMutableRawPointer?,
             request: ghostty_clipboard_request_e
         ) {
             #if os(iOS) || os(visionOS)
             // Ghostty detected potentially unsafe paste (e.g., multi-line content)
-            // and is asking for confirmation.
-            // In a mobile app context, we auto-confirm since the user's intent is clear
-            // (whether via UI action or OSC-52 request from a terminal app they're running).
-            guard let userdata = userdata else { return }
-            guard let string = string else { return }
-
-            let terminalView = Unmanaged<TerminalView>.fromOpaque(userdata).takeUnretainedValue()
-            guard let surface = terminalView.surface else { return }
-
-            // Complete the request with confirmation (last parameter = true)
-            ghostty_surface_complete_clipboard_request(surface, string, state, true)
+            // and is asking for confirmation. rootshell sets clipboard-read and
+            // clipboard-write to allow, so only pastes reach here; the user's
+            // intent is clear, so auto-confirm with exactly the borrowed contents.
+            guard let userdata = userdata,
+                  let terminalView = Self.terminalView(fromSurfaceUserdata: userdata),
+                  let surface = terminalView.surface else { return }
+            guard let confirm else {
+                ghostty_surface_deny_clipboard_request(surface, state)
+                return
+            }
+            let c = confirm.pointee
+            var complete = ghostty_clipboard_complete_s(
+                contents: c.contents,
+                contents_len: c.contents_len,
+                available: c.available,
+                available_len: c.available_len,
+                confirmed: true,
+                remember: false)
+            ghostty_surface_complete_clipboard_request(surface, &complete, state)
             #endif
         }
+
+        #if os(iOS) || os(visionOS)
+        /// Complete a clipboard read, copying everything into C memory for the call.
+        private static func completeClipboardRequest(
+            _ surface: ghostty_surface_t,
+            contents: [(mime: String, data: Data)],
+            available: [String],
+            state: UnsafeMutableRawPointer?
+        ) {
+            var cStrings: [UnsafeMutablePointer<CChar>] = []
+            var cDatas: [UnsafeMutableRawPointer] = []
+            defer {
+                cStrings.forEach { free($0) }
+                cDatas.forEach { $0.deallocate() }
+            }
+
+            var cContents: [ghostty_clipboard_content_s] = []
+            for entry in contents {
+                guard let mime = strdup(entry.mime) else { continue }
+                cStrings.append(mime)
+                let buf = UnsafeMutableRawPointer.allocate(
+                    byteCount: max(entry.data.count, 1),
+                    alignment: 1)
+                cDatas.append(buf)
+                entry.data.withUnsafeBytes { src in
+                    if let base = src.baseAddress {
+                        buf.copyMemory(from: base, byteCount: src.count)
+                    }
+                }
+                cContents.append(ghostty_clipboard_content_s(
+                    mime: mime,
+                    data: buf.assumingMemoryBound(to: CChar.self),
+                    len: entry.data.count))
+            }
+
+            var cAvailable: [UnsafePointer<CChar>?] = []
+            for mime in available {
+                guard let str = strdup(mime) else { continue }
+                cStrings.append(str)
+                cAvailable.append(UnsafePointer(str))
+            }
+
+            cContents.withUnsafeBufferPointer { contentsBuf in
+                cAvailable.withUnsafeBufferPointer { availableBuf in
+                    var complete = ghostty_clipboard_complete_s(
+                        contents: contentsBuf.baseAddress,
+                        contents_len: contentsBuf.count,
+                        available: availableBuf.baseAddress,
+                        available_len: availableBuf.count,
+                        confirmed: false,
+                        remember: false)
+                    ghostty_surface_complete_clipboard_request(surface, &complete, state)
+                }
+            }
+        }
+        #endif
 
         private static func writeClipboard(
             _ userdata: UnsafeMutableRawPointer?,
@@ -2790,6 +3194,9 @@ extension Ghostty {
         ) {
             #if os(iOS) || os(visionOS)
             guard let content = content, len > 0 else { return }
+            // Preview surfaces replay captured remote output; never let it write.
+            guard let userdata,
+                  let terminalView = Self.terminalView(fromSurfaceUserdata: userdata) else { return }
 
             // Ghostty can emit multiple representations for a single copy (e.g.
             // `.mixed` emits text/plain + text/html). Route each to its proper
@@ -2797,15 +3204,17 @@ extension Ghostty {
             // Keep the callback payload Sendable so off-main UIKit and
             // observable state work can be deferred until after Ghostty
             // releases its surface mutex.
+            // Data is length-delimited and may be binary (Kitty clipboard writes);
+            // only text representations are kept.
             var item: [String: String] = [:]
             for i in 0..<len {
                 let entry = content[i]
-                guard let mimePtr = entry.mime, let dataPtr = entry.data else { continue }
+                guard let mimePtr = entry.mime, let dataPtr = entry.data, entry.len > 0 else { continue }
                 let mime = String(cString: mimePtr)
-                let data = String(cString: dataPtr)
-                guard !data.isEmpty else { continue }
-                guard let uti = Self.pasteboardUTI(forMime: mime) else { continue }
-                item[uti] = data
+                guard let uti = Self.pasteboardUTI(forMime: mime),
+                      UTType(uti)?.conforms(to: .text) == true else { continue }
+                let bytes = UnsafeRawBufferPointer(start: dataPtr, count: entry.len)
+                item[uti] = String(decoding: bytes, as: UTF8.self)
             }
 
             guard !item.isEmpty else { return }
@@ -2830,10 +3239,32 @@ extension Ghostty {
             // hop; the property reads never happen off the main actor.
             let text = item[UTType.utf8PlainText.identifier]
             let isSelection = (location == GHOSTTY_CLIPBOARD_SELECTION)
-            let terminalView = text.flatMap { _ in
-                userdata.map {
-                    Unmanaged<TerminalView>.fromOpaque($0).takeUnretainedValue()
+
+            // The clipboard-state channel survives Mosh synchronization and
+            // reaches native tmux pane surfaces. Reserved URL envelopes never
+            // become clipboard contents, history entries or held writes, even
+            // when malformed or the feature is disabled. Selection copies
+            // still behave as ordinary copies rather than launching a URL.
+            if !isSelection, let text, text.hasPrefix(TerminalClipboardURLRequest.namespace) {
+                // Replay windows can lapse before the hop runs. The tmux parent
+                // check needs the main actor; off-main falls back to this pane.
+                let replaying = Thread.isMainThread
+                    ? MainActor.assumeIsolated { terminalView.isReplayingForcedOutput }
+                    : TerminalBellSuppressor.isSuppressed(terminalView.uuid)
+                let suppressedAtReceipt = Ghostty.isAppBackgroundedAtomic || replaying
+                Task { @MainActor in
+                    terminalView.handleClipboardURLRequest(text, suppressedAtReceipt: suppressedAtReceipt)
                 }
+                return
+            }
+
+            // Background OSC 52 writes land on foreground (releaseBackgroundHolds);
+            // reads are denied meanwhile, so write/read ordering holds.
+            if Ghostty.isAppBackgroundedAtomic {
+                let write = HeldPasteboardWrite(
+                    item: item, text: text, isSelection: isSelection, terminalView: terminalView)
+                heldPasteboardWrite.withLockUnchecked { $0 = write }
+                return
             }
 
             if Thread.isMainThread {

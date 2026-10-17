@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Citadel
+@preconcurrency import Citadel
 import Combine
 import NIOCore
 import NIOSSH
@@ -45,6 +45,13 @@ final class CitadelSSHSession: SSHTerminalSession {
     private var stdinStreamContinuation: AsyncStream<ByteBuffer>.Continuation?
     private var stdinWriterTask: Task<Void, Never>?
 
+    /// Window changes had the same race as stdin: a Task per `setSize` could
+    /// deliver the keyboard-up grid after the dismissed-keyboard grid, leaving
+    /// a TUI drawn at the stale row count. One send in flight; the newest
+    /// size waits behind it and intermediate sizes are dropped.
+    private var pendingResize: TerminalPTY.TerminalSize?
+    private var resizeTask: Task<Void, Never>?
+
     // Store resolved IP address for .local hostname caching
     private(set) var resolvedIPAddress: String?
 
@@ -68,6 +75,12 @@ final class CitadelSSHSession: SSHTerminalSession {
     /// down). MainView removes matching entries from its approval
     /// queue so a disconnected session can't leave a stale prompt up.
     var onGPGAgentApprovalWithdrawn: ((UUID) -> Void)?
+
+    /// Remote credential requests (`rootshell-askpass`).
+    private var askpassServer: RemoteAskpassServer?
+    private var askpassForwardTask: Task<Void, Never>?
+    var onAskpassRequest: ((RemoteAskpassRequest) -> Void)?
+    var onAskpassRequestWithdrawn: ((UUID) -> Void)?
 
     // Port forwarding
     private var portForwardManager: PortForwardManager?
@@ -834,22 +847,28 @@ final class CitadelSSHSession: SSHTerminalSession {
     func setSize(_ size: TerminalPTY.TerminalSize) throws {
         pty.windowSize = size
 
-        guard let writer = stdinWriter else { return }
+        guard stdinWriter != nil else { return }
 
         // Window-change goes out of band relative to the stdin stream
         // (matches SSHSession); resize/input relative order was never
-        // guaranteed on an SSH channel anyway.
-        Task {
-            do {
-                try await writer.changeSize(
-                    cols: Int(size.cols),
-                    rows: Int(size.rows),
-                    pixelWidth: Int(size.pixelWidth),
-                    pixelHeight: Int(size.pixelHeight)
-                )
-            } catch {
-                Self.logger.error("Failed to resize PTY: \(error.localizedDescription)")
+        // guaranteed on an SSH channel anyway. Resize/resize order is.
+        pendingResize = size
+        guard resizeTask == nil else { return }
+        resizeTask = Task { [weak self] in
+            while let self, let writer = self.stdinWriter, let size = self.pendingResize {
+                self.pendingResize = nil
+                do {
+                    try await writer.changeSize(
+                        cols: Int(size.cols),
+                        rows: Int(size.rows),
+                        pixelWidth: Int(size.pixelWidth),
+                        pixelHeight: Int(size.pixelHeight)
+                    )
+                } catch {
+                    Self.logger.error("Failed to resize PTY: \(error.localizedDescription)")
+                }
             }
+            self?.resizeTask = nil
         }
     }
 
@@ -1106,6 +1125,10 @@ final class CitadelSSHSession: SSHTerminalSession {
             Self.logger.info("GPG agent forwarding requested for \(self.config.host) (path template: \(configuredPath))")
         }
 
+        if config.askpassConfig.enabled {
+            startAskpassForwarding(client: client)
+        }
+
         sessionTask = Task { @MainActor [weak self] in
             guard let self = self else { return }
 
@@ -1131,9 +1154,6 @@ final class CitadelSSHSession: SSHTerminalSession {
                 var envVars: [SSHChannelRequestEvent.EnvironmentRequest] = []
                 if let userLocale = LocaleHelper.effectiveLocale {
                     envVars.append(SSHChannelRequestEvent.EnvironmentRequest(wantReply: false, name: "LANG", value: userLocale))
-                    if let languages = LocaleHelper.effectivePreferredLanguages {
-                        envVars.append(SSHChannelRequestEvent.EnvironmentRequest(wantReply: false, name: "LANGUAGE", value: languages))
-                    }
                 }
 
                 // Identify the client to the remote host. LC_* is the only namespace
@@ -1237,10 +1257,70 @@ final class CitadelSSHSession: SSHTerminalSession {
         stdinWriterTask = nil
     }
 
+    // MARK: - Remote credential requests
+
+    /// Prepares `~/.rootshell` and holds a streamlocal forward to
+    /// ``RemoteAskpassServer`` until cancelled. Failures are logged and
+    /// leave the session untouched.
+    private func startAskpassForwarding(client: SSHClient) {
+        stopAskpassForwarding()
+        let server = RemoteAskpassServer(
+            remoteHost: config.host,
+            remoteUser: config.username,
+            sessionName: config.displayName,
+            onRequest: { [weak self] request in
+                guard let handler = self?.onAskpassRequest else { return request.completion(nil) }
+                handler(request)
+            },
+            onWithdrawal: { [weak self] id in self?.onAskpassRequestWithdrawn?(id) }
+        )
+        askpassServer = server
+
+        let socketID = RemoteAskpassSetup.socketID(paneToken: paneToken)
+        let host = config.host
+        askpassForwardTask = Task {
+            do {
+                let path = try await RemoteAskpassSetup.prepare(socketID: socketID, usingCitadel: client)
+                try await client.forwardRemoteUnixSocket(
+                    remotePath: path,
+                    handleChannel: { channel in
+                        do {
+                            let pipe = try CitadelStreamLocalPipe.install(on: channel)
+                            Task { @MainActor in await server.serve(stream: pipe) }
+                            return channel.eventLoop.makeSucceededVoidFuture()
+                        } catch {
+                            return channel.eventLoop.makeFailedFuture(error)
+                        }
+                    },
+                    body: { @Sendable in
+                        while !Task.isCancelled {
+                            try await Task.sleep(for: .seconds(60))
+                        }
+                    }
+                )
+            } catch is CancellationError {
+                // Session teardown.
+            } catch {
+                Self.logger.warning("""
+                Credential request forwarding failed for \(host): \(error.localizedDescription). \
+                Check that sshd allows `AllowStreamLocalForwarding`.
+                """)
+            }
+        }
+    }
+
+    private func stopAskpassForwarding() {
+        askpassForwardTask?.cancel()
+        askpassForwardTask = nil
+        askpassServer?.shutdown()
+        askpassServer = nil
+    }
+
     private func cleanup() {
         sessionTask?.cancel()
         sessionTask = nil
         stdinWriter = nil
+        pendingResize = nil
         finishStdinStream()
         agentManager = nil
         gpgForwardTask?.cancel()
@@ -1255,6 +1335,7 @@ final class CitadelSSHSession: SSHTerminalSession {
         gpgApprovalTask?.cancel()
         gpgApprovalTask = nil
         gpgAgentManager = nil
+        stopAskpassForwarding()
 
         // Stop health monitoring
         healthMonitor?.stop()
@@ -1856,6 +1937,11 @@ final class CitadelHostKeyValidatorDelegate: NIOSSHClientServerAuthenticationDel
                     validationCallback: validationCallback
                 )
                 if result {
+                    // Certificates tint by their base key so reissued certs keep the host's color.
+                    let identityKey = NIOSSHCertifiedPublicKey(hostKey)?.key ?? hostKey
+                    HostFingerprintRegistry.shared.record(
+                        hostname: hostnameCopy, port: portCopy,
+                        fingerprint: SSHHostKeyFormatter.fingerprint(for: identityKey))
                     validationCompletePromise.succeed(())
                 } else {
                     validationCompletePromise.fail(HostKeyRejectedError())

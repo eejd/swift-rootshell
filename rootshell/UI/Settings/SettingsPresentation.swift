@@ -15,7 +15,6 @@ struct SettingsSplitView: View {
     @ObservedObject private var menuShortcuts = MenuShortcutState.shared
     @State private var navigationPath = NavigationPath()
     @State private var hasNavigatedToInitialDestination = false
-    @State private var navigateToVPN = false
 
     @State private var showDebugSettings = false
     @State private var searchReservedHeight: CGFloat = 88
@@ -57,6 +56,8 @@ struct SettingsSplitView: View {
                             #else
                             EmptyView()
                             #endif
+                        case .touchKeyboard:
+                            settingsSearchDestinationView(for: .touchKeyboard)
                         }
                     }
                     .navigationDestination(for: SettingsSearchDestination.self) { destination in
@@ -113,13 +114,17 @@ struct SettingsSplitView: View {
         case .terminal:
             SettingsTerminalSection()
         case .connections:
-            SettingsConnectionsSection(navigateToVPN: $navigateToVPN)
+            SettingsConnectionsSection()
         case .aiAssistant:
             SettingsAISection()
-        case .privacyData:
-            SettingsPrivacySection()
-        case .notifications:
-            SettingsNotificationsSection()
+        case .general:
+            SettingsGeneralSection()
+        case .vpn:
+            #if !CHINA_BUILD
+            VPNSettingsView()
+            #else
+            EmptyView()
+            #endif
         case .about:
             SettingsAboutSection(externalShowDebugSettings: $showDebugSettings)
         }
@@ -131,10 +136,10 @@ struct SettingsSplitView: View {
         DispatchQueue.main.async {
             switch initialDestination {
             case .vpn:
-                navigationPath.append(SettingsSection.connections)
-                DispatchQueue.main.async {
-                    navigateToVPN = true
-                }
+                navigationPath.append(SettingsSection.vpn)
+            case .touchKeyboard:
+                navigationPath.append(SettingsSection.terminal)
+                navigationPath.append(SettingsSearchDestination.touchKeyboard)
             }
         }
     }
@@ -146,6 +151,29 @@ struct SettingsSplitView: View {
         case .destination(let destination):
             navigationPath.append(destination)
         }
+    }
+}
+
+// MARK: - Open HTTP Capture
+
+/// Closes Settings and opens the HTTP capture panel in the window that presented it.
+/// Nil wherever Settings isn't presented over a terminal window, or capture isn't built.
+struct OpenHTTPCaptureAction {
+    let open: () -> Void
+
+    func callAsFunction() {
+        open()
+    }
+}
+
+private struct OpenHTTPCaptureActionKey: EnvironmentKey {
+    static let defaultValue: OpenHTTPCaptureAction? = nil
+}
+
+extension EnvironmentValues {
+    var openHTTPCapture: OpenHTTPCaptureAction? {
+        get { self[OpenHTTPCaptureActionKey.self] }
+        set { self[OpenHTTPCaptureActionKey.self] = newValue }
     }
 }
 
@@ -161,6 +189,7 @@ struct SettingsSheetModifier: ViewModifier {
     @Binding var showSettings: Bool
     var settingsDestination: SettingsDestination?
     var onDismiss: (() -> Void)?
+    var openHTTPCapture: OpenHTTPCaptureAction?
 
     let themeColors: SheetThemeColors?
     let accentColor: Color?
@@ -187,6 +216,7 @@ struct SettingsSheetModifier: ViewModifier {
             content
                 .sheet(isPresented: $showSettings, onDismiss: { onDismiss?() }) {
                     SettingsView(initialDestination: settingsDestination)
+                        .environment(\.openHTTPCapture, openHTTPCapture)
                         .themedSheet(themeColors: themeColors, accentColor: accentColor, colorScheme: colorScheme)
                 }
         } else {
@@ -194,6 +224,7 @@ struct SettingsSheetModifier: ViewModifier {
             content
                 .sheet(isPresented: $showSettings, onDismiss: { onDismiss?() }) {
                     SettingsSplitView(initialDestination: settingsDestination, onClose: { showSettings = false })
+                        .environment(\.openHTTPCapture, openHTTPCapture)
                         .themedSheet(themeColors: themeColors, accentColor: accentColor, colorScheme: colorScheme)
                 }
         #else
@@ -220,6 +251,7 @@ struct SettingsSheetModifier: ViewModifier {
                                 onClose: { showSettings = false }
                             )
                             .environmentObject(ghosttyApp)
+                            .environment(\.openHTTPCapture, openHTTPCapture)
                         }
                     )
                     .ignoresSafeArea()

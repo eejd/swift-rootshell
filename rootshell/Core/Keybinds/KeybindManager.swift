@@ -129,6 +129,8 @@ final class KeybindManager: ObservableObject {
             // Split Management
             Keybind(key: .enter, modifiers: [.command, .shift], action: .toggle_split_zoom),
             Keybind(key: .e, modifiers: [.command, .shift], action: .equalize_splits),
+            Keybind(key: .p, modifiers: [.command, .option], action: .choose_pane_to_zoom),
+            Keybind(key: .s, modifiers: [.command, .option], action: .choose_pane_to_swap),
 
             // View
             Keybind(key: .equal, modifiers: .command, action: .increase_font_size),
@@ -167,10 +169,14 @@ final class KeybindManager: ObservableObject {
             Keybind(key: .comma, modifiers: .command, action: .open_settings),
             Keybind(key: .comma, modifiers: [.command, .shift], action: .toggle_quick_settings),
             Keybind(key: .j, modifiers: [.command, .shift], action: .open_in_folder),
+            Keybind(key: .u, modifiers: [.command, .shift], action: .toggle_file_manager),
+            Keybind(key: .i, modifiers: [.command, .shift], action: .toggle_ip_lookup),
+            Keybind(key: .h, modifiers: [.command, .control], action: .toggle_http_capture),
             Keybind(key: .b, modifiers: .command, action: .browse_hosts),
             Keybind(key: .p, modifiers: [.command, .shift], action: .browse_profiles),
             Keybind(key: .i, modifiers: .command, action: .toggle_ai_agent),
             Keybind(key: .v, modifiers: [.command, .shift], action: .toggle_voice_agent),
+            Keybind(key: .r, modifiers: [.command, .option], action: .toggle_dictation),
 
             // Control Characters (Ctrl+A-Z defaults to terminal control chars)
             Keybind(key: .a, modifiers: .control, action: .ctrl_a),
@@ -431,15 +437,16 @@ final class KeybindManager: ObservableObject {
 
     /// Local destination for imported config files
     private var importedKeybindsURL: URL {
-        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documentsURL
-            .appendingPathComponent(".ghostty", isDirectory: true)
-            .appendingPathComponent("imported_keybinds.conf")
+        GhosttyStorageLocation.url(forRelativePath: "imported_keybinds.conf")
     }
 
     /// Shell-visible path for the imported config file.
     var externalConfigShellPath: String {
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        "~/Library/Application Support/RootShell/imported_keybinds.conf"
+        #else
         "~/.ghostty/imported_keybinds.conf"
+        #endif
     }
 
     var externalConfigSymlinkDestination: String? {
