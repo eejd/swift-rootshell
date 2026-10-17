@@ -11,8 +11,15 @@
 import Foundation
 
 enum AIAgentFileGrants {
-    /// Granted folders, canonical, in the order they were added.
+    /// Granted folders, canonical, in the order they were added. Stored entries that the
+    /// current policy refuses (broad or protected) are filtered out here; the saved JSON is
+    /// left alone until the next grant edit rewrites it.
     static var all: [String] {
+        let policy = makePolicy(grants: [])
+        return stored.filter(policy.canGrant)
+    }
+
+    private static var stored: [String] {
         guard let data = SettingsStore.shared.get(Settings.AI.fileGrants),
               let list = try? JSONDecoder().decode([String].self, from: data) else { return [] }
         return list
@@ -22,10 +29,7 @@ enum AIAgentFileGrants {
     @discardableResult
     static func add(_ folder: String) -> Bool {
         let canonical = AIAgentFileAccessPolicy.canonical(folder)
-        let policy = makePolicy(grants: [])
-        guard !policy.isTooBroad(canonical),
-              !policy.protectedPaths.contains(where: { AIAgentFileAccessPolicy.isInside(canonical, of: $0) })
-        else { return false }
+        guard makePolicy(grants: []).canGrant(canonical) else { return false }
         var list = all
         if !list.contains(canonical) { list.append(canonical) }
         save(list)

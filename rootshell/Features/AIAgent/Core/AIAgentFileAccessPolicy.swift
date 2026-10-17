@@ -6,8 +6,9 @@
 //  Which paths the AI agent's file tools (read_file / write_file / edit_file /
 //  list_files) may touch on the unsandboxed Mac build. Restrictive by default:
 //  nothing is reachable until it is the session's working directory, a folder
-//  the user granted, or the agent's temp scratch directory. $HOME itself is
-//  never an implicit or grantable root, and a short list of credential
+//  the user granted, or the agent's temp scratch directory. $HOME itself and
+//  broad containers such as ~/Library and ~/.config are never an implicit or
+//  grantable root, and a finite list of credential, history and private-data
 //  locations is refused no matter what has been granted.
 //
 //  Pure logic with explicit inputs so it is testable off-device; the
@@ -46,6 +47,8 @@ nonisolated struct AIAgentFileAccessPolicy: Sendable {
     private let systemFolders: [String]
     /// Shared folders that can't be a root themselves (their children can).
     private let sharedFolders: [String]
+    /// Home-relative containers that can't be a root themselves (their specific children can).
+    private let broadHomeFolders: [String]
 
     init(home: String, scratch: String, grants: [String], extraProtected: [String] = []) {
         self.home = Self.canonical(home)
@@ -53,13 +56,18 @@ nonisolated struct AIAgentFileAccessPolicy: Sendable {
         self.grants = grants.map(Self.canonical)
         let homePath = self.home
         let defaults = [
-            homePath + "/.ssh",
-            homePath + "/.gnupg",
-            homePath + "/.aws",
-            homePath + "/Library/Keychains",
-            homePath + "/Library/Application Support/RootShell"
-        ]
+            ".ssh", ".gnupg", ".aws",
+            ".netrc", ".git-credentials", ".config/gh", ".docker", ".kube", ".config/gcloud", ".azure",
+            ".bash_history", ".zsh_history", ".config/fish/fish_history", ".local/share/fish/fish_history",
+            "Library/Cookies", "Library/Mail", "Library/Messages", "Library/Safari",
+            "Library/Keychains",
+            "Library/Application Support/RootShell"
+        ].map { homePath + "/" + $0 }
         self.protectedPaths = (defaults + extraProtected).map(Self.canonical)
+        self.broadHomeFolders = [
+            "Library", "Library/Application Support", "Library/Containers", "Library/Group Containers",
+            ".config", ".local", ".local/share", ".cache"
+        ].map { Self.canonical(homePath + "/" + $0) }
         self.systemFolders = [
             "/System", "/usr", "/bin", "/sbin", "/etc", "/Library", "/var/root", "/var/db"
         ].map(Self.canonical)
@@ -75,11 +83,11 @@ nonisolated struct AIAgentFileAccessPolicy: Sendable {
             return .denied(reason: "\(hit) holds credentials or app secrets and is never available to the agent")
         }
 
-        var roots = grants.filter { !isTooBroad($0) }
+        var roots = grants.filter(canGrant)
         roots.append(scratch)
         if !workingDirectory.isEmpty {
             let cwd = Self.canonical(workingDirectory)
-            if !isTooBroad(cwd) { roots.append(cwd) }
+            if canGrant(cwd) { roots.append(cwd) }
         }
 
         if roots.contains(where: { Self.isInside(path, of: $0) }) { return .allowed }
@@ -88,19 +96,29 @@ nonisolated struct AIAgentFileAccessPolicy: Sendable {
         return .needsGrant(AIAgentFileScopeRequest(
             resolvedPath: path,
             folder: folder,
-            canGrantAlways: !isTooBroad(folder)
-                && !protectedPaths.contains(where: { Self.isInside(folder, of: $0, caseInsensitive: true) })
+            canGrantAlways: canGrant(folder)
         ))
     }
 
-    /// Home itself, an ancestor of home, a system folder or a shared top-level folder can't
-    /// be an implicit or granted root: that would re-open everything under it. Compared
-    /// case-insensitively because the default APFS volume is.
+    /// Home itself, an ancestor of home, a system folder, a shared top-level folder or a broad
+    /// home-relative container (`Library`, `.config`, ...) can't be an implicit or granted
+    /// root: that would re-open everything under it. Specific descendants stay grantable.
+    /// Compared case-insensitively because the default APFS volume is.
     func isTooBroad(_ folder: String) -> Bool {
         let folderPath = Self.canonical(folder)
         if Self.isInside(home, of: folderPath, caseInsensitive: true) { return true }
         if sharedFolders.contains(where: { $0.caseInsensitiveCompare(folderPath) == .orderedSame }) { return true }
+        if broadHomeFolders.contains(where: { $0.caseInsensitiveCompare(folderPath) == .orderedSame }) { return true }
         return systemFolders.contains(where: { Self.isInside(folderPath, of: $0, caseInsensitive: true) })
+    }
+
+    /// Whether `folder` may ever be an implicit root or permanent grant: neither too broad
+    /// nor inside a protected credential/private-data location. The one predicate shared by
+    /// runtime decisions and grant persistence, so they cannot disagree.
+    func canGrant(_ folder: String) -> Bool {
+        let folderPath = Self.canonical(folder)
+        return !isTooBroad(folderPath)
+            && !protectedPaths.contains(where: { Self.isInside(folderPath, of: $0, caseInsensitive: true) })
     }
 
     // MARK: - Path helpers
@@ -142,8 +160,12 @@ nonisolated struct AIAgentFileAccessPolicy: Sendable {
                 resolved.append(component)
             }
         }
-        // Data volume firmlink: /System/Volumes/Data/Users/x is /Users/x.
-        if resolved.count >= 3, resolved[0] == "System", resolved[1] == "Volumes", resolved[2] == "Data" {
+        // Data volume firmlink: /System/Volumes/Data/Users/x is /Users/x. The default APFS
+        // volume is case-insensitive, so the prefix is matched that way too.
+        if resolved.count >= 3,
+           resolved[0].caseInsensitiveCompare("System") == .orderedSame,
+           resolved[1].caseInsensitiveCompare("Volumes") == .orderedSame,
+           resolved[2].caseInsensitiveCompare("Data") == .orderedSame {
             resolved.removeFirst(3)
         }
         return "/" + resolved.joined(separator: "/")

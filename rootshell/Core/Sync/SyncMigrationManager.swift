@@ -228,10 +228,10 @@ final class SyncMigrationManager {
     /// Migrate known hosts from legacy JSON file to per-record files
     /// - Returns: Backup file path if migration occurred, nil if no data to migrate
     private static func migrateKnownHosts() throws -> String? {
-        // GhosttyStorageLocation.url() may already have moved this out of
-        // Documents/.ghostty on STANDALONE (any earlier caller asking for
-        // "known_hosts.json" triggers that one-time move) -- go through the
-        // same helper so this always finds it wherever it currently lives.
+        // GhosttyStorageLocation.url() may already have copied this in from
+        // .config/rootshell on STANDALONE (any earlier caller asking for
+        // "known_hosts.json" triggers that once-per-process adoption) -- go
+        // through the same helper so this always finds it where it currently lives.
         let legacyURL = GhosttyStorageLocation.url(forRelativePath: "known_hosts.json")
 
         guard FileManager.default.fileExists(atPath: legacyURL.path) else {

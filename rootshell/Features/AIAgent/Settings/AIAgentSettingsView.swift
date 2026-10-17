@@ -284,7 +284,14 @@ struct AIAgentSettingsView: View {
         } header: {
             Text("File Access")
         } footer: {
-            Text("The agent's file tools can read and edit files only in the terminal's current directory, the folders above and a temporary scratch folder. Your home folder, ~/.ssh, ~/.gnupg, ~/.aws and Keychains are never available. Anything else asks you first, even in YOLO mode.")
+            Text(
+                "The agent's file tools can read and edit files only in the terminal's current directory, "
+                    + "the folders above and a temporary scratch folder. Credential and private-data stores "
+                    + "(~/.ssh, ~/.gnupg, ~/.aws, ~/.docker, ~/.kube, cloud CLI and git credentials, shell history, "
+                    + "Keychains, Mail, Messages, Safari and Cookies) are never available. Your home folder and broad "
+                    + "folders such as ~/Library or ~/.config can't be granted; choose a specific project folder. "
+                    + "Anything else asks you first, even in YOLO mode."
+            )
         }
         .fileImporter(isPresented: $showFolderPicker, allowedContentTypes: [.folder]) { result in
             guard case .success(let url) = result else { return }

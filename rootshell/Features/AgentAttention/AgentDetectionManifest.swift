@@ -10,7 +10,8 @@
 //  The hand-maintained manifest ships embedded in the binary
 //  (AgentDetectionManifestData) so bundle packaging can never silently
 //  drop it. A JSON file named `AgentDetectionRules.json` in the
-//  app's Documents folder overrides the bundled manifest for field
+//  override directory (the app's Documents folder, or ~/.config/rootshell
+//  on unsandboxed Mac) overrides the bundled manifest for field
 //  debugging of rules.
 //
 //  Forward-tolerant loading: unknown fields are ignored; a rule with an
@@ -520,7 +521,7 @@ nonisolated struct AgentDetectionManifest {
     private static let maxGateDepth = 8
 
     /// The active manifest, loaded once. Two independent payloads merge
-    /// before compile — the agent side (Documents override
+    /// before compile — the agent side (user override
     /// `AgentDetectionRules.json`, else embedded) and the task side
     /// (`TaskDetectionRules.json`, else embedded). Either side failing
     /// degrades to the other, never to nothing.
@@ -541,7 +542,9 @@ nonisolated struct AgentDetectionManifest {
     private static func loadSide(overrideName: String, embedded: String, label: String) -> ManifestFile? {
         #if STANDALONE && targetEnvironment(macCatalyst)
         // Unsandboxed Mac: ~/Documents is TCC-protected, so the user-editable overrides
-        // sit next to the user's config (~/.config/rootshell) instead.
+        // sit next to the user's config (~/.config/rootshell). Copies left in Documents
+        // are not read; Settings → Import from Documents copies them here (takes
+        // effect on the next launch, since `bundled` loads once per process).
         let overrideDirectory: URL? = ConfigOverlayLocation.canonicalURL.deletingLastPathComponent()
         #else
         let overrideDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first

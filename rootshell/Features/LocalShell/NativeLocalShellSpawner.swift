@@ -75,8 +75,9 @@ nonisolated enum NativeLocalShellSpawner {
 
         guard grantpt(masterFD) == 0 else { throw SpawnError.pty("grantpt") }
         guard unlockpt(masterFD) == 0 else { throw SpawnError.pty("unlockpt") }
-        guard let slaveName = ptsname(masterFD) else { throw SpawnError.pty("ptsname") }
-        let slavePath = String(cString: slaveName)
+        guard let slavePath = TerminalPTY.slaveName(forMasterFD: masterFD) else {
+            throw SpawnError.pty("ptsname_r")
+        }
         _ = fcntl(masterFD, F_SETFD, FD_CLOEXEC)
 
         // The window size only sticks once the slave side is open, so hold it

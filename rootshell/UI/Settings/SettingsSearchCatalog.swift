@@ -77,6 +77,7 @@ enum SettingsSearchDestination: String, Hashable, CaseIterable {
     case acknowledgements
     case openSSHImport
     case ghosttyConfigImport
+    case legacyDocumentsImport
 }
 
 /// Compile-time facts, exposed as constants so availability reads as plain
@@ -348,6 +349,9 @@ extension SettingsSearchDestination {
         case .ghosttyConfigImport:
             Meta(section: .general, title: String(localized: "Import from Ghostty Config"), systemImage: "square.and.arrow.down.on.square",
                  keywords: ["ghostty", "config", "import", "migrate", "theme", "font", "keybinds", "palette"])
+        case .legacyDocumentsImport:
+            Meta(section: .general, title: String(localized: "Import from Documents"), systemImage: "tray.and.arrow.down",
+                 keywords: ["documents", "legacy", "migrate", "old data", "detection rules", "incoming"])
         }
     }
 
@@ -385,7 +389,7 @@ extension SettingsSearchDestination {
             #else
             return SearchBuild.isStandalone && SearchBuild.isCatalyst
             #endif
-        case .localShell, .localSSHAgent, .externalSSHAgents:
+        case .localShell, .localSSHAgent, .externalSSHAgents, .legacyDocumentsImport:
             return SearchBuild.isStandalone && SearchBuild.isCatalyst
         default:
             return true
@@ -1305,5 +1309,11 @@ func settingsSearchDestinationView(for destination: SettingsSearchDestination) -
         OpenSSHImportView()
     case .ghosttyConfigImport:
         GhosttyConfigImportView()
+    case .legacyDocumentsImport:
+        #if STANDALONE && targetEnvironment(macCatalyst)
+        LegacyDocumentsImportView()
+        #else
+        EmptyView()
+        #endif
     }
 }

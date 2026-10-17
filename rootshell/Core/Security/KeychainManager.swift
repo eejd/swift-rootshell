@@ -1189,6 +1189,12 @@ class KeychainManager {
     // synchronizable: iCloud Keychain carries it end-to-end encrypted so
     // the list follows the user's devices. Early builds stored it as a
     // this-device-only item; reads fall back to that copy and migrate it.
+    //
+    // Native Catalyst builds talk to the login keychain through the
+    // rootshell-keychain helper, which strips kSecAttrSynchronizable, so the
+    // two variants are the same item there: deleting the "legacy" variant
+    // after a save would delete the data just written. Those builds use the
+    // single synchronizable query and skip the migration.
 
     private let redactionListService = "com.ghostty.redaction.items"
 
@@ -1231,10 +1237,15 @@ class KeychainManager {
 
         // Remove any legacy device-only copy so stale data can't shadow
         // the synced item on this device.
+        #if !(NATIVE && targetEnvironment(macCatalyst))
         _ = SecItemDelete(scoped(redactionBaseQuery(synchronizable: false)) as CFDictionary)
+        #endif
     }
 
     func loadRedactionItems() throws -> Data {
+        #if NATIVE && targetEnvironment(macCatalyst)
+        return try copyRedactionItems(synchronizable: true)
+        #else
         do {
             return try copyRedactionItems(synchronizable: true)
         } catch KeychainError.itemNotFound {
@@ -1249,6 +1260,7 @@ class KeychainManager {
             Self.logger.error("Failed to migrate redaction items to synced storage: \(error.localizedDescription)")
         }
         return legacy
+        #endif
     }
 
     private func copyRedactionItems(synchronizable: Bool) throws -> Data {
@@ -1275,7 +1287,12 @@ class KeychainManager {
     }
 
     func deleteRedactionItems() throws {
-        for synchronizable in [true, false] {
+        #if NATIVE && targetEnvironment(macCatalyst)
+        let variants = [true]
+        #else
+        let variants = [true, false]
+        #endif
+        for synchronizable in variants {
             let status = SecItemDelete(scoped(redactionBaseQuery(synchronizable: synchronizable)) as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else {
                 throw KeychainError.unexpectedStatus(status)

@@ -74,6 +74,77 @@ final class AIAgentFileAccessPolicyTests: XCTestCase {
         }
     }
 
+    private static let newlyProtected = [
+        ".netrc", ".git-credentials", ".config/gh/hosts.yml", ".docker/config.json", ".kube/config",
+        ".config/gcloud/credentials.db", ".azure/accessTokens.json",
+        ".bash_history", ".zsh_history", ".config/fish/fish_history", ".local/share/fish/fish_history",
+        "Library/Cookies/Cookies.binarycookies", "Library/Mail/V10/x", "Library/Messages/chat.db",
+        "Library/Safari/History.db"
+    ]
+
+    func testCredentialAndPrivateDataStoresAreRefusedEvenWithParentAndWorkingDirectoryGrants() {
+        let sut = policy(grants: [home, home + "/.config", home + "/Library", home + "/.docker", home + "/Library/Mail"])
+        for relative in Self.newlyProtected {
+            for workingDirectory in [project!, home + "/.config", home + "/Library", home + "/.docker"] {
+                guard case .denied = sut.decide(resolvedPath: home + "/" + relative, workingDirectory: workingDirectory) else {
+                    return XCTFail("\(relative) should be refused with working directory \(workingDirectory)")
+                }
+            }
+        }
+    }
+
+    func testProtectedMatchingIgnoresCaseForNewEntries() {
+        let sut = policy()
+        for relative in ["/.NETRC", "/.Config/GH/hosts.yml", "/library/mail/x", "/LIBRARY/SAFARI/y"] {
+            guard case .denied = sut.decide(resolvedPath: home + relative, workingDirectory: project) else {
+                return XCTFail("\(relative) should be refused")
+            }
+        }
+    }
+
+    func testSymlinkAliasesOfNewProtectedStoresAreRefused() throws {
+        try FileManager.default.createDirectory(atPath: home + "/.kube", withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: project + "/kube", withDestinationPath: home + "/.kube")
+        let decision = policy().decide(resolvedPath: project + "/kube/config", workingDirectory: project)
+        guard case .denied = decision else { return XCTFail("alias escaped protection: \(decision)") }
+    }
+
+    func testBroadHomeContainersCannotBeGrantsOrWorkingDirectories() {
+        let broad = [
+            "Library", "Library/Application Support", "Library/Containers", "Library/Group Containers",
+            ".config", ".local", ".local/share", ".cache", "LIBRARY", ".CONFIG"
+        ]
+        let sut = policy(grants: broad.map { home + "/" + $0 })
+        for relative in broad {
+            let folder = home + "/" + relative
+            XCTAssertFalse(sut.canGrant(folder), "\(relative) should not be grantable")
+            guard case .needsGrant(let request) = sut.decide(
+                resolvedPath: folder + "/Unrelated/file.txt", workingDirectory: folder
+            ) else { return XCTFail("\(relative) opened its children") }
+            XCTAssertEqual(request.folder, (folder + "/Unrelated"))
+        }
+    }
+
+    func testSpecificChildOfBroadContainerIsGrantable() {
+        let child = home + "/Library/ExampleProject"
+        let file = child + "/x"
+        let sut = policy()
+        XCTAssertTrue(sut.canGrant(child))
+        guard case .needsGrant(let request) = sut.decide(resolvedPath: file, workingDirectory: "") else {
+            return XCTFail("expected a prompt")
+        }
+        XCTAssertTrue(request.canGrantAlways)
+        XCTAssertEqual(policy(grants: [child]).decide(resolvedPath: file, workingDirectory: ""), .allowed)
+    }
+
+    func testCanGrantRejectsProtectedFoldersAndTheirAliasesByCase() {
+        let sut = policy()
+        XCTAssertFalse(sut.canGrant(home + "/.SSH"))
+        XCTAssertFalse(sut.canGrant(home + "/.config/gh"))
+        XCTAssertFalse(sut.canGrant(home + "/.config/gh/nested"))
+        XCTAssertTrue(sut.canGrant(home + "/.config/unrelated-tool"))
+    }
+
     func testSymlinkFromAllowedFolderIntoProtectedFolderIsRefused() throws {
         try FileManager.default.createSymbolicLink(atPath: project + "/link", withDestinationPath: home + "/.ssh")
         let decision = policy().decide(resolvedPath: project + "/link/id_ed25519", workingDirectory: project)
@@ -137,6 +208,16 @@ final class AIAgentFileAccessPolicyTests: XCTestCase {
 
     func testFirmlinkPrefixIsRemoved() {
         XCTAssertEqual(AIAgentFileAccessPolicy.canonical("/System/Volumes/Data/Users/x/y"), "/Users/x/y")
+    }
+
+    func testCaseVariantFirmlinkPrefixCannotBypassProtectionOrBreadth() {
+        let alias = "/system/volumes/data" + home
+        let sut = policy()
+        guard case .denied = sut.decide(resolvedPath: alias + "/.ssh/id_ed25519", workingDirectory: project) else {
+            return XCTFail("case-variant firmlink alias bypassed the protected list")
+        }
+        XCTAssertFalse(sut.canGrant(alias))
+        XCTAssertFalse(sut.canGrant(alias + "/Library"))
     }
 
     func testSystemFoldersAreNotUsableWorkingDirectories() {

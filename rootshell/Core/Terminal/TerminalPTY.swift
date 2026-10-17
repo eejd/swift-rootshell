@@ -95,12 +95,12 @@ public final class TerminalPTY {
         }
 
         // 4. Get slave device name
-        guard let slaveNamePtr = ptsname(masterFd) else {
+        guard let slaveName = Self.slaveName(forMasterFD: masterFd) else {
             Darwin.close(masterFd)
             masterFd = -1
             throw PTYError.failedToGetSlaveName
         }
-        slavePath = String(cString: slaveNamePtr)
+        slavePath = slaveName
 
         // 5. Open slave
         guard let path = slavePath else {
@@ -232,15 +232,25 @@ public final class TerminalPTY {
         }
     }
 
+    /// Reentrant slave-device lookup. `ptsname(3)` documents no thread-safety
+    /// guarantee; `ptsname_r(3)` writes into a caller-owned buffer.
+    /// 128 bytes matches Darwin's `TIOCPTYGNAME` buffer.
+    nonisolated static func slaveName(forMasterFD fd: Int32) -> String? {
+        withUnsafeTemporaryAllocation(of: CChar.self, capacity: 128) { buffer in
+            guard let base = buffer.baseAddress, ptsname_r(fd, base, buffer.count) == 0 else {
+                return nil
+            }
+            return String(cString: base)
+        }
+    }
+
     /// Mark this PTY as using external file descriptors (e.g., from Ghostty)
     /// When using external FDs, this PTY won't close them on deinit
     public func useExternalFd(_ fd: Int32) {
         self.masterFd = fd
         self.ownsFds = false
         // The helper opened the pair, but the master fd names its slave here too.
-        if let name = ptsname(fd) {
-            slavePath = String(cString: name)
-        }
+        slavePath = Self.slaveName(forMasterFD: fd)
     }
 
     nonisolated deinit {

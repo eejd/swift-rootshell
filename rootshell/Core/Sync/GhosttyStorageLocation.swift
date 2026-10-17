@@ -11,11 +11,13 @@
 //  per-record state this file covers.
 //
 //  Three generations of base directory on STANDALONE, oldest to newest:
-//    1. Documents/.ghostty      -- the original, TCC-gated location (see
-//                                   preHive4LegacyBaseDirectory's comment)
+//    1. Documents/.ghostty      -- the original, TCC-gated location. Never
+//                                   read automatically; copied only by the
+//                                   explicit Settings import.
 //    2. .config/rootshell       -- gen 2 (hive4), matched
 //                                   ConfigOverlayLocation's precedent,
-//                                   since superseded
+//                                   since superseded; adopted automatically
+//                                   by copying missing files.
 //    3. Library/Application Support/RootShell -- current (hive5). Matches
 //                                   this overlay's other Xcode-built app
 //                                   port (aqua/nativ keeps its analytics
@@ -48,56 +50,24 @@ nonisolated enum GhosttyStorageLocation {
             .appendingPathComponent(".config/rootshell", isDirectory: true)
     }
 
-    /// Gen 1: the original TCC-gated Documents/.ghostty location.
-    /// `~/Documents` is TCC-protected on macOS -- unlike on iOS, where a
-    /// sandboxed app's `.documentDirectory` resolves inside its own private
-    /// container and is never TCC-gated.
-    private static var preHive4LegacyBaseDirectory: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(".ghostty", isDirectory: true)
-    }
+    /// Adopts missing `.config/rootshell` files, once per path per process.
+    /// Documents/.ghostty (gen 1) is TCC-protected and is deliberately never
+    /// consulted here; Settings → Import from Documents copies it on request
+    /// (see `LegacyStorageImporter.importDocuments`).
+    private static let resolver = LegacyStorageResolver(
+        destinationBase: baseDirectory,
+        legacyBase: hive4LegacyBaseDirectory
+    )
 
-    private static let logger = Logger(subsystem: "com.rootshell", category: "GhosttyStorageLocation")
-
-    /// Resolve a relative path under the current base, migrating it from
-    /// whichever legacy generation it's found under (checked newest-legacy
-    /// first) the first time it's asked for. One-time and per-path -- each
-    /// caller only knows its own subpath, so this never has to enumerate a
-    /// whole legacy tree. For a nested path (`sync/x`) its top-level folder
-    /// is migrated first, as a whole, so the order in which sibling stores
-    /// resolve cannot strand the rest of a legacy folder.
+    /// Resolve a relative path under the current base, copying any missing
+    /// files for it from `.config/rootshell` the first time it's asked for.
+    /// Per-path -- each caller only knows its own subpath, so this never has
+    /// to enumerate a whole legacy tree. For a nested path (`sync/x`) its
+    /// top-level folder is adopted first, as a whole, so the order in which
+    /// sibling stores resolve cannot strand the rest of a legacy folder.
+    /// Callers pass program-owned relative paths without `..`.
     static func url(forRelativePath relativePath: String) -> URL {
-        if let top = relativePath.split(separator: "/").first, top.count != relativePath.count {
-            migrateIfNeeded(String(top))
-        }
-        return migrateIfNeeded(relativePath)
-    }
-
-    @discardableResult
-    private static func migrateIfNeeded(_ relativePath: String) -> URL {
-        let new = baseDirectory.appendingPathComponent(relativePath)
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: new.path) {
-            let legacyCandidates = [hive4LegacyBaseDirectory, preHive4LegacyBaseDirectory]
-            for legacyBase in legacyCandidates {
-                let legacy = legacyBase.appendingPathComponent(relativePath)
-                guard fm.fileExists(atPath: legacy.path) else { continue }
-                do {
-                    try fm.createDirectory(
-                        at: new.deletingLastPathComponent(),
-                        withIntermediateDirectories: true
-                    )
-                    try fm.moveItem(at: legacy, to: new)
-                } catch {
-                    // Data isn't lost -- it's still at `legacy` -- but a
-                    // failed migration otherwise looks identical to "never
-                    // had any data", which is worth being able to diagnose.
-                    logger.error("Failed to migrate \(relativePath) from \(legacyBase.path): \(error.localizedDescription)")
-                }
-                break
-            }
-        }
-        return new
+        resolver.resolve(relativePath)
     }
 
     /// The directory itself, for callers that create it and place several

@@ -1291,6 +1291,16 @@ struct SettingsPrivacyContent: View {
                 }
                 .themedRow()
 
+#if STANDALONE && targetEnvironment(macCatalyst)
+                NavigationLink(value: SettingsSearchDestination.legacyDocumentsImport) {
+                    HStack(spacing: 12) {
+                        SettingsIcon(systemName: "tray.and.arrow.down")
+                        Text("Import from Documents")
+                    }
+                }
+                .themedRow()
+#endif
+
 #if !targetEnvironment(macCatalyst)
                 SettingToggle(
                     Settings.Privacy.locationDiaryAutoMode,
